@@ -10,6 +10,7 @@ authors.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+cargo_metadata = "0.18"
 
 [lints]
 workspace = true
