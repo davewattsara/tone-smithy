@@ -1,0 +1,15 @@
+[package]
+name = "synth-engine"
+description = "Tone Smithy DSP engine — voices, oscillators, filters, modulation, effects. No I/O dependencies."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+authors.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+
+[lints]
+workspace = true
