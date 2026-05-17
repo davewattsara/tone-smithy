@@ -54,6 +54,86 @@ EOF
 
 ---
 
+## Branching
+
+### Long-lived branches
+
+- **`main`** — stable, milestone-tagged. Only updated when a milestone completes.
+- **`development`** — default working branch for all day-to-day work.
+
+All routine commits go to `development`. `main` represents shipped / milestone-complete state. A fresh clone defaults to `main`, which means anyone landing on the repo sees the most recent stable snapshot rather than work in flight.
+
+### When to branch off `development`
+
+Most work stays directly on `development`. Create a short-lived branch off `development` only when:
+
+- The work will **span multiple sessions** and would leave `development` in a non-working state in between.
+- The work is **experimental** and might be thrown away.
+- The work is a **substantial milestone implementation** that touches many files and is safer to land as a unit.
+- The user **explicitly asks** for a branch.
+
+### Don't branch for
+
+Doc updates, conversation log entries, single-commit fixes, routine planning iterations, anything you'd be comfortable landing on `development` as-is. Just commit.
+
+### Branch naming
+
+- `feat/<short-description>` — new feature
+- `fix/<short-description>` — bug fix
+- `docs/<short-description>` — large docs work
+- `chore/<short-description>` — tooling, build, maintenance
+- `experiment/<short-description>` — exploratory, may be discarded
+- `milestone/m<NN>-<short>` — when a whole milestone is isolated (rare; usually milestone work goes directly on `development`)
+
+### Merging short-lived branches back to `development`
+
+- Default: **regular merge** (preserve history; we commit carefully so individual commits are valuable).
+- Squash only when a branch has obvious WIP noise ("wip", "fix typo", "oops").
+- Delete the branch after merge (`git branch -d <name>`).
+
+### Milestone completion → merge `development` to `main`
+
+1. Verify the milestone's success criteria are met (per [`planning/06-implementation/milestones.md`](planning/06-implementation/milestones.md)).
+2. Final commit on `development` — tick off the milestone in the plan, update any version numbers.
+3. Merge into `main` with a visible merge commit:
+   ```bash
+   git checkout main
+   git merge --no-ff development -m "Milestone M0X: <name>"
+   ```
+   `--no-ff` forces a merge commit even when fast-forward is possible. This makes the milestone boundary obvious in `main`'s history — every commit on `main` (after the initial planning-era commits) represents a completed milestone.
+4. Tag the milestone:
+   ```bash
+   git tag -a m0X -m "Milestone M0X: <name>"
+   ```
+5. `git checkout development` and continue work.
+
+### Tagging
+
+- **Milestone tags** — `m00`, `m01`, …, `m15`. Lightweight markers, one per milestone completion.
+- **Release tags** — SemVer (`v1.0.0`, `v1.1.0`, …). First applied at M15.
+
+### Hot-fix flow (rare, post-milestone)
+
+If a critical bug is found in a milestone-tagged `main`:
+
+1. Branch from `main`: `git checkout main && git checkout -b fix/<short>`.
+2. Make the fix and commit.
+3. Merge to `main` (regular merge); tag if it's a release-worthy patch.
+4. Merge `main` back into `development` so the two branches don't drift:
+   ```bash
+   git checkout development
+   git merge main
+   ```
+
+### Claude-specific
+
+- **Always check the current branch** before committing (`git status` shows it on the first line).
+- **Never commit directly to `main`** outside an explicit milestone merge step you've talked through with the user.
+- **Flag any branch switch** — especially `main` ↔ `development` or creating a new branch — to the user explicitly. Branch state is shared and a surprise switch is unpleasant.
+- **Don't switch branches with uncommitted changes.** Commit (on the current branch) or stash first.
+
+---
+
 ## Conversation logging
 
 Every exchange between the user and Claude must be appended to today's conversation log file.
