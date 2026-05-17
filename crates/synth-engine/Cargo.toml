@@ -19,5 +19,11 @@ crossbeam-channel.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 
+[dev-dependencies]
+# Real-time safety enforcement (design-patterns.md §2.1). The
+# `no_alloc` integration test wraps `Engine::process_stereo` and
+# `Engine::handle` to verify the audio path never allocates.
+assert_no_alloc.workspace = true
+
 [lints]
 workspace = true
