@@ -30,7 +30,7 @@ Before touching the project repo, build the foundational understanding the rest 
 
 ---
 
-## M0 — Scaffold (2–3 weeks)
+## M0 — Scaffold (2–3 weeks) — **complete (2026-05-17, tag `m00`)**
 
 Set up the workspace and basic plumbing for the real project.
 
@@ -40,6 +40,7 @@ Set up the workspace and basic plumbing for the real project.
 - Pre-commit hook.
 - `synth-app` opens an empty egui window via `eframe`.
 - `cpal` audio passthrough: open the default output device, write silence, verify no crackle, latency reported.
+- `cargo xtask check-deps` enforces the hexagonal layering rules from [`../03-architecture/design-patterns.md`](../03-architecture/design-patterns.md) (added during M0; wired into CI and the pre-commit hook).
 
 **Done when:** CI is green; app launches; an empty window is visible; audio device is open and producing silence.
 
