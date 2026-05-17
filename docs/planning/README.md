@@ -23,6 +23,7 @@ The plan is organised as a set of small, focused markdown documents. It is inten
 
 ### 03 — Architecture
 - [Overview](03-architecture/overview.md) — high-level structure and module split.
+- [Design patterns](03-architecture/design-patterns.md) — architectural and real-time safety patterns the codebase commits to.
 - [Audio engine](03-architecture/audio-engine.md) — DSP signal flow, voice management, real-time safety.
 - [UI layer](03-architecture/ui-layer.md) — egui front-end architecture and parameter binding.
 - [MIDI & input](03-architecture/midi-and-input.md) — hardware MIDI, virtual keyboard, computer keyboard.
