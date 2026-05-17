@@ -1,8 +1,40 @@
 # Licensing
 
-**Status:** Decision deferred. Logged as an open question — see [`../01-vision/open-questions.md`](../01-vision/open-questions.md). Must be resolved before milestone M15 (first public release).
+**Status:** **Resolved (2026-05-17): dual-licensed `MIT OR Apache-2.0`.**
 
-This document exists so that when the decision is made, the trade-offs have already been weighed.
+Users and contributors may use the code under either licence, at their option. This is the standard Rust ecosystem convention (used by `rustc`, `cargo`, the standard library, and most major crates).
+
+The trade-off analysis that led to the decision is preserved below.
+
+## Practical implications
+
+- **Repository root** contains `LICENSE-MIT` and `LICENSE-APACHE` with the canonical full texts.
+- **Every `Cargo.toml`** in the workspace sets `license = "MIT OR Apache-2.0"` (added when crates are scaffolded in M0).
+- **Contributions** are implicitly under the same dual licence. **No CLA** is required.
+- **`cargo deny`** is configured to allow MIT, Apache-2.0, and compatible licences (BSD, ISC, Zlib, Unicode-DFS-2016, MPL-2.0); GPL family is rejected to keep our linked-dependency surface clean for downstream commercial reuse.
+- **`THIRD-PARTY-LICENSES.txt`** is generated at build time (via `cargo about` or equivalent in `xtask`) and shipped with the installer.
+- **Freemium expansion packs** (paid preset bundles, etc.) can be sold under any licence the author prefers; the dual licence on the core does not restrict expansion content.
+- **Future commercial work** — selling signed builds, hosted versions, support, or proprietary expansion packs — is permitted. The core code stays open; commercial value lives in brand, distribution, and curated content.
+
+## Why this choice
+
+Recap of the deciding factors (full Q&A in `01-vision/open-questions.md`):
+
+| Factor | User answer | Implication |
+|---|---|---|
+| Should others be able to fork and sell? | "Fine — that's the deal of open source" | Permissive licence (rules out GPL and source-available). |
+| Community involvement? | "Welcome but not actively cultivated" | Any licence works; permissive lowers contributor friction. |
+| Charging for the core within 2 years? | "Possible — want to keep the option open" | Permissive licences allow this via support/signed-build/SaaS models; source-available would also work but adds friction. |
+
+`MIT OR Apache-2.0` specifically (rather than MIT-only or Apache-only):
+
+- **Maximum compatibility.** Downstream users pick whichever variant suits their context — MIT for simplicity, Apache-2.0 when they need the explicit patent grant.
+- **Matches dependency licences.** Most crates listed in [`../04-tech-stack/libraries.md`](../04-tech-stack/libraries.md) are themselves MIT-or-Apache; using the same scheme avoids any awkward licence-mismatch conversations.
+- **Patent protection available without enforcing.** The Apache-2.0 patent grant is there when needed; nobody is forced to read Apache's longer text when MIT suffices.
+
+## Options considered
+
+Kept here for completeness — they were ruled out by the analysis above.
 
 ## Why the decision matters
 
@@ -70,21 +102,11 @@ This document exists so that when the decision is made, the trade-offs have alre
 
 **When to pick:** Only if the project pivots to a commercial-first stance. Not consistent with current direction.
 
-## What this writer would lean toward
+## Decision checklist (completed)
 
-Two reasonable choices given the current direction:
-
-1. **GPL-3.0 + a CLA-free contribution policy** — matches the "free synth, open project, no funny business" positioning, prevents commercial repackaging, and puts us in good company (Surge XT). Best if the freemium model is the long-term plan.
-
-2. **MIT** — maximises adoption and contributor friction is lowest. Best if we want this to be the easiest "first open Rust synth" for others to learn from and remix.
-
-The choice is yours. The current draft leaves it open.
-
-## Decision checklist (to fill in at the time of decision)
-
-- [ ] Licence chosen: ___________
-- [ ] `LICENSE` file added at repo root
-- [ ] Copyright holder and year set
-- [ ] `cargo deny` config updated if needed (e.g. GPL would require denying GPL-incompatible dependencies on tighter terms)
-- [ ] Mentioned in README, About dialog, and installer EULA screen
-- [ ] Open-questions doc updated to reflect the resolution
+- [x] Licence chosen: **MIT OR Apache-2.0** (dual)
+- [x] `LICENSE-MIT` and `LICENSE-APACHE` added at repo root
+- [x] Copyright holder set: "The Tone Smithy Contributors" (year 2026). Swap to a personal name if preferred before public release.
+- [ ] `cargo deny` config to be added at M0 scaffold (allow MIT/Apache-2.0/BSD/ISC/Zlib/Unicode/MPL-2.0; deny GPL family).
+- [ ] To be mentioned in top-level README, About dialog, and installer EULA screen as those artefacts are created.
+- [x] `01-vision/open-questions.md` updated to reflect the resolution.

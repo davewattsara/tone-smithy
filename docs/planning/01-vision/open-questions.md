@@ -14,10 +14,9 @@ Decisions deliberately deferred from this round of planning. Each one is logged 
 
 ## Open-source licence
 
-- **Status:** Undecided. The product is free, but the source licence is not committed.
-- **Options under consideration:** MIT, Apache-2.0, GPL-3.0, source-available, fully proprietary.
-- **Decision needed by:** Before milestone M15 (installer + first public release). Public binaries with no licence statement are awkward and forks cannot proceed.
-- **See:** [`../07-distribution/licensing.md`](../07-distribution/licensing.md) for option comparison.
+- **Status:** **Resolved (2026-05-17): dual-licensed `MIT OR Apache-2.0`** (the Rust ecosystem convention).
+- **Rationale:** permissive licence supports the user's preferences — others can fork freely, contributor friction is low, and future commercial paths (support, signed builds, expansion packs) stay open.
+- **See:** [`../07-distribution/licensing.md`](../07-distribution/licensing.md) for the full rationale and implications.
 
 ## Plugin formats (CLAP / VST3)
 
