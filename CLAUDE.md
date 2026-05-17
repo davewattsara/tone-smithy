@@ -51,8 +51,9 @@ This is the Tone Smithy repo: a hybrid (subtractive + FM) standalone software sy
 
 ## Project state at a glance
 
-- **Stage:** Planning complete. No code yet. M0 (scaffold) not yet started.
+- **Stage:** Planning complete. No code yet. M-1 (learning ramp) is the first milestone; M0 (scaffold) is the first repo-affecting milestone.
 - **Licence:** `MIT OR Apache-2.0` dual.
-- **Working title resolved to product name:** Tone Smithy.
+- **Product name:** Tone Smithy.
 - **Branches:** `main` (stable; ends at the "planning complete" snapshot until M0 finishes); `development` (active work — commit here).
-- **Open questions remaining:** code signing certificate, MPE/microtuning/oversampling scope, factory content authoring approach, auto-update mechanism (all flagged in open-questions.md).
+- **v1 scope:** Path B — trimmed to ship in ~12–15 months. One filter (12 dB/oct), one mod envelope (Env2), 8-slot mod matrix, arpeggiator only, ~60-preset factory bank. The remaining engine features (second filter, 24 dB/oct, Env3, 16 slots, step sequencer, full factory bank) are restored in v1.1.
+- **Open questions remaining:** code signing certificate, MPE/microtuning/oversampling scope (now v1.3+), factory content authoring approach, auto-update mechanism (all flagged in `docs/planning/01-vision/open-questions.md`).
