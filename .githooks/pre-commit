@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Pre-commit hook for Tone Smithy.
+#
+# Runs `cargo fmt --check` and `cargo clippy` before allowing the commit.
+# CI runs the same checks; this hook just catches problems earlier.
+#
+# Enable in your local checkout:
+#     git config core.hooksPath .githooks
+#
+# Bypass (discouraged) with `git commit --no-verify`.
+
+set -euo pipefail
+
+if ! command -v cargo >/dev/null 2>&1; then
+    echo "pre-commit: cargo not found on PATH; skipping checks." >&2
+    exit 0
+fi
+
+echo "pre-commit: cargo fmt --check"
+cargo fmt --all --check
+
+echo "pre-commit: cargo clippy --workspace --all-targets -- -D warnings"
+cargo clippy --workspace --all-targets -- -D warnings
+
+echo "pre-commit: OK"
