@@ -1,0 +1,5 @@
+- Help me create a plan for my project by asking me questions until we both agree that it is a good enough plan
+- The planning happens in markdown files in the folder docs/planning
+- Come up with a logical file/folder structure for within the planning folder based on good conventions
+- The plan should include enough information to create a full product
+- The plan should cover what programming languages are to be used and what tools/libraries should be used
