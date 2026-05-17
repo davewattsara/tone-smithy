@@ -2343,16 +2343,17 @@ dependencies = [
 name = "synth-engine"
 version = "0.0.1"
 dependencies = [
+ "arc-swap",
+ "crossbeam-channel",
  "thiserror 1.0.69",
+ "tracing",
 ]
 
 [[package]]
 name = "synth-host"
 version = "0.0.1"
 dependencies = [
- "arc-swap",
  "cpal",
- "crossbeam-channel",
  "midir",
  "synth-engine",
  "thiserror 1.0.69",
@@ -2376,6 +2377,7 @@ dependencies = [
  "eframe",
  "egui",
  "synth-engine",
+ "tracing",
 ]
 
 [[package]]

@@ -12,6 +12,7 @@ authors.workspace = true
 synth-engine = { path = "../synth-engine" }
 eframe.workspace = true
 egui.workspace = true
+tracing.workspace = true
 
 [lints]
 workspace = true

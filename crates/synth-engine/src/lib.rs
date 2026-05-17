@@ -23,6 +23,8 @@ pub use crate::oscillator::{Oscillator, Waveform, midi_note_to_hz};
 pub use crate::params::{ParamId, ParamSnapshot};
 pub use crate::voice::Voice;
 
+pub mod param_bus;
+
 mod engine;
 mod envelope;
 mod events;

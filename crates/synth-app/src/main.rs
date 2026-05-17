@@ -10,27 +10,20 @@
 //! hardcoded trigger with UI controls.
 
 use anyhow::{Context, Result};
+use synth_engine::param_bus;
 use synth_engine::{Engine, EngineEvent, Waveform};
 use synth_host::audio::{self, AudioStream};
-use synth_host::param_bus::{self, EngineEventSender, SnapshotSlot};
 use synth_ui::app::ToneSmithyApp;
 
-/// Owns the audio stream, the parameter bus handles, and delegates UI
-/// work to [`ToneSmithyApp`].
+/// Owns the audio stream and delegates UI work to [`ToneSmithyApp`].
 ///
 /// The audio stream lives here (rather than inside the UI app) because
 /// `cpal::Stream` is `!Send` and binding it to the UI struct keeps the
 /// lifetime obvious — when the window closes and this struct drops, audio
-/// stops. Bus handles also live here so they outlive the engine on the
-/// audio thread.
+/// stops. The UI app owns its bus handles (sender + snapshot slot) so
+/// it can read snapshots and send parameter changes directly.
 struct AppShell {
     _audio: AudioStream,
-    /// The UI-side sender. Kept alive so the receiver on the audio
-    /// thread doesn't see a disconnect. C4 hands this to the UI.
-    _events: EngineEventSender,
-    /// Snapshot slot. Kept alive so engine publishes are received by
-    /// the UI once C4 wires the slider state.
-    _snapshot_slot: SnapshotSlot,
     ui: ToneSmithyApp,
 }
 
@@ -75,9 +68,7 @@ fn main() -> Result<()> {
 
     let shell = AppShell {
         _audio: audio,
-        _events: events_tx,
-        _snapshot_slot: snapshot_slot,
-        ui: ToneSmithyApp::new(status),
+        ui: ToneSmithyApp::new(status, events_tx, snapshot_slot),
     };
 
     eframe::run_native("Tone Smithy", native_options, Box::new(move |_cc| Ok(Box::new(shell))))

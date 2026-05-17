@@ -18,7 +18,9 @@ use std::sync::Arc;
 
 use arc_swap::ArcSwap;
 use crossbeam_channel::{Receiver, Sender, bounded};
-use synth_engine::{EngineEvent, ParamSnapshot};
+
+use crate::events::EngineEvent;
+use crate::params::ParamSnapshot;
 
 /// Default capacity for the UI → engine queue, in events.
 ///
@@ -99,7 +101,6 @@ pub fn new_param_bus() -> (EngineEventSender, EngineEventReceiver, SnapshotSlot)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use synth_engine::EngineEvent;
 
     #[test]
     fn send_and_recv_round_trip() {

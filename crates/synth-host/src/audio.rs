@@ -8,9 +8,8 @@
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use synth_engine::Engine;
+use synth_engine::param_bus::{EngineEventReceiver, SnapshotSlot, store_snapshot};
 use thiserror::Error;
-
-use crate::param_bus::{EngineEventReceiver, SnapshotSlot, store_snapshot};
 
 /// Errors that can occur while opening or starting the audio output stream.
 #[derive(Debug, Error)]
