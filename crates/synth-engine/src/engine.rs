@@ -57,6 +57,9 @@ impl Engine {
             EngineEvent::NoteOff { note_midi } => {
                 self.voice.note_off(note_midi);
             }
+            EngineEvent::SetOscillatorWaveform { waveform } => {
+                self.voice.set_waveform(waveform);
+            }
         }
     }
 

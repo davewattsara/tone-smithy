@@ -19,7 +19,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub use crate::engine::{Engine, MAX_BLOCK_SIZE};
 pub use crate::envelope::Adsr;
 pub use crate::events::EngineEvent;
-pub use crate::oscillator::{Oscillator, midi_note_to_hz};
+pub use crate::oscillator::{Oscillator, Waveform, midi_note_to_hz};
 pub use crate::voice::Voice;
 
 mod engine;

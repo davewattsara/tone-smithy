@@ -6,7 +6,7 @@
 //! `NoteOn` (mono behaviour).
 
 use crate::envelope::Adsr;
-use crate::oscillator::Oscillator;
+use crate::oscillator::{Oscillator, Waveform};
 
 /// One synth voice: one oscillator gated by one amp envelope.
 pub struct Voice {
@@ -66,6 +66,13 @@ impl Voice {
     /// Sets the amp envelope release time in seconds.
     pub fn set_release_secs(&mut self, release_secs: f32) {
         self.amp_envelope.set_release_secs(release_secs);
+    }
+
+    /// Sets the oscillator waveform. Routed straight through to the
+    /// oscillator; the discrete-parameter-at-block-boundary rule is
+    /// enforced by the engine draining events before processing.
+    pub fn set_waveform(&mut self, waveform: Waveform) {
+        self.oscillator.set_waveform(waveform);
     }
 
     /// Returns true if the voice is fully idle (amp envelope at zero

@@ -9,7 +9,7 @@
 //! audible end-to-end. C4/C5 replace the hardcoded trigger with UI controls.
 
 use anyhow::{Context, Result};
-use synth_engine::{Engine, EngineEvent};
+use synth_engine::{Engine, EngineEvent, Waveform};
 use synth_host::audio::{self, AudioStream};
 use synth_ui::app::ToneSmithyApp;
 
@@ -39,13 +39,16 @@ fn main() -> Result<()> {
         .context("could not query default audio output device")?;
 
     let mut engine = Engine::new(device_format.sample_rate as f32);
-    // M1 placeholder: trigger one note at startup so we hear the engine
-    // through cpal. C5 removes this once the virtual keyboard exists.
+    // M1 placeholder: trigger one saw note at startup so we hear the
+    // engine through cpal. Saw rather than sine so the C2 waveform
+    // routing is exercised at runtime. C5 removes the hardcoded
+    // trigger once the virtual keyboard exists.
+    engine.handle(EngineEvent::SetOscillatorWaveform { waveform: Waveform::Saw });
     engine.handle(EngineEvent::NoteOn { note_midi: 69, velocity: 100 });
 
     let audio = audio::start_with_engine(engine).context("could not start audio output")?;
     let status = format!(
-        "audio out: {} Hz, {} channel(s), {} — engine playing A4",
+        "audio out: {} Hz, {} channel(s), {} — engine playing A4 (saw)",
         audio.sample_rate, audio.channels, audio.buffer_latency_hint,
     );
     tracing::info!("{status}");

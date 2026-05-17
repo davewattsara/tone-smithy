@@ -6,9 +6,12 @@
 //! never calls back into adapters synchronously — see
 //! `docs/planning/03-architecture/design-patterns.md` §1.2.
 //!
-//! M1 ships only the variants needed for "play a note triggered from the UI".
-//! Pitch bend, sustain, CC, presets, and the rest of the MIDI surface arrive
-//! in later milestones when their consumers exist.
+//! M1 ships only the variants needed for "play a note triggered from the UI"
+//! plus the few engine settings exposed in C2/C4 (waveform, pitch offset,
+//! release time). Pitch bend, sustain, CC, presets, and the rest of the
+//! MIDI surface arrive in later milestones when their consumers exist.
+
+use crate::oscillator::Waveform;
 
 /// One input to the engine.
 ///
@@ -34,5 +37,12 @@ pub enum EngineEvent {
     NoteOff {
         /// MIDI note number, 0..=127.
         note_midi: u8,
+    },
+
+    /// Change the oscillator waveform. Discrete; takes effect on the
+    /// next block (the engine drains events before processing).
+    SetOscillatorWaveform {
+        /// New waveform.
+        waveform: Waveform,
     },
 }
