@@ -33,6 +33,7 @@ The plan is organised as a set of small, focused markdown documents. It is inten
 - [Stack](04-tech-stack/stack.md) — language, frameworks, key rationale.
 - [Libraries](04-tech-stack/libraries.md) — concrete crate choices and what each is for.
 - [Tooling](04-tech-stack/tooling.md) — build, lint, test, CI, profiling, packaging.
+- [Code style](04-tech-stack/code-style.md) — naming, file organisation, documentation comments, inline comments, error handling.
 
 ### 05 — Design
 - [UI design](05-design/ui-design.md) — visual language, layout, component vocabulary, interaction.
