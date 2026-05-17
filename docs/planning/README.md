@@ -53,3 +53,9 @@ The plan is organised as a set of small, focused markdown documents. It is inten
 - Treat each document as living. Update it when a decision changes; don't add a contradicting note elsewhere.
 - When making a design or implementation decision, cite the relevant plan section in the commit message so the doc and the code stay in sync.
 - The roadmap is intentionally compact — large additions belong here, in the plan, before they become work in flight.
+
+## Related docs (outside the plan)
+
+- [`/CLAUDE.md`](../../CLAUDE.md) — agent-facing instructions, auto-loaded by Claude Code.
+- [`../working-conventions.md`](../working-conventions.md) — git workflow, conversation logging, commit cadence, and reading order for new contributors.
+- [`../conversations/README.md`](../conversations/README.md) — conversation log format.
