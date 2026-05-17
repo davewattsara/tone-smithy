@@ -11,10 +11,11 @@ The full v1 feature set. Anything not listed here is out of scope — see [`out-
 - Slot levels are mixed before the filter section. Each slot has independent level and pan.
 
 ### Filter section
-- Two multi-mode filters per voice (LP / HP / BP / Notch, 12 and 24 dB/oct).
-- Routing modes: **serial** (F1 → F2) or **parallel** (F1 ∥ F2 summed).
-- Cutoff, resonance, drive per filter.
+- **One** multi-mode filter per voice (LP / HP / BP / Notch, 12 dB/oct).
+- Cutoff, resonance, drive.
 - Cutoff and resonance are first-class modulation destinations.
+
+> **Deferred to v1.1:** second filter with serial/parallel routing; 24 dB/oct filter option.
 
 ### Amplifier
 - Per-voice amp stage with ADSR envelope, master level, velocity sensitivity.
@@ -23,7 +24,9 @@ The full v1 feature set. Anything not listed here is out of scope — see [`out-
 
 ### Envelopes
 - **Amp envelope** (always wired to amplitude).
-- **2 additional envelopes** (Env2, Env3) — ADSR with adjustable curves (lin / exp / log), freely assignable through the mod matrix.
+- **1 additional envelope** (Env2) — ADSR with adjustable curves (lin / exp / log), freely assignable through the mod matrix.
+
+> **Deferred to v1.1:** second mod envelope (Env3).
 
 ### LFOs
 - **2 LFOs** per voice.
@@ -31,15 +34,18 @@ The full v1 feature set. Anything not listed here is out of scope — see [`out-
 - Free or tempo-synced; phase reset on note-on optional; per-voice or global mode.
 
 ### Modulation matrix
-- **Any source to any destination**, with 16 slots in v1.
-- **Sources:** Env1/2/3, LFO1/2, MIDI velocity, key tracking, mod wheel, channel aftertouch, pitch bend, MIDI CC (assignable).
+- **Any source to any destination**, with **8 slots in v1**.
+- **Sources:** Amp env, Env2, LFO1, LFO2, MIDI velocity, key tracking, mod wheel, channel aftertouch, pitch bend, MIDI CC (assignable).
 - **Destinations:** any continuous parameter (oscillator pitch/level/detune, filter cutoff/resonance, FM operator levels/ratios, FX parameters, LFO/env rates, etc.).
 - Per-slot bipolar amount; per-slot via attenuator (a second source can scale the modulation depth).
 
-## Sequencer / Arpeggiator
+> **Deferred to v1.1:** matrix expanded to 16 slots; Env3 added as a source.
 
-- **Arpeggiator** — modes: up, down, up/down, random, played order. Octave range 1–4. Rate sync to BPM or free. Gate length. Swing.
-- **Step sequencer** — 16 steps, per step: note offset, velocity, gate on/off, and one assignable mod lane. Sync to BPM. Direction modes: forward, reverse, ping-pong, random.
+## Arpeggiator
+
+- Modes: up, down, up/down, random, played order. Octave range 1–4. Rate sync to BPM or free. Gate length. Swing.
+
+> **Deferred to v1.1:** 16-step sequencer with notes, velocities, gates, and one assignable mod lane.
 
 ## Effects (post-mix, fixed insert chain)
 

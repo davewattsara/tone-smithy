@@ -6,16 +6,27 @@ Indicative versions. The list is intentionally short — large additions should 
 
 Everything in [`features-v1.md`](features-v1.md). Windows-only standalone. Free download.
 
-## v1.1 — Polish & quality of life
+## v1.1 — Engine completion
+
+Restores the engine features deferred from v1 to ship faster (Path B scope trim):
+
+- **Second filter** per voice with serial (`F1 → F2`) and parallel (`F1 ∥ F2 summed`) routing.
+- **24 dB/oct filter** option (4-pole ZDF ladder or cascaded SVF, chosen by listening tests).
+- **Second mod envelope** (Env3).
+- **Step sequencer** — 16 steps with note offset, velocity, gate, and one assignable mod lane.
+- **Modulation matrix expanded to 16 slots** (Env3 added as a source).
+- **Factory bank expansion** — add 40–60 new presets to reach ~120 across all categories.
+- Bug-fix backlog from v1.0 reports.
+
+## v1.2 — Polish & quality of life
 
 - Auto-update check (GitHub Releases).
 - Drag-and-drop modulation assignment (drag a source onto a knob).
 - Editable FM operator routing (user algorithms in addition to the 8 factory algorithms).
 - An additional mod lane in the step sequencer.
-- Improved factory bank ("v2"): refresh based on user feedback, add 30+ new presets.
-- Bug-fix backlog from v1.0 reports.
+- Bug-fix backlog from v1.1 reports.
 
-## v1.2 — Expression & tuning
+## v1.3 — Expression & tuning
 
 - **MPE input** (per-note pitch, timbre, pressure).
 - **Microtuning** via Scala (`.scl`) and keyboard maps (`.kbm`).
