@@ -1,11 +1,15 @@
 //! Tone Smithy standalone application entry point.
 //!
-//! Wires the silent audio output (`synth-host`) and the egui window
-//! (`synth-ui`) together. This is the composition root — the only file that
-//! knows about every other crate (see
+//! Wires the audio output (`synth-host`) and the egui window (`synth-ui`)
+//! together. This is the composition root — the only file that knows about
+//! every other crate (see
 //! `docs/planning/03-architecture/design-patterns.md`, §1.6).
+//!
+//! M1 plays a hardcoded A4 note at startup so the engine-to-audio path is
+//! audible end-to-end. C4/C5 replace the hardcoded trigger with UI controls.
 
 use anyhow::{Context, Result};
+use synth_engine::{Engine, EngineEvent};
 use synth_host::audio::{self, AudioStream};
 use synth_ui::app::ToneSmithyApp;
 
@@ -29,9 +33,19 @@ impl eframe::App for AppShell {
 fn main() -> Result<()> {
     init_logging();
 
-    let audio = audio::start_silent().context("could not start audio output")?;
+    // Query the device first so we know the sample rate before building
+    // the engine. The stream itself is opened by `start_with_engine`.
+    let device_format = audio::default_output_format()
+        .context("could not query default audio output device")?;
+
+    let mut engine = Engine::new(device_format.sample_rate as f32);
+    // M1 placeholder: trigger one note at startup so we hear the engine
+    // through cpal. C5 removes this once the virtual keyboard exists.
+    engine.handle(EngineEvent::NoteOn { note_midi: 69, velocity: 100 });
+
+    let audio = audio::start_with_engine(engine).context("could not start audio output")?;
     let status = format!(
-        "audio out: {} Hz, {} channel(s), {} — writing silence",
+        "audio out: {} Hz, {} channel(s), {} — engine playing A4",
         audio.sample_rate, audio.channels, audio.buffer_latency_hint,
     );
     tracing::info!("{status}");
@@ -44,10 +58,7 @@ fn main() -> Result<()> {
         ..Default::default()
     };
 
-    let shell = AppShell {
-        _audio: audio,
-        ui: ToneSmithyApp::new(status),
-    };
+    let shell = AppShell { _audio: audio, ui: ToneSmithyApp::new(status) };
 
     eframe::run_native("Tone Smithy", native_options, Box::new(move |_cc| Ok(Box::new(shell))))
         .map_err(|e| anyhow::anyhow!("eframe error: {e}"))?;
