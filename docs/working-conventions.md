@@ -159,6 +159,44 @@ When writing code (eventually — M0 onward), the prescriptive docs are not opti
 
 ---
 
+## Keeping the README up to date
+
+The top-level [`README.md`](../README.md) is the public face of the project — it's what anyone visiting the repo sees first. Keep it accurate.
+
+### Update README.md when
+
+- **v1 scope changes** — something added, removed, or moved between v1 and v1.1+.
+- **The current milestone changes** (M0 → M1, etc.) — update the status line.
+- **The build, run, lint, or test commands change** (new flags, new prerequisites, new OS support).
+- **A new top-level directory** is added that anyone exploring the repo should know about.
+- **The licence changes** (anything affecting `LICENSE-MIT` or `LICENSE-APACHE`).
+- **A new system dependency** is introduced that someone building from a clean machine would need to install (Linux audio libs, signing tools, etc.).
+
+### Don't update README.md for
+
+- Internal refactors that don't change behaviour or public commands.
+- Doc-only changes inside `docs/planning/` that don't shift v1 scope.
+- New conversation log entries.
+- Routine commits that don't surface in the public-facing summary.
+
+### How
+
+Touch only the section affected by your change, in the **same commit** as the change. Don't batch unrelated README updates. The README has a small fixed set of sections:
+
+| Section | Update when… |
+|---|---|
+| Status line | Current milestone or timeline estimate shifts. |
+| Features | v1 scope or roadmap split changes. |
+| Quick start | Build/run/lint/test commands or system dependencies change. |
+| Project layout | A top-level folder or workspace member is added or removed. |
+| Architecture | The major-piece split (engine / host / ui / presets / app) changes. |
+| Licence | The licence policy changes. |
+| Acknowledgements | A new major dependency or reference belongs in the credits. |
+
+Don't add screenshots, badges, or marketing copy until v1.0 is actually shippable.
+
+---
+
 ## Open questions and pending decisions
 
 - All currently-deferred decisions live in [`planning/01-vision/open-questions.md`](planning/01-vision/open-questions.md).

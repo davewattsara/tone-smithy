@@ -35,7 +35,7 @@ This is the Tone Smithy repo: a hybrid (subtractive + FM) standalone software sy
 
 - **Don't commit directly to `main`** outside an explicit milestone merge. All routine work goes on `development`.
 - **Don't update git config** (`git config --global ...` or local). Use the per-command override for your commits.
-- **Don't create top-level `README.md` unprompted.** A top-level README has been intentionally deferred. CLAUDE.md (this file) serves the agent-onboarding role for now.
+- **Don't add new top-level markdown files unprompted.** The set of top-level docs is intentionally small (`README.md`, `CLAUDE.md`, `LICENSE-MIT`, `LICENSE-APACHE`). Anything else goes under `docs/`.
 - **Don't resolve items in [`docs/planning/01-vision/open-questions.md`](docs/planning/01-vision/open-questions.md) unilaterally.** Flag the question and ask the user; once decided, update both the open-questions file and the relevant plan doc.
 - **Don't propose architecture changes that violate** the [design patterns doc](docs/planning/03-architecture/design-patterns.md). If you think a pattern is wrong, raise it explicitly — don't quietly break it.
 
@@ -43,9 +43,11 @@ This is the Tone Smithy repo: a hybrid (subtractive + FM) standalone software sy
 
 | You need to know… | Read |
 |---|---|
-| What we're building | [`docs/planning/01-vision/overview.md`](docs/planning/01-vision/overview.md) |
+| A quick public-facing overview | [`README.md`](README.md) |
+| What we're building (more detail) | [`docs/planning/01-vision/overview.md`](docs/planning/01-vision/overview.md) |
 | The full plan index | [`docs/planning/README.md`](docs/planning/README.md) |
 | How we work in this repo | [`docs/working-conventions.md`](docs/working-conventions.md) |
+| When to update README.md | [`docs/working-conventions.md#keeping-the-readme-up-to-date`](docs/working-conventions.md#keeping-the-readme-up-to-date) |
 | Conversation log format | [`docs/conversations/README.md`](docs/conversations/README.md) |
 | What's still undecided | [`docs/planning/01-vision/open-questions.md`](docs/planning/01-vision/open-questions.md) |
 
