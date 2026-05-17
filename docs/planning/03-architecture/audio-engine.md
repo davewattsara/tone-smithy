@@ -15,8 +15,8 @@ The DSP heart of the synth. Lives in the `synth-engine` crate. No I/O, no alloca
                    └───────────┬────────────┘
                                ▼
                    ┌────────────────────────┐
-                   │   Filter Section       │  F1 → F2 (serial)
-                   │   (LP/HP/BP/Notch)     │  or F1 ∥ F2 (parallel)
+                   │       Filter           │  LP / HP / BP / Notch
+                   │      (12 dB/oct)       │
                    └───────────┬────────────┘
                                ▼
                    ┌────────────────────────┐
@@ -26,7 +26,9 @@ The DSP heart of the synth. Lives in the `synth-engine` crate. No I/O, no alloca
                           to global mix
 ```
 
-Modulation sources (Env2, Env3, LFO1, LFO2, MIDI sources) run in parallel per voice and feed the **modulation matrix**, which sums into the various destinations above each block.
+Modulation sources (Env2, LFO1, LFO2, MIDI sources) run in parallel per voice and feed the **modulation matrix**, which sums into the various destinations above each block.
+
+> **Scope note (Path B):** v1 ships with a single filter (12 dB/oct) and a single mod envelope (Env2). A second filter with serial/parallel routing, a 24 dB/oct option, and a second mod envelope (Env3) are deferred to v1.1. See [`../02-scope/roadmap.md`](../02-scope/roadmap.md).
 
 ## Voice management
 
@@ -66,11 +68,11 @@ Parameter changes from the UI are drained at the top of each callback (not each 
 - Internal 2× oversampling on operator output when modulation index is high; tunable threshold.
 
 ### Filters
-- **Topology-preserving transform (TPT) state-variable filter**, 12 dB/oct base.
-- 24 dB/oct via cascaded TPT-SVF or a 4-pole ZDF ladder (decision during M2).
+- **Topology-preserving transform (TPT) state-variable filter**, 12 dB/oct.
 - Modes: LP, HP, BP, Notch, with crossfade for routing.
 - Self-oscillation at maximum resonance.
 - Per-filter input drive (soft saturation pre-filter).
+- One filter per voice in v1; second filter and 24 dB/oct option deferred to v1.1.
 
 ### Envelopes
 - ADSR with adjustable curve per stage (linear ↔ exponential).
@@ -81,7 +83,7 @@ Parameter changes from the UI are drained at the top of each callback (not each 
 - Free or tempo-synced. Phase reset on note-on optional. Per-voice or global mode.
 
 ### Modulation matrix
-- 16 slots. Each slot: `(source, destination, amount, via_source_optional)`.
+- **8 slots** in v1 (raised to 16 in v1.1). Each slot: `(source, destination, amount, via_source_optional)`.
 - Per-block summing: each block, sources are sampled once; destination accumulators receive the weighted contributions; modulated values are computed at block start.
 - The "via" source allows depth modulation (e.g. mod wheel scales an LFO's effect on cutoff).
 

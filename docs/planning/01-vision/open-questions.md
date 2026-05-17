@@ -26,18 +26,18 @@ Decisions deliberately deferred from this round of planning. Each one is logged 
 
 ## MPE (MIDI Polyphonic Expression)
 
-- **Status:** Deferred. The voice manager will be aware of per-voice modulation sources to leave the door open, but MPE channel handling is not in v1.
-- **Decision needed by:** v1.2 planning.
+- **Status:** Deferred to v1.3 (see [`../02-scope/roadmap.md`](../02-scope/roadmap.md)). The voice manager will be aware of per-voice modulation sources to leave the door open, but MPE channel handling is not in v1.
+- **Decision needed by:** v1.3 planning.
 
 ## Microtuning / alternative scales
 
-- **Status:** Deferred to v1.2 or later. Scala (`.scl` / `.kbm`) is the obvious format.
-- **Decision needed by:** v1.x planning.
+- **Status:** Deferred to v1.3 (see [`../02-scope/roadmap.md`](../02-scope/roadmap.md)). Scala (`.scl` / `.kbm`) is the obvious format.
+- **Decision needed by:** v1.3 planning.
 
 ## Oversampling
 
-- **Status:** No global oversampling in v1. FM operators may oversample internally where audible aliasing is unacceptable.
-- **Decision needed by:** During M5 (FM engine).
+- **Status:** No global oversampling in v1. FM operators may oversample internally where audible aliasing is unacceptable. A global 2×/4× option is on the v1.3 roadmap.
+- **Decision needed by:** During M7 (FM engine) for the internal-only FM case; before v1.3 for the global option.
 
 ## Factory content authoring
 

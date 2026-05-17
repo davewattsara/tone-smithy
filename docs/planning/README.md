@@ -34,6 +34,7 @@ The plan is organised as a set of small, focused markdown documents. It is inten
 - [Libraries](04-tech-stack/libraries.md) — concrete crate choices and what each is for.
 - [Tooling](04-tech-stack/tooling.md) — build, lint, test, CI, profiling, packaging.
 - [Code style](04-tech-stack/code-style.md) — naming, file organisation, documentation comments, inline comments, error handling.
+- [Unit testing](04-tech-stack/unit-testing.md) — what to test, naming, AAA structure, float comparison, DSP-specific patterns. Sibling docs (integration / snapshot / property / real-time / benchmarks) added per milestone.
 
 ### 05 — Design
 - [UI design](05-design/ui-design.md) — visual language, layout, component vocabulary, interaction.

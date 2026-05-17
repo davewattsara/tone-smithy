@@ -40,13 +40,12 @@ Patches we want to be easy:
 
 ## Filter design
 
-- **Topology-preserving transform state-variable filter (TPT SVF)** as the workhorse.
-- 12 dB/oct and 24 dB/oct variants; the 24 dB option is a 4-pole ZDF ladder (selected during M2 based on listening tests).
+- **Topology-preserving transform state-variable filter (TPT SVF)**, 12 dB/oct.
 - Modes available continuously crossfaded: LP, BP, HP, Notch.
 - **Self-oscillation** at high resonance — the filter should sing.
 - **Per-filter drive** pre-stage with soft tanh saturation — adds harmonics into the filter input, which is where a lot of "analog character" comes from.
 
-Two filters per voice, with serial (`F1 → F2`) or parallel (`F1 ∥ F2 summed`) routing. Together they cover everything from clean low-pass to formant-style band-pass duals.
+One filter per voice in v1. The second filter (with serial `F1 → F2` and parallel `F1 ∥ F2 summed` routing) and the 24 dB/oct option (4-pole ZDF ladder or cascaded SVF, chosen by listening tests) are both deferred to v1.1.
 
 ## Envelopes
 
@@ -63,16 +62,17 @@ Two filters per voice, with serial (`F1 → F2`) or parallel (`F1 ∥ F2 summed`
 
 ## Modulation matrix
 
-- **16 slots** is a sweet spot — enough for adventurous patches, few enough to keep the UI scannable.
+- **8 slots in v1** — a focused starting set, raised to 16 in v1.1 once we see how patches actually use it.
 - **Bipolar amount** (sources can subtract as well as add).
 - **Via attenuator** — a second source scales each slot's depth. Critical for "mod wheel adds vibrato" patches, and a feature missing from many free synths.
-- Sources include MIDI velocity, aftertouch, mod wheel, key tracking, pitch bend, and every internal envelope/LFO.
+- Sources include MIDI velocity, aftertouch, mod wheel, key tracking, pitch bend, the amp env, Env2, and the two LFOs. Env3 added as a source in v1.1.
 
-## Arpeggiator and step sequencer
+## Arpeggiator
 
-- **Arp** is the everyday tool — modes, octave range, rate, gate length, swing.
-- **Step sequencer** is the deeper tool — 16 steps with note offset (relative to held note), velocity, gate, and one assignable mod lane.
-- Both sync to host BPM (free-running) or to external MIDI clock when enabled.
+- The everyday tool — modes (up, down, up/down, random, played order), octave range, rate, gate length, swing.
+- Syncs to host BPM (free-running) or to external MIDI clock when enabled.
+
+The 16-step sequencer (with note offset, velocity, gate, and one assignable mod lane) is deferred to v1.1.
 
 ## Effects
 
@@ -90,8 +90,8 @@ Each effect has bypass and is mod-matrix-addressable on its key parameters (mix 
 
 ## Factory bank design
 
-- Target **~120–150 presets** at v1.0.
-- Categories: Bass (~30), Lead (~30), Pad (~25), Pluck (~20), Keys (~15), FX (~15).
+- Target **~60–80 presets** at v1.0. (Expansion to ~120 deferred to v1.1.)
+- Categories: Bass (~15), Lead (~15), Pad (~12), Pluck (~8), Keys (~6), FX (~4).
 - Each preset has a clear identity — never two patches that are minor variations of each other.
 - Each category should include at least three "demo" presets that showcase the synth's best behaviour for that role.
 - Naming convention: `<Category> - <Descriptive Name>` (e.g. "Bass - Wool Stack", "Lead - Glass Bell").

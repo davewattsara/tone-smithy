@@ -1,0 +1,17 @@
+* text=auto eol=lf
+
+# Binary asset types — avoid line-ending munging or diff noise.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.ttf  binary
+*.otf  binary
+*.woff binary
+*.woff2 binary
+*.wav  binary
+*.aif  binary
+*.aiff binary
+*.flac binary
+*.mp3  binary
