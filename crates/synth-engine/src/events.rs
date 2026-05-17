@@ -12,6 +12,7 @@
 //! MIDI surface arrive in later milestones when their consumers exist.
 
 use crate::oscillator::Waveform;
+use crate::params::ParamId;
 
 /// One input to the engine.
 ///
@@ -44,5 +45,17 @@ pub enum EngineEvent {
     SetOscillatorWaveform {
         /// New waveform.
         waveform: Waveform,
+    },
+
+    /// Change a continuous parameter identified by [`ParamId`]. The
+    /// engine clamps/validates per parameter; out-of-range values
+    /// are accepted without panicking.
+    ParameterChange {
+        /// Which parameter to change.
+        id: ParamId,
+
+        /// New target value. Units depend on the parameter — see
+        /// [`ParamId`] for the convention per variant.
+        value: f32,
     },
 }

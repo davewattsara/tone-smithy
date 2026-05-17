@@ -5,22 +5,32 @@
 //! every other crate (see
 //! `docs/planning/03-architecture/design-patterns.md`, §1.6).
 //!
-//! M1 plays a hardcoded A4 note at startup so the engine-to-audio path is
-//! audible end-to-end. C4/C5 replace the hardcoded trigger with UI controls.
+//! M1 currently plays a hardcoded A4 saw note at startup so the
+//! engine-to-audio path stays audible end-to-end. C4/C5 replace the
+//! hardcoded trigger with UI controls.
 
 use anyhow::{Context, Result};
 use synth_engine::{Engine, EngineEvent, Waveform};
 use synth_host::audio::{self, AudioStream};
+use synth_host::param_bus::{self, EngineEventSender, SnapshotSlot};
 use synth_ui::app::ToneSmithyApp;
 
-/// Owns the audio stream and delegates UI work to [`ToneSmithyApp`].
+/// Owns the audio stream, the parameter bus handles, and delegates UI
+/// work to [`ToneSmithyApp`].
 ///
 /// The audio stream lives here (rather than inside the UI app) because
 /// `cpal::Stream` is `!Send` and binding it to the UI struct keeps the
 /// lifetime obvious — when the window closes and this struct drops, audio
-/// stops.
+/// stops. Bus handles also live here so they outlive the engine on the
+/// audio thread.
 struct AppShell {
     _audio: AudioStream,
+    /// The UI-side sender. Kept alive so the receiver on the audio
+    /// thread doesn't see a disconnect. C4 hands this to the UI.
+    _events: EngineEventSender,
+    /// Snapshot slot. Kept alive so engine publishes are received by
+    /// the UI once C4 wires the slider state.
+    _snapshot_slot: SnapshotSlot,
     ui: ToneSmithyApp,
 }
 
@@ -38,15 +48,17 @@ fn main() -> Result<()> {
     let device_format = audio::default_output_format()
         .context("could not query default audio output device")?;
 
-    let mut engine = Engine::new(device_format.sample_rate as f32);
-    // M1 placeholder: trigger one saw note at startup so we hear the
-    // engine through cpal. Saw rather than sine so the C2 waveform
-    // routing is exercised at runtime. C5 removes the hardcoded
-    // trigger once the virtual keyboard exists.
-    engine.handle(EngineEvent::SetOscillatorWaveform { waveform: Waveform::Saw });
-    engine.handle(EngineEvent::NoteOn { note_midi: 69, velocity: 100 });
+    let engine = Engine::new(device_format.sample_rate as f32);
+    let (events_tx, events_rx, snapshot_slot) = param_bus::new_param_bus();
 
-    let audio = audio::start_with_engine(engine).context("could not start audio output")?;
+    // M1 placeholder: queue one saw note at startup so we hear the
+    // engine through cpal. Both events flow through the bus so the
+    // queue-drain path is exercised from the first callback.
+    events_tx.send(EngineEvent::SetOscillatorWaveform { waveform: Waveform::Saw });
+    events_tx.send(EngineEvent::NoteOn { note_midi: 69, velocity: 100 });
+
+    let audio = audio::start_with_engine(engine, events_rx, snapshot_slot.clone())
+        .context("could not start audio output")?;
     let status = format!(
         "audio out: {} Hz, {} channel(s), {} — engine playing A4 (saw)",
         audio.sample_rate, audio.channels, audio.buffer_latency_hint,
@@ -61,7 +73,12 @@ fn main() -> Result<()> {
         ..Default::default()
     };
 
-    let shell = AppShell { _audio: audio, ui: ToneSmithyApp::new(status) };
+    let shell = AppShell {
+        _audio: audio,
+        _events: events_tx,
+        _snapshot_slot: snapshot_slot,
+        ui: ToneSmithyApp::new(status),
+    };
 
     eframe::run_native("Tone Smithy", native_options, Box::new(move |_cc| Ok(Box::new(shell))))
         .map_err(|e| anyhow::anyhow!("eframe error: {e}"))?;

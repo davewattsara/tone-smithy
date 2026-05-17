@@ -10,6 +10,8 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use synth_engine::Engine;
 use thiserror::Error;
 
+use crate::param_bus::{EngineEventReceiver, SnapshotSlot, store_snapshot};
+
 /// Errors that can occur while opening or starting the audio output stream.
 #[derive(Debug, Error)]
 pub enum AudioError {
@@ -162,9 +164,11 @@ pub fn start_silent() -> Result<AudioStream, AudioError> {
 /// Opens the default output device and drives it from `engine`.
 ///
 /// The engine is moved into the audio callback and lives on the audio
-/// thread for the lifetime of the stream. The callback only renders
-/// samples — it does not yet receive events; that wiring lands in C3
-/// with the parameter bus.
+/// thread for the lifetime of the stream. Each block the callback:
+///
+/// 1. drains every event waiting on `events` and applies it,
+/// 2. renders samples via [`Engine::process_stereo`], and
+/// 3. publishes a fresh [`synth_engine::ParamSnapshot`] into `snapshot_slot`.
 ///
 /// Only `f32` output is supported on the playback path right now (it's the
 /// universal modern format; the silent path keeps i16/u16 for diagnostics).
@@ -175,7 +179,11 @@ pub fn start_silent() -> Result<AudioStream, AudioError> {
 /// [`AudioError::UnsupportedSampleFormat`] if the device opens at a
 /// non-`f32` format, and [`AudioError::UnsupportedChannelCount`] if the
 /// device opens with more than 2 channels.
-pub fn start_with_engine(mut engine: Engine) -> Result<AudioStream, AudioError> {
+pub fn start_with_engine(
+    mut engine: Engine,
+    events: EngineEventReceiver,
+    snapshot_slot: SnapshotSlot,
+) -> Result<AudioStream, AudioError> {
     let DeviceOpen { device, config, sample_rate, channels, sample_format, buffer_latency_hint } =
         open_default_output()?;
     log_open(channels, sample_rate, sample_format, &buffer_latency_hint);
@@ -199,6 +207,13 @@ pub fn start_with_engine(mut engine: Engine) -> Result<AudioStream, AudioError> 
     let stream = device.build_output_stream(
         &config,
         move |data: &mut [f32], _info: &cpal::OutputCallbackInfo| {
+            // 1. Drain any queued events. Bounded loop: the queue
+            //    capacity caps how many events arrive between blocks.
+            while let Some(event) = events.try_recv() {
+                engine.handle(event);
+            }
+
+            // 2. Render samples.
             let frames = data.len() / channels_usize;
             // If cpal ever asks for more frames than our scratch allows,
             // truncate. This shouldn't happen — MAX_BLOCK_SIZE is well
@@ -229,6 +244,13 @@ pub fn start_with_engine(mut engine: Engine) -> Result<AudioStream, AudioError> 
             for sample in data.iter_mut().skip(frames * channels_usize) {
                 *sample = 0.0;
             }
+
+            // 3. Publish a snapshot. One `Arc::new` allocation per
+            //    block — outside the DSP hot path; the recycled-pool
+            //    optimisation from design-patterns.md §2.5 is a later
+            //    milestone. The C6 `assert_no_alloc` test scopes to
+            //    `Engine::process_stereo` only, not the publishing.
+            store_snapshot(&snapshot_slot, engine.snapshot());
         },
         err_fn,
         None,

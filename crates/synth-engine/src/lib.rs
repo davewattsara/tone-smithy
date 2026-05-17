@@ -20,10 +20,12 @@ pub use crate::engine::{Engine, MAX_BLOCK_SIZE};
 pub use crate::envelope::Adsr;
 pub use crate::events::EngineEvent;
 pub use crate::oscillator::{Oscillator, Waveform, midi_note_to_hz};
+pub use crate::params::{ParamId, ParamSnapshot};
 pub use crate::voice::Voice;
 
 mod engine;
 mod envelope;
 mod events;
 mod oscillator;
+mod params;
 mod voice;
