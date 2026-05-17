@@ -4,6 +4,8 @@ Concrete crate choices for v1. Versions are not pinned here; they will be in `Ca
 
 Crates are grouped by where they are used. All listed crates have permissive licences (MIT, Apache-2.0, MIT-or-Apache-2.0, or similar) compatible with whatever licence we ultimately choose — see [`../07-distribution/licensing.md`](../07-distribution/licensing.md). License compliance is checked in CI via `cargo deny`.
 
+> **Note:** the lists below are the *target* set for v1 — crates are added to `Cargo.toml` only at the milestone that actually needs them, per the dependency policy at the foot of this page. The M0 scaffold pulls in the audio I/O, MIDI I/O, UI shell, concurrency, serialisation, logging and error crates; the rest arrive milestone-by-milestone.
+
 ## Core (used in `synth-engine`)
 
 - **No third-party DSP crates.** The engine is hand-rolled.

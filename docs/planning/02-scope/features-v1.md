@@ -7,7 +7,7 @@ The full v1 feature set. Anything not listed here is out of scope — see [`out-
 ### Oscillator slots
 - Two **oscillator slots** per voice. Each slot can be configured independently as:
   - **Subtractive** — 3 oscillators (saw / square / triangle / noise) + 1 sub oscillator (sine, one octave below). Unison up to 7 voices with detune and stereo spread per oscillator.
-  - **FM** — 4 operators, sine fundamental, freely-routable. Ships with 8 starter algorithms (DX7-family routings); a user-editable routing matrix is a v1.1 candidate.
+  - **FM** — 4 operators, sine fundamental, freely-routable. Ships with 8 starter algorithms (DX7-family routings); a user-editable routing matrix is on the v1.2 roadmap (see [`roadmap.md`](roadmap.md)).
 - Slot levels are mixed before the filter section. Each slot has independent level and pan.
 
 ### Filter section

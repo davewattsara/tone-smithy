@@ -17,7 +17,8 @@ The on-disk layout of the repository. Aims for clarity and a clean dependency gr
 ├── deny.toml                     # cargo-deny config (licences, advisories)
 │
 ├── README.md                     # user-facing project overview
-├── LICENSE                       # added once licence is chosen
+├── LICENSE-MIT                   # dual-licensed: MIT
+├── LICENSE-APACHE                # dual-licensed: Apache-2.0
 │
 ├── crates/
 │   ├── synth-engine/             # pure DSP, no I/O
