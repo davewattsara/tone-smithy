@@ -5,9 +5,9 @@
 //! every other crate (see
 //! `docs/planning/03-architecture/design-patterns.md`, §1.6).
 //!
-//! M1 currently plays a hardcoded A4 saw note at startup so the
-//! engine-to-audio path stays audible end-to-end. C4/C5 replace the
-//! hardcoded trigger with UI controls.
+//! M1: the UI's parameter sliders + on-screen keyboard drive the
+//! engine through `synth_engine::param_bus`; nothing is hardcoded here
+//! beyond the choice of default waveform.
 
 use anyhow::{Context, Result};
 use synth_engine::param_bus;
@@ -44,16 +44,17 @@ fn main() -> Result<()> {
     let engine = Engine::new(device_format.sample_rate as f32);
     let (events_tx, events_rx, snapshot_slot) = param_bus::new_param_bus();
 
-    // M1 placeholder: queue one saw note at startup so we hear the
-    // engine through cpal. Both events flow through the bus so the
-    // queue-drain path is exercised from the first callback.
+    // Seed the engine with the default-on waveform so the on-screen
+    // keyboard plays a saw out of the box (more recognisable than a
+    // sine for a first-sound demo). Flows through the bus rather than
+    // a direct `engine.handle` call so the queue path runs from the
+    // first audio callback.
     events_tx.send(EngineEvent::SetOscillatorWaveform { waveform: Waveform::Saw });
-    events_tx.send(EngineEvent::NoteOn { note_midi: 69, velocity: 100 });
 
     let audio = audio::start_with_engine(engine, events_rx, snapshot_slot.clone())
         .context("could not start audio output")?;
     let status = format!(
-        "audio out: {} Hz, {} channel(s), {} — engine playing A4 (saw)",
+        "audio out: {} Hz, {} channel(s), {} — play the on-screen keys",
         audio.sample_rate, audio.channels, audio.buffer_latency_hint,
     );
     tracing::info!("{status}");

@@ -9,6 +9,8 @@ use eframe::egui;
 use synth_engine::param_bus::{EngineEventSender, SnapshotSlot, load_snapshot};
 use synth_engine::{EngineEvent, ParamId, Waveform};
 
+use crate::keyboard::VirtualKeyboard;
+
 /// Lower bound for the pitch offset slider, in semitones.
 const PITCH_OFFSET_MIN_SEMIS: f32 = -24.0;
 /// Upper bound for the pitch offset slider, in semitones.
@@ -43,6 +45,9 @@ pub struct ToneSmithyApp {
 
     /// UI-side mirror of the discrete waveform parameter.
     waveform: Waveform,
+
+    /// The on-screen keyboard. Owns its own held-note state.
+    keyboard: VirtualKeyboard,
 }
 
 impl ToneSmithyApp {
@@ -61,6 +66,7 @@ impl ToneSmithyApp {
             pitch_offset_semis: snap.pitch_offset_semis,
             amp_release_secs: snap.amp_release_secs,
             waveform: snap.waveform,
+            keyboard: VirtualKeyboard::default(),
         }
     }
 }
@@ -152,6 +158,15 @@ impl eframe::App for ToneSmithyApp {
                     });
                     ui.end_row();
                 });
+
+            ui.add_space(20.0);
+            ui.separator();
+            ui.add_space(8.0);
+            ui.label("Click and drag across keys to play.");
+            ui.add_space(6.0);
+            ui.vertical_centered(|ui| {
+                self.keyboard.show(ui, &self.events);
+            });
 
             ui.add_space(16.0);
             ui.separator();
