@@ -31,8 +31,8 @@ fn main() -> Result<()> {
 
     let audio = audio::start_silent().context("could not start audio output")?;
     let status = format!(
-        "audio out: {} Hz, {} channel(s) — writing silence",
-        audio.sample_rate, audio.channels
+        "audio out: {} Hz, {} channel(s), {} — writing silence",
+        audio.sample_rate, audio.channels, audio.buffer_latency_hint,
     );
     tracing::info!("{status}");
 

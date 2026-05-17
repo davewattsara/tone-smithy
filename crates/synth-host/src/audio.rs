@@ -47,6 +47,13 @@ pub struct AudioStream {
 
     /// Channel count the device opened with (typically 2 for stereo).
     pub channels: u16,
+
+    /// Human-readable summary of the device's supported buffer-size range and
+    /// the corresponding output latency at the open sample rate. The exact
+    /// runtime buffer size is whatever cpal picks from this range (the M0
+    /// build uses `BufferSize::Default`); later milestones will let the user
+    /// pin a specific size.
+    pub buffer_latency_hint: String,
 }
 
 /// Opens the default output device and writes silence to it.
@@ -67,13 +74,15 @@ pub fn start_silent() -> Result<AudioStream, AudioError> {
     let sample_rate = supported.sample_rate().0;
     let channels = supported.channels();
     let sample_format = supported.sample_format();
+    let buffer_latency_hint = describe_buffer_latency(supported.buffer_size(), sample_rate);
     let config: cpal::StreamConfig = supported.into();
 
     tracing::info!(
-        "opening default output device: {} channel(s), {} Hz, {:?}",
+        "opening default output device: {} channel(s), {} Hz, {:?}, {}",
         channels,
         sample_rate,
         sample_format,
+        buffer_latency_hint,
     );
 
     let err_fn = |err: cpal::StreamError| tracing::error!("audio stream error: {err}");
@@ -119,5 +128,27 @@ pub fn start_silent() -> Result<AudioStream, AudioError> {
         _stream: stream,
         sample_rate,
         channels,
+        buffer_latency_hint,
     })
+}
+
+/// Formats a device's supported buffer-size range together with the latency
+/// each end of the range implies at the open sample rate. Used in the M0
+/// status string so the plan's "latency reported" criterion is met without
+/// committing to a specific runtime buffer size yet.
+fn describe_buffer_latency(supported: &cpal::SupportedBufferSize, sample_rate: u32) -> String {
+    let frames_to_ms = |frames: u32| (f64::from(frames) * 1000.0) / f64::from(sample_rate);
+    match supported {
+        cpal::SupportedBufferSize::Range { min, max } if min == max => {
+            format!("buffer {min} frames (~{:.1} ms)", frames_to_ms(*min))
+        }
+        cpal::SupportedBufferSize::Range { min, max } => {
+            format!(
+                "buffer {min}–{max} frames (~{:.1}–{:.1} ms)",
+                frames_to_ms(*min),
+                frames_to_ms(*max),
+            )
+        }
+        cpal::SupportedBufferSize::Unknown => "buffer size unreported by driver".to_string(),
+    }
 }
