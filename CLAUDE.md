@@ -7,10 +7,10 @@ This is the Tone Smithy repo: a hybrid (subtractive + FM) standalone software sy
 ### After making file changes
 - **Commit immediately.** Don't wait to be asked.
 - Use the per-command identity override for your commits:
-  `git -c user.name="Claude Opus 4.7" -c user.email="noreply@anthropic.com" commit ...`
+  `git -c user.name="Claude Sonnet 4.6" -c user.email="noreply@anthropic.com" commit ...`
 - **Always use a HEREDOC** for commit messages to avoid shell quoting issues and trailer corruption.
 - **End every Claude commit** with the trailer on its own line:
-  `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>`
+  `Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>`
 - Commit message: imperative subject ≤70 chars; body explains *why*, not *what*.
 - Multiple commits per turn are encouraged when changes are logically distinct.
 - Full git workflow: [`docs/working-conventions.md`](docs/working-conventions.md#git-workflow).
