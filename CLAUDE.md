@@ -12,11 +12,11 @@ This is the Tone Smithy repo: a hybrid (subtractive + FM) standalone software sy
 - Full git workflow: [`docs/working-conventions.md`](docs/working-conventions.md#git-workflow).
 
 ### On which branch
-- **`development` is the default working branch.** All day-to-day commits go here.
+- **`development` is the default working branch.** Routine work (single-commit fixes, doc updates, planning iterations, conversation logs) commits directly to `development`.
+- **Branch off `development` for substantial work.** Before starting a milestone implementation (M1, M2, …), an experiment that might be thrown away, or any work that will span multiple sessions and could leave `development` in a non-working state in between, run `git checkout -b <short-name>` first. Merge back to `development` with a regular merge when the work is done. *This rule fires on every new milestone — don't skip it.* Full criteria: [`docs/working-conventions.md#when-to-branch-off-development`](docs/working-conventions.md#when-to-branch-off-development).
 - **`main` is only updated at milestone boundaries** via `git merge --no-ff` from `development` (see the milestone workflow in [`docs/working-conventions.md`](docs/working-conventions.md#milestone-completion-‐-merge-development-to-main)).
 - Always check the current branch (`git status`) before committing.
 - Flag any branch switch to the user explicitly — branch state is shared.
-- Full branching rules: [`docs/working-conventions.md`](docs/working-conventions.md#branching).
 
 ### After every Claude response
 - Append the exchange to today's log: `docs/conversations/YYYY-MM-DD.md`.
