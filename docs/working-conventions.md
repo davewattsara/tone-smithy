@@ -131,6 +131,8 @@ If a critical bug is found in a milestone-tagged `main`:
 - **Never commit directly to `main`** outside an explicit milestone merge step you've talked through with the user.
 - **Flag any branch switch** — especially `main` ↔ `development` or creating a new branch — to the user explicitly. Branch state is shared and a surprise switch is unpleasant.
 - **Don't switch branches with uncommitted changes.** Commit (on the current branch) or stash first.
+- **Before committing any `.rs` or `Cargo.toml` change**, run `cargo fmt --all --check` and fix any diff, then run `cargo clippy --workspace --all-targets -- -D warnings` and resolve all warnings. CI enforces both; skipping either will fail the lint job.
+- **Never rewrite git history.** `git filter-branch`, `git rebase -i`, `git commit --amend` on a non-HEAD commit, `git reset --hard` to discard commits — all forbidden. Messy history is better than rewritten history. Only the user may authorise rewrites.
 
 ---
 
