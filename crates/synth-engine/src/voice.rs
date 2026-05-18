@@ -38,13 +38,18 @@ impl Voice {
     }
 
     /// Triggers a note. Snaps the smoothed pitch to its target so the
-    /// first sample of the new note plays exactly on pitch, resets the
-    /// oscillator phase, and starts the amp envelope.
+    /// first sample of the new note plays exactly on pitch, then starts
+    /// the amp envelope. The oscillator phase is only reset when the
+    /// envelope was idle (first note from silence); on retrigger the phase
+    /// continues uninterrupted so there is no discontinuity in the waveform
+    /// output while the envelope level is non-zero.
     pub fn note_on(&mut self, note_midi: u8) {
         self.held_note_midi = Some(note_midi);
         self.pitch_offset_semis.snap_to_target();
         self.update_frequency();
-        self.oscillator.reset_phase();
+        if self.amp_envelope.is_idle() {
+            self.oscillator.reset_phase();
+        }
         self.amp_envelope.note_on();
     }
 
@@ -130,5 +135,39 @@ mod tests {
         voice.note_on(60);
         voice.note_off(72);
         assert!(!voice.is_idle(), "voice should still be running");
+    }
+
+    #[test]
+    fn retrigger_during_release_produces_no_output_discontinuity() {
+        // If a new note-on arrives while the envelope is still in release
+        // the output must not jump — the amplitude step between the last
+        // release sample and the first attack sample should be small.
+        let sample_rate = 48_000.0;
+        let mut voice = Voice::new(sample_rate);
+
+        // Play note long enough to reach sustain.
+        voice.note_on(60);
+        for _ in 0..4_800 {
+            voice.next_sample();
+        }
+
+        // Begin release.
+        voice.note_off(60);
+
+        // Let a short portion of the release run so level is well above zero.
+        let mut last_sample = 0.0;
+        for _ in 0..480 {
+            last_sample = voice.next_sample();
+        }
+
+        // Retrigger. The output must not jump by more than one attack step.
+        voice.note_on(62);
+        let first_retrigger_sample = voice.next_sample();
+
+        let jump = (first_retrigger_sample - last_sample).abs();
+        assert!(
+            jump < 0.05,
+            "output jumped by {jump:.4} on retrigger — phase reset caused a click"
+        );
     }
 }
