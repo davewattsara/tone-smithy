@@ -70,7 +70,7 @@ Audio code has many quantities that look like the same primitive (`f32` everywhe
 | Linear amplitude (0..1) | `amp` or `_amp` | `amp: f32` |
 | Decibels | suffix `_db` | `gain_db: f32` |
 | MIDI note number | suffix `_midi` or type | `note_midi: u8` |
-| Sample rate | `sample_rate` (never `sr`) | `sample_rate: f32` |
+| Sample rate | suffix `_hz` (never `sr`) | `sample_rate_hz: f32` |
 | Phase (0..1 or 0..TAU) | `phase` (document range) | `phase: f32 /* 0..TAU */` |
 
 When the type system can do it better than a suffix, use a newtype (`Hz(f32)`, `Cents(f32)`) — but newtypes have ergonomics cost, so reserve them for values that cross many module boundaries.
