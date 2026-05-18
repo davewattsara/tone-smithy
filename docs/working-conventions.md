@@ -36,6 +36,7 @@ Global git config is **intentionally unset** in this repo. Authorship is establi
 - Imperative subject line, under ~70 characters.
 - Body explaining the *why* with bullets where useful.
 - Use a HEREDOC to keep formatting clean.
+- Run `rm -f .git/COMMIT_EDITMSG` immediately before every commit — stale content in that file bleeds into the new commit body.
 
 Example:
 
