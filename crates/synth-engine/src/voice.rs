@@ -1,12 +1,13 @@
 //! A single synth voice.
 //!
-//! M1 hosts one voice that holds one oscillator and one amp envelope.
-//! The polyphonic voice manager arrives at M3 with MIDI input; until
-//! then `Engine` owns a single `Voice` and re-triggers it on every
-//! `NoteOn` (mono behaviour).
+//! A voice owns one oscillator, one amp envelope, and the smoothed
+//! parameters that feed them. For now the engine owns a single voice
+//! and re-triggers it on every `NoteOn` (mono behaviour); the
+//! polyphonic voice manager joins later.
 
 use crate::envelope::Adsr;
 use crate::oscillator::{Oscillator, Waveform};
+use crate::smoothing::SmoothedParam;
 
 /// One synth voice: one oscillator gated by one amp envelope.
 pub struct Voice {
@@ -17,10 +18,11 @@ pub struct Voice {
     /// `note_off` only releases the matching note.
     held_note_midi: Option<u8>,
 
-    /// Pitch offset in semitones applied on top of `held_note_midi`.
-    /// Wired to the UI parameter bus in C3; stored on the voice so a
-    /// change while the note is held updates the oscillator immediately.
-    pitch_offset_semis: f32,
+    /// Smoothed pitch offset, in semitones. UI sets the target; the
+    /// audio thread advances `current` toward it each sample so that
+    /// dragging the slider doesn't introduce zipper noise on the
+    /// oscillator frequency (design-patterns.md §2.6).
+    pitch_offset_semis: SmoothedParam,
 }
 
 impl Voice {
@@ -31,14 +33,16 @@ impl Voice {
             oscillator: Oscillator::new(sample_rate_hz),
             amp_envelope: Adsr::new(sample_rate_hz),
             held_note_midi: None,
-            pitch_offset_semis: 0.0,
+            pitch_offset_semis: SmoothedParam::new(0.0, sample_rate_hz),
         }
     }
 
-    /// Triggers a note. Sets the oscillator frequency from the note
-    /// number, resets the oscillator phase, and starts the amp envelope.
+    /// Triggers a note. Snaps the smoothed pitch to its target so the
+    /// first sample of the new note plays exactly on pitch, resets the
+    /// oscillator phase, and starts the amp envelope.
     pub fn note_on(&mut self, note_midi: u8) {
         self.held_note_midi = Some(note_midi);
+        self.pitch_offset_semis.snap_to_target();
         self.update_frequency();
         self.oscillator.reset_phase();
         self.amp_envelope.note_on();
@@ -55,12 +59,10 @@ impl Voice {
         }
     }
 
-    /// Sets the global pitch offset in semitones. Re-computes the
-    /// oscillator frequency immediately so a held note glides cleanly
-    /// to the new pitch on the next sample.
+    /// Sets the target pitch offset in semitones. The audio thread
+    /// glides `current` toward this each sample.
     pub fn set_pitch_offset_semis(&mut self, pitch_offset_semis: f32) {
-        self.pitch_offset_semis = pitch_offset_semis;
-        self.update_frequency();
+        self.pitch_offset_semis.set_target(pitch_offset_semis);
     }
 
     /// Sets the amp envelope release time in seconds.
@@ -82,33 +84,31 @@ impl Voice {
         self.amp_envelope.is_idle()
     }
 
-    /// Produces one mono sample.
+    /// Produces one mono sample. Advances the smoothed pitch offset
+    /// and re-derives the oscillator frequency each sample so glide
+    /// is sample-accurate.
     pub fn next_sample(&mut self) -> f32 {
+        self.pitch_offset_semis.next_sample();
+        self.update_frequency();
         let env = self.amp_envelope.next_sample();
         let osc = self.oscillator.next_sample();
         osc * env
     }
 
     /// Re-derives the oscillator frequency from the held note plus the
-    /// current pitch offset. Called whenever either input changes.
+    /// current smoothed pitch offset.
     fn update_frequency(&mut self) {
         if let Some(note) = self.held_note_midi {
-            let note_with_offset = f32::from(note) + self.pitch_offset_semis;
-            // Convert via the standard MIDI-to-Hz formula. We accept a
-            // fractional note number here to keep semitone offsets
-            // continuous; the conversion happens inline so we don't have
-            // to add a fractional variant to the oscillator module yet.
-            let hz = 440.0 * libm_powf(2.0, (note_with_offset - 69.0) / 12.0);
+            let note_with_offset = f32::from(note) + self.pitch_offset_semis.current();
+            // Standard MIDI-to-Hz formula with a fractional note number
+            // so a non-integer smoothed offset glides cleanly through
+            // semitones.
+            let hz = 440.0 * 2.0_f32.powf((note_with_offset - 69.0) / 12.0);
             self.oscillator.set_frequency_hz(hz);
         } else {
             self.oscillator.set_frequency_hz(0.0);
         }
     }
-}
-
-#[inline]
-fn libm_powf(base: f32, exponent: f32) -> f32 {
-    base.powf(exponent)
 }
 
 #[cfg(test)]
