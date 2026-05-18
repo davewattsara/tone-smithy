@@ -6,6 +6,8 @@
 //! ([`start_silent`]) is kept so we can still bring the device up without
 //! the engine while diagnosing audio-host issues.
 
+use std::panic::{AssertUnwindSafe, catch_unwind};
+
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use synth_engine::Engine;
 use synth_engine::param_bus::{EngineEventReceiver, SnapshotSlot, store_snapshot};
@@ -206,50 +208,26 @@ pub fn start_with_engine(
     let stream = device.build_output_stream(
         &config,
         move |data: &mut [f32], _info: &cpal::OutputCallbackInfo| {
-            // 1. Drain any queued events. Bounded loop: the queue
-            //    capacity caps how many events arrive between blocks.
-            while let Some(event) = events.try_recv() {
-                engine.handle(event);
+            // design-patterns.md §2.8: a panic on the audio thread must
+            // abort the process. Silent corruption of voices / filters /
+            // effect tails is worse than a clear crash. In release builds
+            // `panic = "abort"` makes catch_unwind a no-op, but keeping
+            // the wrapper means dev builds get the same hard-fail
+            // behaviour rather than unwinding into cpal's frame.
+            let result = catch_unwind(AssertUnwindSafe(|| {
+                render_block(
+                    data,
+                    channels_usize,
+                    &mut engine,
+                    &events,
+                    &mut stereo_scratch,
+                    &snapshot_slot,
+                );
+            }));
+            if result.is_err() {
+                eprintln!("FATAL: audio thread panicked");
+                std::process::abort();
             }
-
-            // 2. Render samples.
-            let frames = data.len() / channels_usize;
-            // If cpal ever asks for more frames than our scratch allows,
-            // truncate. This shouldn't happen — MAX_BLOCK_SIZE is well
-            // above any common driver buffer — but we'd rather render
-            // silence into the tail than allocate on the audio thread.
-            let frames = frames.min(synth_engine::MAX_BLOCK_SIZE);
-            let scratch = &mut stereo_scratch[..frames * 2];
-            engine.process_stereo(scratch, frames);
-
-            // Interleave/route to the output buffer. Mono outputs take
-            // the left channel only; stereo outputs map L/R directly.
-            match channels_usize {
-                1 => {
-                    for frame_index in 0..frames {
-                        data[frame_index] = scratch[frame_index * 2];
-                    }
-                }
-                2 => {
-                    for frame_index in 0..frames {
-                        data[frame_index * 2] = scratch[frame_index * 2];
-                        data[frame_index * 2 + 1] = scratch[frame_index * 2 + 1];
-                    }
-                }
-                _ => unreachable!("channel count validated above"),
-            }
-            // Zero anything beyond what we rendered (defensive; the
-            // truncation path above is the only way this matters).
-            for sample in data.iter_mut().skip(frames * channels_usize) {
-                *sample = 0.0;
-            }
-
-            // 3. Publish a snapshot. One `Arc::new` allocation per
-            //    block — outside the DSP hot path; the recycled-pool
-            //    optimisation from design-patterns.md §2.5 is a later
-            //    milestone. The C6 `assert_no_alloc` test scopes to
-            //    `Engine::process_stereo` only, not the publishing.
-            store_snapshot(&snapshot_slot, engine.snapshot());
         },
         err_fn,
         None,
@@ -258,6 +236,63 @@ pub fn start_with_engine(
     stream.play()?;
 
     Ok(AudioStream { _stream: stream, sample_rate, channels, buffer_latency_hint })
+}
+
+/// Renders one cpal block: drain queued events, ask the engine for
+/// `frames` of stereo audio, route to the device's channel layout,
+/// publish a snapshot. Allocation-free per design-patterns.md §2.1.
+///
+/// Pulled out of the cpal closure so the [`catch_unwind`] wrapper in
+/// [`start_with_engine`] reads as a single short call.
+fn render_block(
+    data: &mut [f32],
+    channels_usize: usize,
+    engine: &mut Engine,
+    events: &EngineEventReceiver,
+    stereo_scratch: &mut [f32],
+    snapshot_slot: &SnapshotSlot,
+) {
+    // 1. Drain queued events. Bounded loop: the queue capacity caps
+    //    how many events can arrive between blocks.
+    while let Some(event) = events.try_recv() {
+        engine.handle(event);
+    }
+
+    // 2. Render samples. If cpal ever asks for more frames than our
+    //    scratch allows, truncate — MAX_BLOCK_SIZE is well above any
+    //    common driver buffer, but we'd rather drop the tail than
+    //    allocate on the audio thread.
+    let frames = (data.len() / channels_usize).min(synth_engine::MAX_BLOCK_SIZE);
+    let scratch = &mut stereo_scratch[..frames * 2];
+    engine.process_stereo(scratch, frames);
+
+    // 3. Route to the device's channel layout.
+    match channels_usize {
+        1 => {
+            for frame_index in 0..frames {
+                data[frame_index] = scratch[frame_index * 2];
+            }
+        }
+        2 => {
+            for frame_index in 0..frames {
+                data[frame_index * 2] = scratch[frame_index * 2];
+                data[frame_index * 2 + 1] = scratch[frame_index * 2 + 1];
+            }
+        }
+        _ => unreachable!("channel count validated by start_with_engine"),
+    }
+    // Zero anything beyond what we rendered (defensive; only matters
+    // if the truncation above kicked in).
+    for sample in data.iter_mut().skip(frames * channels_usize) {
+        *sample = 0.0;
+    }
+
+    // 4. Publish a snapshot. One `Arc::new` allocation per block —
+    //    outside the DSP hot path; the recycled-pool optimisation
+    //    from design-patterns.md §2.5 is a later milestone. The
+    //    no-alloc integration test scopes to `Engine::process_stereo`
+    //    only, not the publishing.
+    store_snapshot(snapshot_slot, engine.snapshot());
 }
 
 /// Bundle of values returned by `open_default_output` so the two stream
