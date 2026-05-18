@@ -8,15 +8,21 @@ This is the Tone Smithy repo: a hybrid (subtractive + FM) standalone software sy
 - **Commit immediately.** Don't wait to be asked.
 - Use the per-command identity override for your commits:
   `git -c user.name="Claude Opus 4.7" -c user.email="noreply@anthropic.com" commit ...`
+- **Always use a HEREDOC** for commit messages to avoid shell quoting issues and trailer corruption.
+- **End every Claude commit** with the trailer on its own line:
+  `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>`
+- Commit message: imperative subject ≤70 chars; body explains *why*, not *what*.
 - Multiple commits per turn are encouraged when changes are logically distinct.
 - Full git workflow: [`docs/working-conventions.md`](docs/working-conventions.md#git-workflow).
 
 ### On which branch
 - **`development` is the default working branch.** Routine work (single-commit fixes, doc updates, planning iterations, conversation logs) commits directly to `development`.
-- **Branch off `development` for substantial work.** Before starting a milestone implementation (M1, M2, …), an experiment that might be thrown away, or any work that will span multiple sessions and could leave `development` in a non-working state in between, run `git checkout -b <short-name>` first. Merge back to `development` with a regular merge when the work is done. *This rule fires on every new milestone — don't skip it.* Full criteria: [`docs/working-conventions.md#when-to-branch-off-development`](docs/working-conventions.md#when-to-branch-off-development).
+- **Branch off `development` for substantial work.** Before starting a milestone implementation (M1, M2, …), an experiment that might be thrown away, or any work that will span multiple sessions and could leave `development` in a non-working state in between, run `git checkout -b <name>` first. Merge back to `development` with a regular merge when the work is done. *This rule fires on every new milestone — don't skip it.* Full criteria: [`docs/working-conventions.md#when-to-branch-off-development`](docs/working-conventions.md#when-to-branch-off-development).
+- **Branch naming:** `feat/`, `fix/`, `docs/`, `chore/`, `experiment/`, or `milestone/m<NN>-<short>`. Milestone work uses the `milestone/` prefix.
 - **`main` is only updated at milestone boundaries** via `git merge --no-ff` from `development` (see the milestone workflow in [`docs/working-conventions.md`](docs/working-conventions.md#milestone-completion-‐-merge-development-to-main)).
 - Always check the current branch (`git status`) before committing.
 - Flag any branch switch to the user explicitly — branch state is shared.
+- **Don't switch branches with uncommitted changes.** Commit on the current branch first.
 
 ### After every Claude response
 - Append the exchange to today's log: `docs/conversations/YYYY-MM-DD.md`.
@@ -27,6 +33,16 @@ This is the Tone Smithy repo: a hybrid (subtractive + FM) standalone software sy
 - Follow [`docs/planning/04-tech-stack/code-style.md`](docs/planning/04-tech-stack/code-style.md): doc comments on every public item, audio-domain unit suffixes (`_hz`, `_cents`, etc.), prescribed file structure.
 - Follow [`docs/planning/03-architecture/design-patterns.md`](docs/planning/03-architecture/design-patterns.md): hexagonal layering, command-pattern events, single source of truth for parameters. **Real-time safety rules in Part 2 are non-negotiable** (no alloc / no lock / no syscall on the audio thread).
 - Add new files following [`docs/planning/06-implementation/project-structure.md`](docs/planning/06-implementation/project-structure.md).
+
+### Keeping README.md current
+Update `README.md` **in the same commit** as any change that:
+- Shifts the active milestone (M0 → M1, etc.) or changes the timeline estimate.
+- Adds or removes a v1 scope item.
+- Changes the build, run, lint, or test commands.
+- Adds a top-level directory or a new system dependency a builder would need.
+- Changes the licence.
+
+Don't update it for internal refactors, doc-only planning changes, or conversation log entries. Full triggers: [`docs/working-conventions.md#keeping-the-readme-up-to-date`](docs/working-conventions.md#keeping-the-readme-up-to-date).
 
 ### When considering a new feature or change
 - Check [`docs/planning/02-scope/features-v1.md`](docs/planning/02-scope/features-v1.md) and [`docs/planning/02-scope/out-of-scope.md`](docs/planning/02-scope/out-of-scope.md) first. Don't expand scope without updating the plan.
