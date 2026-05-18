@@ -38,8 +38,7 @@ fn main() -> Result<()> {
 
     // Query the device first so we know the sample rate before building
     // the engine. The stream itself is opened by `start_with_engine`.
-    let device_format = audio::default_output_format()
-        .context("could not query default audio output device")?;
+    let device_format = audio::default_output_format().context("could not query default audio output device")?;
 
     let engine = Engine::new(device_format.sample_rate as f32);
     let (events_tx, events_rx, snapshot_slot) = param_bus::new_param_bus();
@@ -49,10 +48,12 @@ fn main() -> Result<()> {
     // sine for a first-sound demo). Flows through the bus rather than
     // a direct `engine.handle` call so the queue path runs from the
     // first audio callback.
-    events_tx.send(EngineEvent::SetOscillatorWaveform { waveform: Waveform::Saw });
+    events_tx.send(EngineEvent::SetOscillatorWaveform {
+        waveform: Waveform::Saw,
+    });
 
-    let audio = audio::start_with_engine(engine, events_rx, snapshot_slot.clone())
-        .context("could not start audio output")?;
+    let audio =
+        audio::start_with_engine(engine, events_rx, snapshot_slot.clone()).context("could not start audio output")?;
     let status = format!(
         "audio out: {} Hz, {} channel(s), {} — play the on-screen keys",
         audio.sample_rate, audio.channels, audio.buffer_latency_hint,

@@ -43,15 +43,15 @@ impl SmoothedParam {
 
     /// Creates a smoother with a caller-chosen time constant.
     #[must_use]
-    pub fn with_time_constant_ms(
-        initial_value: f32,
-        sample_rate_hz: f32,
-        time_constant_ms: f32,
-    ) -> Self {
+    pub fn with_time_constant_ms(initial_value: f32, sample_rate_hz: f32, time_constant_ms: f32) -> Self {
         let tau_samples = (time_constant_ms / 1000.0) * sample_rate_hz;
         // Guard against zero / negative tau producing NaN or > 1 coeff.
         let coeff = if tau_samples > 1.0 { 1.0 / tau_samples } else { 1.0 };
-        Self { target: initial_value, current: initial_value, coeff }
+        Self {
+            target: initial_value,
+            current: initial_value,
+            coeff,
+        }
     }
 
     /// Sets the target value the smoother is heading toward. Called

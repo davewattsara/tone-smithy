@@ -137,7 +137,10 @@ mod tests {
     #[test]
     fn note_on_produces_non_zero_audio() {
         let mut engine = Engine::new(48_000.0);
-        engine.handle(EngineEvent::NoteOn { note_midi: 69, velocity: 100 });
+        engine.handle(EngineEvent::NoteOn {
+            note_midi: 69,
+            velocity: 100,
+        });
         let mut buffer = [0.0f32; 1024 * 2];
         engine.process_stereo(&mut buffer, 1024);
         let peak = buffer.iter().fold(0.0f32, |acc, s| acc.max(s.abs()));
@@ -147,9 +150,17 @@ mod tests {
     #[test]
     fn parameter_change_updates_snapshot() {
         let mut engine = Engine::new(48_000.0);
-        engine.handle(EngineEvent::ParameterChange { id: ParamId::PitchOffsetSemis, value: 7.0 });
-        engine.handle(EngineEvent::ParameterChange { id: ParamId::AmpReleaseSecs, value: 1.5 });
-        engine.handle(EngineEvent::SetOscillatorWaveform { waveform: Waveform::Saw });
+        engine.handle(EngineEvent::ParameterChange {
+            id: ParamId::PitchOffsetSemis,
+            value: 7.0,
+        });
+        engine.handle(EngineEvent::ParameterChange {
+            id: ParamId::AmpReleaseSecs,
+            value: 1.5,
+        });
+        engine.handle(EngineEvent::SetOscillatorWaveform {
+            waveform: Waveform::Saw,
+        });
 
         let snap = engine.snapshot();
         assert_eq!(snap.pitch_offset_semis, 7.0);
@@ -162,7 +173,10 @@ mod tests {
     fn voice_active_flag_tracks_note_state() {
         let mut engine = Engine::new(48_000.0);
         assert!(!engine.snapshot().voice_active);
-        engine.handle(EngineEvent::NoteOn { note_midi: 60, velocity: 100 });
+        engine.handle(EngineEvent::NoteOn {
+            note_midi: 60,
+            velocity: 100,
+        });
         // One sample is enough to leave idle.
         let mut buffer = [0.0f32; 2];
         engine.process_stereo(&mut buffer, 1);

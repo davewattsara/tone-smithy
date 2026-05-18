@@ -105,7 +105,10 @@ mod tests {
     #[test]
     fn send_and_recv_round_trip() {
         let (tx, rx, _slot) = new_param_bus();
-        tx.send(EngineEvent::NoteOn { note_midi: 60, velocity: 100 });
+        tx.send(EngineEvent::NoteOn {
+            note_midi: 60,
+            velocity: 100,
+        });
         let event = rx.try_recv().expect("event should be queued");
         assert!(matches!(event, EngineEvent::NoteOn { note_midi: 60, .. }));
         assert!(rx.try_recv().is_none(), "queue should be empty after drain");
@@ -117,7 +120,10 @@ mod tests {
         let initial = load_snapshot(&slot);
         assert_eq!(initial.pitch_offset_semis, 0.0);
 
-        let new_snap = ParamSnapshot { pitch_offset_semis: 5.0, ..ParamSnapshot::default() };
+        let new_snap = ParamSnapshot {
+            pitch_offset_semis: 5.0,
+            ..ParamSnapshot::default()
+        };
         store_snapshot(&slot, new_snap);
 
         let latest = load_snapshot(&slot);

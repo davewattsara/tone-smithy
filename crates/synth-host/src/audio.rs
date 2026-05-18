@@ -75,7 +75,11 @@ pub fn default_output_format() -> Result<DefaultOutputFormat, AudioError> {
     let sample_rate = supported.sample_rate().0;
     let channels = supported.channels();
     let buffer_latency_hint = describe_buffer_latency(supported.buffer_size(), sample_rate);
-    Ok(DefaultOutputFormat { sample_rate, channels, buffer_latency_hint })
+    Ok(DefaultOutputFormat {
+        sample_rate,
+        channels,
+        buffer_latency_hint,
+    })
 }
 
 /// A running audio output stream.
@@ -116,8 +120,14 @@ pub struct AudioStream {
 /// cannot be started, or the device uses a sample format this build does
 /// not yet handle.
 pub fn start_silent() -> Result<AudioStream, AudioError> {
-    let DeviceOpen { device, config, sample_rate, channels, sample_format, buffer_latency_hint } =
-        open_default_output()?;
+    let DeviceOpen {
+        device,
+        config,
+        sample_rate,
+        channels,
+        sample_format,
+        buffer_latency_hint,
+    } = open_default_output()?;
     log_open(channels, sample_rate, sample_format, &buffer_latency_hint);
 
     let err_fn = |err: cpal::StreamError| tracing::error!("audio stream error: {err}");
@@ -159,7 +169,12 @@ pub fn start_silent() -> Result<AudioStream, AudioError> {
 
     stream.play()?;
 
-    Ok(AudioStream { _stream: stream, sample_rate, channels, buffer_latency_hint })
+    Ok(AudioStream {
+        _stream: stream,
+        sample_rate,
+        channels,
+        buffer_latency_hint,
+    })
 }
 
 /// Opens the default output device and drives it from `engine`.
@@ -185,8 +200,14 @@ pub fn start_with_engine(
     events: EngineEventReceiver,
     snapshot_slot: SnapshotSlot,
 ) -> Result<AudioStream, AudioError> {
-    let DeviceOpen { device, config, sample_rate, channels, sample_format, buffer_latency_hint } =
-        open_default_output()?;
+    let DeviceOpen {
+        device,
+        config,
+        sample_rate,
+        channels,
+        sample_format,
+        buffer_latency_hint,
+    } = open_default_output()?;
     log_open(channels, sample_rate, sample_format, &buffer_latency_hint);
 
     if sample_format != cpal::SampleFormat::F32 {
@@ -235,7 +256,12 @@ pub fn start_with_engine(
 
     stream.play()?;
 
-    Ok(AudioStream { _stream: stream, sample_rate, channels, buffer_latency_hint })
+    Ok(AudioStream {
+        _stream: stream,
+        sample_rate,
+        channels,
+        buffer_latency_hint,
+    })
 }
 
 /// Renders one cpal block: drain queued events, ask the engine for
@@ -316,7 +342,14 @@ fn open_default_output() -> Result<DeviceOpen, AudioError> {
     let sample_format = supported.sample_format();
     let buffer_latency_hint = describe_buffer_latency(supported.buffer_size(), sample_rate);
     let config: cpal::StreamConfig = supported.into();
-    Ok(DeviceOpen { device, config, sample_rate, channels, sample_format, buffer_latency_hint })
+    Ok(DeviceOpen {
+        device,
+        config,
+        sample_rate,
+        channels,
+        sample_format,
+        buffer_latency_hint,
+    })
 }
 
 fn log_open(channels: u16, sample_rate: u32, sample_format: cpal::SampleFormat, buffer_latency_hint: &str) {

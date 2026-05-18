@@ -44,10 +44,21 @@ fn process_stereo_and_handle_do_not_allocate() {
     assert_no_alloc(|| {
         // Mix of events the audio path actually sees: note on/off,
         // continuous parameter change, discrete waveform change.
-        engine.handle(EngineEvent::SetOscillatorWaveform { waveform: Waveform::Saw });
-        engine.handle(EngineEvent::NoteOn { note_midi: 60, velocity: 100 });
-        engine.handle(EngineEvent::ParameterChange { id: ParamId::PitchOffsetSemis, value: 0.0 });
-        engine.handle(EngineEvent::ParameterChange { id: ParamId::AmpReleaseSecs, value: 0.5 });
+        engine.handle(EngineEvent::SetOscillatorWaveform {
+            waveform: Waveform::Saw,
+        });
+        engine.handle(EngineEvent::NoteOn {
+            note_midi: 60,
+            velocity: 100,
+        });
+        engine.handle(EngineEvent::ParameterChange {
+            id: ParamId::PitchOffsetSemis,
+            value: 0.0,
+        });
+        engine.handle(EngineEvent::ParameterChange {
+            id: ParamId::AmpReleaseSecs,
+            value: 0.5,
+        });
 
         for block_index in 0..total_blocks {
             // Periodically poke an event so the handle() path is
@@ -63,7 +74,10 @@ fn process_stereo_and_handle_do_not_allocate() {
             // machine through all phases.
             if block_index.is_multiple_of(blocks_per_second) && block_index > 0 {
                 engine.handle(EngineEvent::NoteOff { note_midi: 60 });
-                engine.handle(EngineEvent::NoteOn { note_midi: 67, velocity: 100 });
+                engine.handle(EngineEvent::NoteOn {
+                    note_midi: 67,
+                    velocity: 100,
+                });
             }
             engine.process_stereo(&mut buffer, BLOCK_FRAMES);
         }

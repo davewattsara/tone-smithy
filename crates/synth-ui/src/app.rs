@@ -119,13 +119,10 @@ impl eframe::App for ToneSmithyApp {
 
                     ui.label("Amp release (seconds)");
                     let release_response = ui.add(
-                        egui::Slider::new(
-                            &mut self.amp_release_secs,
-                            RELEASE_MIN_SECS..=RELEASE_MAX_SECS,
-                        )
-                        .logarithmic(true)
-                        .step_by(0.001)
-                        .clamping(egui::SliderClamping::Always),
+                        egui::Slider::new(&mut self.amp_release_secs, RELEASE_MIN_SECS..=RELEASE_MAX_SECS)
+                            .logarithmic(true)
+                            .step_by(0.001)
+                            .clamping(egui::SliderClamping::Always),
                     );
                     if release_response.changed() {
                         self.events.send(EngineEvent::ParameterChange {
@@ -144,10 +141,7 @@ impl eframe::App for ToneSmithyApp {
                         {
                             changed = true;
                         }
-                        if ui
-                            .selectable_value(&mut self.waveform, Waveform::Saw, "Saw")
-                            .clicked()
-                        {
+                        if ui.selectable_value(&mut self.waveform, Waveform::Saw, "Saw").clicked() {
                             changed = true;
                         }
                         if changed {
@@ -173,10 +167,7 @@ impl eframe::App for ToneSmithyApp {
             ui.add_space(8.0);
             ui.label(format!(
                 "engine snapshot — voice active: {}, waveform: {:?}, pitch: {:+.2} semis, release: {:.3} s",
-                snapshot.voice_active,
-                snapshot.waveform,
-                snapshot.pitch_offset_semis,
-                snapshot.amp_release_secs,
+                snapshot.voice_active, snapshot.waveform, snapshot.pitch_offset_semis, snapshot.amp_release_secs,
             ));
         });
 

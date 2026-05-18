@@ -54,7 +54,11 @@ pub struct VirtualKeyboard {
 
 impl Default for VirtualKeyboard {
     fn default() -> Self {
-        Self { start_note_midi: 48, octaves: 2, held_note: None }
+        Self {
+            start_note_midi: 48,
+            octaves: 2,
+            held_note: None,
+        }
     }
 }
 
@@ -79,11 +83,17 @@ impl VirtualKeyboard {
         match (self.held_note, active_note) {
             (Some(old), Some(new)) if old != new => {
                 sender.send(EngineEvent::NoteOff { note_midi: old });
-                sender.send(EngineEvent::NoteOn { note_midi: new, velocity: 100 });
+                sender.send(EngineEvent::NoteOn {
+                    note_midi: new,
+                    velocity: 100,
+                });
                 self.held_note = Some(new);
             }
             (None, Some(new)) => {
-                sender.send(EngineEvent::NoteOn { note_midi: new, velocity: 100 });
+                sender.send(EngineEvent::NoteOn {
+                    note_midi: new,
+                    velocity: 100,
+                });
                 self.held_note = Some(new);
             }
             (Some(old), None) => {
@@ -136,9 +146,7 @@ impl VirtualKeyboard {
 
         // White keys.
         for octave in 0..self.octaves {
-            for (key_within_octave, &semitone_offset) in
-                WHITE_KEY_SEMITONE_OFFSETS.iter().enumerate()
-            {
+            for (key_within_octave, &semitone_offset) in WHITE_KEY_SEMITONE_OFFSETS.iter().enumerate() {
                 let column = u32::from(octave) * 7 + key_within_octave as u32;
                 let x_left = rect.left() + white_key_column_x_offset(column);
                 let key_rect = egui::Rect::from_min_size(
@@ -175,8 +183,7 @@ impl VirtualKeyboard {
     /// Computes the screen rect of a black key, centred on the boundary
     /// between two white-key columns.
     fn black_key_rect(&self, rect: egui::Rect, octave: u8, boundary_column: u8) -> egui::Rect {
-        let boundary_x =
-            rect.left() + (f32::from(octave) * 7.0 + f32::from(boundary_column)) * WHITE_KEY_WIDTH;
+        let boundary_x = rect.left() + (f32::from(octave) * 7.0 + f32::from(boundary_column)) * WHITE_KEY_WIDTH;
         egui::Rect::from_min_size(
             egui::pos2(boundary_x - BLACK_KEY_WIDTH / 2.0, rect.top()),
             egui::vec2(BLACK_KEY_WIDTH, BLACK_KEY_HEIGHT),
