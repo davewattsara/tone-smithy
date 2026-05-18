@@ -10,8 +10,8 @@
 //! beyond the choice of default waveform.
 
 use anyhow::{Context, Result};
-use synth_engine::param_bus;
 use synth_engine::Engine;
+use synth_engine::param_bus;
 use synth_host::audio::{self, AudioStream};
 use synth_ui::app::ToneSmithyApp;
 
