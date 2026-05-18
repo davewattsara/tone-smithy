@@ -11,7 +11,7 @@
 
 use anyhow::{Context, Result};
 use synth_engine::param_bus;
-use synth_engine::{Engine, EngineEvent, Waveform};
+use synth_engine::Engine;
 use synth_host::audio::{self, AudioStream};
 use synth_ui::app::ToneSmithyApp;
 
@@ -42,15 +42,6 @@ fn main() -> Result<()> {
 
     let engine = Engine::new(device_format.sample_rate as f32);
     let (events_tx, events_rx, snapshot_slot) = param_bus::new_param_bus();
-
-    // Seed the engine with the default-on waveform so the on-screen
-    // keyboard plays a saw out of the box (more recognisable than a
-    // sine for a first-sound demo). Flows through the bus rather than
-    // a direct `engine.handle` call so the queue path runs from the
-    // first audio callback.
-    events_tx.send(EngineEvent::SetOscillatorWaveform {
-        waveform: Waveform::Saw,
-    });
 
     let audio =
         audio::start_with_engine(engine, events_rx, snapshot_slot.clone()).context("could not start audio output")?;
