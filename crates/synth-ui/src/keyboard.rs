@@ -62,8 +62,7 @@ impl VirtualKeyboard {
     /// Renders the keyboard and pumps mouse interaction through `sender`.
     pub fn show(&mut self, ui: &mut egui::Ui, sender: &EngineEventSender) {
         let total_white_keys = u32::from(self.octaves) * 7;
-        #[allow(clippy::cast_precision_loss)]
-        let desired_width = WHITE_KEY_WIDTH * total_white_keys as f32;
+        let desired_width = white_key_column_x_offset(total_white_keys);
         let (rect, response) = ui.allocate_exact_size(
             egui::vec2(desired_width, WHITE_KEY_HEIGHT),
             egui::Sense::click_and_drag(),
@@ -113,21 +112,21 @@ impl VirtualKeyboard {
                 }
             }
         }
-        // White keys.
-        let column = ((pos.x - rect.left()) / WHITE_KEY_WIDTH).floor();
-        if column < 0.0 {
-            return None;
-        }
-        #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
-        let column = column as u32;
+        // White keys: figure out which column the pointer is over.
+        // The pointer-x check above guarantees `pos.x >= rect.left()`
+        // implicitly only if rect.contains(pos) — which we asserted at
+        // the top of the function — so the subtraction is non-negative.
+        let column_f = (pos.x - rect.left()) / WHITE_KEY_WIDTH;
         let total_white_keys = u32::from(self.octaves) * 7;
-        if column >= total_white_keys {
+        // `column_f` is in [0, num_white_keys) by construction of
+        // `rect.contains(pos)`; sign-loss / truncation are impossible.
+        if !column_f.is_finite() || column_f < 0.0 || column_f >= total_white_keys as f32 {
             return None;
         }
-        #[allow(clippy::cast_possible_truncation)]
-        let octave = (column / 7) as u8;
-        let key_within_octave = column % 7;
-        let semitone_offset = WHITE_KEY_SEMITONE_OFFSETS[key_within_octave as usize];
+        let column = column_f as u32;
+        let octave = u8::try_from(column / 7).expect("octave fits in u8: octaves is u8 to begin with");
+        let key_within_octave = (column % 7) as usize;
+        let semitone_offset = WHITE_KEY_SEMITONE_OFFSETS[key_within_octave];
         Some(self.start_note_midi + octave * 12 + semitone_offset)
     }
 
@@ -136,26 +135,25 @@ impl VirtualKeyboard {
         let stroke = egui::Stroke::new(1.0, ui.visuals().widgets.noninteractive.fg_stroke.color);
 
         // White keys.
-        let total_white_keys = u32::from(self.octaves) * 7;
-        for column in 0..total_white_keys {
-            #[allow(clippy::cast_precision_loss)]
-            let x_left = rect.left() + (column as f32) * WHITE_KEY_WIDTH;
-            let key_rect = egui::Rect::from_min_size(
-                egui::pos2(x_left, rect.top()),
-                egui::vec2(WHITE_KEY_WIDTH, WHITE_KEY_HEIGHT),
-            );
-            #[allow(clippy::cast_possible_truncation)]
-            let octave = (column / 7) as u8;
-            let key_within_octave = column % 7;
-            let semitone_offset = WHITE_KEY_SEMITONE_OFFSETS[key_within_octave as usize];
-            let note = self.start_note_midi + octave * 12 + semitone_offset;
+        for octave in 0..self.octaves {
+            for (key_within_octave, &semitone_offset) in
+                WHITE_KEY_SEMITONE_OFFSETS.iter().enumerate()
+            {
+                let column = u32::from(octave) * 7 + key_within_octave as u32;
+                let x_left = rect.left() + white_key_column_x_offset(column);
+                let key_rect = egui::Rect::from_min_size(
+                    egui::pos2(x_left, rect.top()),
+                    egui::vec2(WHITE_KEY_WIDTH, WHITE_KEY_HEIGHT),
+                );
+                let note = self.start_note_midi + octave * 12 + semitone_offset;
 
-            let fill = if self.held_note == Some(note) {
-                egui::Color32::from_rgb(180, 210, 255)
-            } else {
-                egui::Color32::WHITE
-            };
-            painter.rect(key_rect, 2.0, fill, stroke);
+                let fill = if self.held_note == Some(note) {
+                    egui::Color32::from_rgb(180, 210, 255)
+                } else {
+                    egui::Color32::WHITE
+                };
+                painter.rect(key_rect, 2.0, fill, stroke);
+            }
         }
 
         // Black keys overlay.
@@ -184,4 +182,13 @@ impl VirtualKeyboard {
             egui::vec2(BLACK_KEY_WIDTH, BLACK_KEY_HEIGHT),
         )
     }
+}
+
+/// X offset (in pixels, from the left edge of the keyboard) of the
+/// white-key column at `column`. Column counts are bounded by the
+/// keyboard's `octaves * 7` (a few dozen at most for any sensible
+/// keyboard size), so the `u32 -> f32` cast is exact.
+#[allow(clippy::cast_precision_loss)]
+fn white_key_column_x_offset(column: u32) -> f32 {
+    (column as f32) * WHITE_KEY_WIDTH
 }

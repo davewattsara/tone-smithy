@@ -111,14 +111,7 @@ impl Oscillator {
 #[must_use]
 pub fn midi_note_to_hz(note_midi: u8) -> f32 {
     // f = 440 * 2^((n - 69) / 12)
-    440.0 * libm_powf(2.0, (f32::from(note_midi) - 69.0) / 12.0)
-}
-
-/// Local `powf` shim. `f32::powf` is in `std`, which is fine here — kept as
-/// a thin wrapper so future no_std experiments only change one line.
-#[inline]
-fn libm_powf(base: f32, exponent: f32) -> f32 {
-    base.powf(exponent)
+    440.0 * 2.0_f32.powf((f32::from(note_midi) - 69.0) / 12.0)
 }
 
 #[cfg(test)]

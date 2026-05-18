@@ -2384,7 +2384,6 @@ dependencies = [
  "eframe",
  "egui",
  "synth-engine",
- "tracing",
 ]
 
 [[package]]

@@ -7,6 +7,7 @@
 //! [`Engine::process_stereo`] is allowed zero heap allocations.
 
 use crate::events::EngineEvent;
+use crate::oscillator::Waveform;
 use crate::params::{ParamId, ParamSnapshot};
 use crate::voice::Voice;
 
@@ -34,7 +35,7 @@ pub struct Engine {
     /// allocating. M2 replaces this with the typed parameter tree.
     pitch_offset_semis: f32,
     amp_release_secs: f32,
-    waveform: crate::oscillator::Waveform,
+    waveform: Waveform,
 }
 
 impl Engine {
@@ -124,7 +125,6 @@ impl Engine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::oscillator::Waveform;
 
     #[test]
     fn engine_starts_silent() {
