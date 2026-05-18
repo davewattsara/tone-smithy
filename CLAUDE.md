@@ -6,11 +6,11 @@ This is the Tone Smithy repo: a hybrid (subtractive + FM) standalone software sy
 
 ### After making file changes
 - **Commit immediately.** Don't wait to be asked.
-- Use the per-command identity override for your commits:
-  `git -c user.name="Claude" -c user.email="noreply@anthropic.com" commit ...`
+- Use the per-command identity override with **your current model name** (e.g. `Claude Sonnet 4.6`, `Claude Opus 4.7` — whatever model is powering this session):
+  `git -c user.name="Claude Sonnet 4.6" -c user.email="noreply@anthropic.com" commit ...`
 - **Always use a HEREDOC** for commit messages to avoid shell quoting issues and trailer corruption.
-- **End every Claude commit** with the trailer on its own line:
-  `Co-Authored-By: Claude <noreply@anthropic.com>`
+- **End every Claude commit** with the trailer on its own line, using your current model name:
+  `Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>`
 - Commit message: imperative subject ≤70 chars; body explains *why*, not *what*.
 - Multiple commits per turn are encouraged when changes are logically distinct.
 - Full git workflow: [`docs/working-conventions.md`](docs/working-conventions.md#git-workflow).
@@ -26,6 +26,7 @@ This is the Tone Smithy repo: a hybrid (subtractive + FM) standalone software sy
 
 ### After every Claude response
 - Append the exchange to today's log: `docs/conversations/YYYY-MM-DD.md`.
+- The Claude turn heading must identify the model: `### [HH:MM:SS] Claude (Sonnet 4.6)` — use your current model name so the log shows which agent wrote each response.
 - Format spec: [`docs/conversations/README.md`](docs/conversations/README.md).
 - Commit the log update as a **separate commit** after work commits, with subject `Log conversation: ...`.
 

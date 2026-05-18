@@ -12,11 +12,13 @@ The design plan itself lives at [`planning/README.md`](planning/README.md). This
 
 Global git config is **intentionally unset** in this repo. Authorship is established per-commit, so that Claude's commits and the user's commits are clearly distinguishable in `git log`.
 
-- **Claude commits** (made by an AI agent in a sandbox) must use the per-command identity override:
+- **Claude commits** (made by an AI agent in a sandbox) must use the per-command identity override with the **current model name** (the agent reads this from its system context — e.g. `Claude Sonnet 4.6`, `Claude Opus 4.7`):
 
   ```bash
-  git -c user.name="Claude" -c user.email="noreply@anthropic.com" commit -m "..."
+  git -c user.name="Claude Sonnet 4.6" -c user.email="noreply@anthropic.com" commit -m "..."
   ```
+
+  The model name in the example above is illustrative — use whatever model is actually running the session.
 
 - **User commits** rely on whatever identity the user has configured on their host or in their local repo config. The user is responsible for their own identity setup.
 
@@ -34,12 +36,12 @@ Global git config is **intentionally unset** in this repo. Authorship is establi
 - Imperative subject line, under ~70 characters.
 - Body explaining the *why* with bullets where useful.
 - Use a HEREDOC to keep formatting clean.
-- End Claude commits with the `Co-Authored-By: Claude <noreply@anthropic.com>` trailer.
+- End Claude commits with the `Co-Authored-By: <model-name> <noreply@anthropic.com>` trailer, using the current model name.
 
 Example:
 
 ```bash
-git -c user.name="Claude" -c user.email="noreply@anthropic.com" commit -m "$(cat <<'EOF'
+git -c user.name="Claude Sonnet 4.6" -c user.email="noreply@anthropic.com" commit -m "$(cat <<'EOF'
 Subject line in imperative mood
 
 Brief explanation of why this change is being made.
@@ -47,7 +49,7 @@ Brief explanation of why this change is being made.
 - Specific point 1
 - Specific point 2
 
-Co-Authored-By: Claude <noreply@anthropic.com>
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 EOF
 )"
 ```
