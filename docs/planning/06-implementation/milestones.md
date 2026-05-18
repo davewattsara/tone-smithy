@@ -46,7 +46,7 @@ Set up the workspace and basic plumbing for the real project.
 
 ---
 
-## M1 — First sound (2–3 weeks)
+## M1 — First sound (2–3 weeks) — **complete (2026-05-18, tag `m01`)**
 
 Get the project's own engine producing sound.
 

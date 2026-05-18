@@ -21,7 +21,7 @@ The on-disk layout of the repository. Aims for clarity and a clean dependency gr
 ├── LICENSE-APACHE                # dual-licensed: Apache-2.0
 │
 ├── crates/
-│   ├── synth-engine/             # pure DSP, no I/O
+│   ├── synth-engine/             # pure DSP + parameter-bus port types, no I/O
 │   │   ├── Cargo.toml
 │   │   ├── src/
 │   │   │   ├── lib.rs
@@ -37,6 +37,7 @@ The on-disk layout of the repository. Aims for clarity and a clean dependency gr
 │   │   │   │   ├── svf.rs
 │   │   │   │   └── ladder.rs
 │   │   │   ├── envelope.rs
+│   │   │   ├── smoothing.rs      # one-pole parameter smoother (design-patterns §2.6)
 │   │   │   ├── lfo.rs
 │   │   │   ├── modulation.rs
 │   │   │   ├── effects/
@@ -49,6 +50,7 @@ The on-disk layout of the repository. Aims for clarity and a clean dependency gr
 │   │   │   ├── params/
 │   │   │   │   ├── mod.rs        # parameter tree, ids, defaults
 │   │   │   │   └── snapshot.rs
+│   │   │   ├── param_bus.rs      # lock-free SPSC + ArcSwap snapshot slot
 │   │   │   ├── events.rs         # EngineEvent enum
 │   │   │   └── engine.rs         # top-level process() + lifecycle
 │   │   ├── benches/
@@ -60,13 +62,12 @@ The on-disk layout of the repository. Aims for clarity and a clean dependency gr
 │   │       ├── engine_snapshot.rs
 │   │       └── no_alloc.rs
 │   │
-│   ├── synth-host/               # audio + MIDI I/O, parameter bus
+│   ├── synth-host/               # audio + MIDI I/O
 │   │   ├── Cargo.toml
 │   │   └── src/
 │   │       ├── lib.rs
 │   │       ├── audio.rs          # cpal integration
 │   │       ├── midi.rs           # midir integration
-│   │       ├── param_bus.rs      # lock-free queues + snapshot pub
 │   │       └── settings.rs       # audio/MIDI device selection
 │   │
 │   ├── synth-presets/            # preset format, browser, I/O
@@ -162,7 +163,7 @@ No cycles. The engine is a leaf and can be reasoned about and tested in isolatio
 
 ## Why these boundaries
 
-- **`synth-engine` separate** so it has no I/O dependencies. Adding plugin formats in v2 is then a matter of building a new "host" alongside `synth-host`.
+- **`synth-engine` separate** so it has no I/O dependencies. Adding plugin formats in v2 is then a matter of building a new "host" alongside `synth-host`. The parameter-bus port types (`param_bus.rs`) live here rather than in `synth-host` because both `synth-host` and `synth-ui` pass raw bus types in their public APIs — putting them in the engine keeps both adapters layered above one shared definition, and the only deps it pulls in are `crossbeam-channel` and `arc-swap` (pure-Rust concurrency primitives, not I/O).
 - **`synth-presets` separate** because the preset format is data-only and shouldn't be locked behind a UI or I/O dependency. It depends on `synth-engine` only for parameter types.
 - **`synth-ui` separate** so the UI can be developed, tested, and styled without dragging audio I/O into every build.
 - **`synth-app`** is the only crate that knows about all four — it's the assembly point.

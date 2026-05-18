@@ -32,7 +32,7 @@ Then a sequence of **exchanges**, separated by horizontal rules (`---`). Each ex
 > Verbatim text of the user's message, blockquoted.
 > Multi-line messages keep the `>` prefix on every line.
 
-### [HH:MM:SS] Claude
+### [HH:MM:SS] Claude (Sonnet 4.6)
 Verbatim text of Claude's response, as plain prose.
 
 **Commits:** `abc1234` — Short commit subject, `def5678` — Another subject
@@ -44,7 +44,7 @@ Verbatim text of Claude's response, as plain prose.
 
 The user's turn must stand out at a glance. Two cues enforce this:
 
-1. **`**You**` is bolded in the heading**; Claude's heading is plain.
+1. **`**You**` is bolded in the heading**; Claude's heading is plain and includes the model name in parentheses — e.g. `Claude (Sonnet 4.6)`. Use whatever model is actually running the session.
 2. **The user's body is blockquoted** (every line starts with `> `); Claude's body is plain text.
 
 In rendered Markdown, the blockquote shows as a vertical accent bar, so the user's lines pop out when scrolling.
@@ -120,7 +120,7 @@ If a Claude turn was almost entirely tool calls with little or no prose, log a o
 ### [14:32:01] **You**
 > can we add a section for conversation logs
 
-### [14:32:15] Claude
+### [14:32:15] Claude (Sonnet 4.6)
 Sure — proposing `docs/conversations/` with a README of instructions
 and one Markdown file per day.
 
@@ -131,7 +131,7 @@ and one Markdown file per day.
 ### [14:35:00] **You**
 > looks good, lock it in
 
-### [14:35:09] Claude
+### [14:35:09] Claude (Sonnet 4.6)
 Done. The instructions are at `docs/conversations/README.md`; today's
 log is `docs/conversations/2026-05-17.md`.
 

@@ -9,7 +9,21 @@ publish.workspace = true
 authors.workspace = true
 
 [dependencies]
+# Pure-Rust concurrency primitives. Not I/O — they implement the
+# engine's parameter bus (UI -> engine event queue + engine -> UI
+# snapshot slot) per design-patterns.md §1.4 and §2.2. Adding these to
+# the hexagon core is consistent with §1.1; the layering forbid-list
+# only blocks I/O and UI crates.
+arc-swap.workspace = true
+crossbeam-channel.workspace = true
 thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+# Real-time safety enforcement (design-patterns.md §2.1). The
+# `no_alloc` integration test wraps `Engine::process_stereo` and
+# `Engine::handle` to verify the audio path never allocates.
+assert_no_alloc.workspace = true
 
 [lints]
 workspace = true
