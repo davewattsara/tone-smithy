@@ -36,7 +36,6 @@ Global git config is **intentionally unset** in this repo. Authorship is establi
 - Imperative subject line, under ~70 characters.
 - Body explaining the *why* with bullets where useful.
 - Use a HEREDOC to keep formatting clean.
-- End Claude commits with the `Co-Authored-By: <model-name> <noreply@anthropic.com>` trailer, using the current model name.
 
 Example:
 
@@ -48,8 +47,6 @@ Brief explanation of why this change is being made.
 
 - Specific point 1
 - Specific point 2
-
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 EOF
 )"
 ```

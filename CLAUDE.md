@@ -8,9 +8,7 @@ This is the Tone Smithy repo: a hybrid (subtractive + FM) standalone software sy
 - **Commit immediately.** Don't wait to be asked.
 - Use the per-command identity override with **your current model name** (e.g. `Claude Sonnet 4.6`, `Claude Opus 4.7` — whatever model is powering this session):
   `git -c user.name="Claude Sonnet 4.6" -c user.email="noreply@anthropic.com" commit ...`
-- **Always use a HEREDOC** for commit messages to avoid shell quoting issues and trailer corruption.
-- **End every Claude commit** with the trailer on its own line, using your current model name:
-  `Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>`
+- **Always use a HEREDOC** for commit messages to avoid shell quoting issues.
 - Commit message: imperative subject ≤70 chars; body explains *why*, not *what*.
 - Multiple commits per turn are encouraged when changes are logically distinct.
 - Full git workflow: [`docs/working-conventions.md`](docs/working-conventions.md#git-workflow).
