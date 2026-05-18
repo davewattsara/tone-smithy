@@ -49,6 +49,7 @@ Don't update it for internal refactors, doc-only planning changes, or conversati
 
 ## Don'ts
 
+- **Don't rewrite git history.** Never use `git filter-branch`, `git rebase -i`, `git commit --amend` on a non-HEAD commit, `git reset --hard` to discard commits, or any other history-rewriting command. If commits are messy, leave them — messy history is better than rewritten history. Only the user may authorise history rewrites, and even then, confirm before acting.
 - **Don't commit directly to `main`** outside an explicit milestone merge. All routine work goes on `development`.
 - **Don't update git config** (`git config --global ...` or local). Use the per-command override for your commits.
 - **Don't add new top-level markdown files unprompted.** The set of top-level docs is intentionally small (`README.md`, `CLAUDE.md`, `LICENSE-MIT`, `LICENSE-APACHE`). Anything else goes under `docs/`.
