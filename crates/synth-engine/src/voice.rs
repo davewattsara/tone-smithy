@@ -101,7 +101,10 @@ impl Voice {
     }
 
     /// Re-derives the oscillator frequency from the held note plus the
-    /// current smoothed pitch offset.
+    /// current smoothed pitch offset. When no note is held (release tail)
+    /// the frequency is left unchanged so the oscillator keeps cycling at
+    /// the correct pitch — stopping it causes a timbral discontinuity that
+    /// sounds like a click at note end.
     fn update_frequency(&mut self) {
         if let Some(note) = self.held_note_midi {
             let note_with_offset = f32::from(note) + self.pitch_offset_semis.current();
@@ -110,9 +113,9 @@ impl Voice {
             // semitones.
             let hz = 440.0 * 2.0_f32.powf((note_with_offset - 69.0) / 12.0);
             self.oscillator.set_frequency_hz(hz);
-        } else {
-            self.oscillator.set_frequency_hz(0.0);
         }
+        // No else: when held_note_midi is None the oscillator retains its
+        // last phase_increment and rings through the release at correct pitch.
     }
 }
 
