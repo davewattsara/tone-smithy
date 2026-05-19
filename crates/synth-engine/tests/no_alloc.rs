@@ -166,3 +166,67 @@ fn process_stereo_and_handle_do_not_allocate() {
     let peak = buffer.iter().fold(0.0_f32, |acc, s| acc.max(s.abs()));
     assert!(peak > 0.0, "expected audible output, peak was {peak}");
 }
+
+/// Polyphonic stress: thirty-two simultaneous notes plus the steal
+/// path. Sized to catch any allocation introduced by the voice manager
+/// or its fan-out helpers — the single-note test above won't exercise
+/// the stealing code because no notes ever overlap there.
+#[test]
+fn polyphonic_render_and_voice_stealing_do_not_allocate() {
+    let mut engine = Engine::new(SAMPLE_RATE_HZ);
+
+    let mut buffer = vec![0.0_f32; BLOCK_FRAMES * 2];
+    let blocks_per_second = SAMPLE_RATE_HZ as usize / BLOCK_FRAMES;
+    // Two seconds is enough to put all 32 voices through attack,
+    // sustain, release, and steal-on-overrun.
+    let total_blocks = 2 * blocks_per_second;
+
+    assert_no_alloc(|| {
+        // Saw is the harshest worst-case (polyBLEP residual every
+        // cycle, every voice).
+        engine.handle(EngineEvent::SetOscillatorWaveform {
+            waveform: Waveform::Saw,
+        });
+        engine.handle(EngineEvent::ParameterChange {
+            id: ParamId::FilterCutoffHz,
+            value: 4_000.0,
+        });
+
+        // Press all 32 voices in a tight loop — pass 1 of the
+        // allocator picks the first idle voice each time.
+        for n in 0..32 {
+            engine.handle(EngineEvent::NoteOn {
+                note_midi: 36 + n,
+                velocity: 100,
+            });
+        }
+
+        for block_index in 0..total_blocks {
+            // Force a steal every few blocks by playing notes the
+            // pool isn't holding. Pass 2 (oldest releasing) and
+            // eventually pass 3 (quietest) both get exercised over
+            // the run.
+            if block_index.is_multiple_of(8) {
+                #[allow(clippy::cast_possible_truncation)]
+                let extra = 80 + (block_index % 16) as u8;
+                engine.handle(EngineEvent::NoteOn {
+                    note_midi: extra,
+                    velocity: 100,
+                });
+            }
+            // Periodically release a held note so some voices enter
+            // the release phase (pass 2's target).
+            if block_index.is_multiple_of(13) {
+                #[allow(clippy::cast_possible_truncation)]
+                let n = 36 + ((block_index / 13) % 32) as u8;
+                engine.handle(EngineEvent::NoteOff { note_midi: n });
+            }
+            engine.process_stereo(&mut buffer, BLOCK_FRAMES);
+        }
+    });
+
+    // Sanity check: 32 voices should produce a noticeably louder
+    // peak than a single voice would.
+    let peak = buffer.iter().fold(0.0_f32, |acc, s| acc.max(s.abs()));
+    assert!(peak > 1.0, "expected polyphonic mix above unity, peak was {peak}");
+}

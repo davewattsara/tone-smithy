@@ -30,6 +30,11 @@ pub const MAIN_OSCILLATOR_COUNT: usize = 3;
 /// voices per oscillator").
 pub const MAX_UNISON_VOICES: usize = 7;
 
+/// Maximum number of simultaneously sounding notes. Sized per
+/// `docs/planning/03-architecture/audio-engine.md` ("Voice management
+/// — 32 voices, allocated up front in a fixed array").
+pub const POLYPHONY: usize = 32;
+
 pub use crate::engine::{Engine, MAX_BLOCK_SIZE};
 pub use crate::envelope::Adsr;
 pub use crate::events::EngineEvent;
@@ -38,6 +43,7 @@ pub use crate::oscillator::{Oscillator, UnisonOscillator, Waveform, midi_note_to
 pub use crate::params::{ParamId, ParamSnapshot, ParameterTree, SampleParams};
 pub use crate::smoothing::{DEFAULT_TIME_CONSTANT_MS, SmoothedParam};
 pub use crate::voice::Voice;
+pub use crate::voice_manager::VoiceManager;
 
 pub mod param_bus;
 
@@ -50,3 +56,4 @@ mod panning;
 mod params;
 mod smoothing;
 mod voice;
+mod voice_manager;
