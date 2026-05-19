@@ -1,13 +1,14 @@
 //! Top-level [`eframe::App`] implementation.
 //!
-//! M2 surface: existing M1 controls (pitch offset, amp release,
-//! waveform — extended to all four shapes), plus a filter section
-//! (mode / cutoff / resonance) and a unison section for oscillator 1
-//! (voices / detune / spread). These use egui's default widgets and
-//! are intentionally rough — M4 replaces the layout with the proper
-//! panel library and custom knob widget, and rounds out per-osc
-//! level/pan/detune controls. The goal here is the M2 done-when:
-//! audible filter sweeps and unison detune from the running binary.
+//! M4: Three panels (Osc 1, Filter, Amp Envelope) plus master volume and a
+//! status footer. All continuous parameters use the custom [`Knob`] widget.
+//! Discrete parameters (waveform, filter mode) keep their button rows.
+//! The virtual keyboard and computer-keyboard layer are unchanged from M3.
+//!
+//! [`Knob`]: crate::knob::Knob
+
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use eframe::egui;
 use synth_engine::param_bus::{EngineEventSender, SnapshotSlot, load_snapshot};
@@ -15,242 +16,214 @@ use synth_engine::{EngineEvent, FilterMode, ParamId, Waveform};
 
 use crate::computer_keyboard::ComputerKeyboard;
 use crate::keyboard::VirtualKeyboard;
+use crate::knob::Knob;
 
-/// Lower bound for the pitch offset slider, in semitones.
-const PITCH_OFFSET_MIN_SEMIS: f32 = -24.0;
-/// Upper bound for the pitch offset slider, in semitones.
-const PITCH_OFFSET_MAX_SEMIS: f32 = 24.0;
+// ── Oscillator 1 range constants ────────────────────────────────────────────
 
-/// Lower bound for the release slider, in seconds.
-const RELEASE_MIN_SECS: f32 = 0.005;
-/// Upper bound for the release slider, in seconds.
-const RELEASE_MAX_SECS: f32 = 3.0;
+const OSC_LEVEL_MAX: f32 = 1.0;
+const OSC_DETUNE_MAX_CENTS: f32 = 100.0;
+const UNISON_DETUNE_MAX_CENTS: f32 = 50.0;
+const UNISON_VOICES_MAX: f32 = 7.0;
 
-/// Lower bound for the filter cutoff slider, in Hz. Matches the
-/// SVF's internal floor.
+// ── Filter range constants ───────────────────────────────────────────────────
+
 const CUTOFF_MIN_HZ: f32 = 20.0;
-/// Upper bound for the filter cutoff slider, in Hz. Sits below
-/// Nyquist for 44.1/48 kHz sample rates with comfortable headroom.
 const CUTOFF_MAX_HZ: f32 = 20_000.0;
 
-/// Top end of the unison detune slider, in cents. Half a semitone is
-/// well past anything musical; the smaller increments are where the
-/// interesting effect lives.
-const UNISON_DETUNE_MAX_CENTS: f32 = 50.0;
+// ── Amp envelope range constants ─────────────────────────────────────────────
 
-/// Maximum unison voice count surfaced in the slider. Matches the
-/// engine's hard cap.
-const UNISON_VOICES_MAX: f32 = 7.0;
+const ENV_MIN_SECS: f32 = 0.001;
+const ENV_ATTACK_MAX_SECS: f32 = 10.0;
+const ENV_DECAY_MAX_SECS: f32 = 10.0;
+const ENV_RELEASE_MAX_SECS: f32 = 10.0;
+
+// ── Pitch offset ─────────────────────────────────────────────────────────────
+
+const PITCH_OFFSET_RANGE: f32 = 24.0;
 
 /// The Tone Smithy application UI.
 pub struct ToneSmithyApp {
-    /// One-line description of the open audio device, set at construction.
     audio_status: String,
-
-    /// Outbound queue to the engine.
     events: EngineEventSender,
-
-    /// Snapshot slot the engine publishes into each block.
     snapshot_slot: SnapshotSlot,
 
-    /// UI-side mirror of pitch offset. Initialised from the snapshot
-    /// at construction; rebroadcast as a `ParameterChange` whenever the
-    /// user drags the slider. The engine snapshot is the source of
-    /// truth — see design-patterns.md §1.3 — so we resync whenever the
-    /// snapshot disagrees and the user isn't currently dragging.
-    pitch_offset_semis: f32,
-
-    /// UI-side mirror of amp release seconds.
-    amp_release_secs: f32,
-
-    /// UI-side mirror of the discrete oscillator waveform.
+    // ── Osc 1 mirrors ────────────────────────────────────────────────────────
+    osc1_level: f32,
+    osc1_detune_cents: f32,
+    osc1_pan: f32,
     waveform: Waveform,
-
-    /// UI-side mirror of the discrete filter output mode.
-    filter_mode: FilterMode,
-    /// UI-side mirror of the filter cutoff in Hz.
-    filter_cutoff_hz: f32,
-    /// UI-side mirror of the filter resonance on the 0..=1 scale.
-    filter_resonance: f32,
-
-    /// UI-side mirror of oscillator 1's unison voice count.
-    /// Carried as f32 because the parameter bus carries f32; the
-    /// engine rounds and clamps on the consuming side.
     osc1_unison_voices: f32,
-    /// UI-side mirror of oscillator 1's unison detune width in cents.
     osc1_unison_detune_cents: f32,
-    /// UI-side mirror of oscillator 1's unison stereo spread (0..=1).
     osc1_unison_spread: f32,
 
-    /// The on-screen keyboard. Owns its own held-note state.
-    keyboard: VirtualKeyboard,
+    // ── Filter mirrors ───────────────────────────────────────────────────────
+    filter_mode: FilterMode,
+    filter_cutoff_hz: f32,
+    filter_resonance: f32,
 
-    /// Computer-keyboard input layer. Reads egui input each frame
-    /// and forwards notes through the same parameter bus the virtual
-    /// keyboard uses.
+    // ── Amp envelope mirrors ─────────────────────────────────────────────────
+    amp_attack_secs: f32,
+    amp_decay_secs: f32,
+    amp_sustain_level: f32,
+    amp_release_secs: f32,
+
+    // ── Global ───────────────────────────────────────────────────────────────
+    pitch_offset_semis: f32,
+    master_volume: f32,
+
+    // ── Input ────────────────────────────────────────────────────────────────
+    keyboard: VirtualKeyboard,
     computer_keyboard: ComputerKeyboard,
+
+    /// CPU load arc from the audio thread (f32 bits stored as u32).
+    cpu_load: Arc<AtomicU32>,
 }
 
 impl ToneSmithyApp {
-    /// Creates a new app with the given audio status string and the
-    /// parameter-bus handles from the composition root.
+    /// Creates a new app. `cpu_load` is the arc written by the audio callback.
     #[must_use]
-    pub fn new(audio_status: String, events: EngineEventSender, snapshot_slot: SnapshotSlot) -> Self {
-        // Seed the slider mirrors from whatever the engine published
-        // before the window opens (the default `ParamSnapshot` until
-        // the first audio block runs).
+    pub fn new(
+        audio_status: String,
+        events: EngineEventSender,
+        snapshot_slot: SnapshotSlot,
+        cpu_load: Arc<AtomicU32>,
+    ) -> Self {
         let snap = load_snapshot(&snapshot_slot);
         Self {
             audio_status,
             events,
             snapshot_slot,
-            pitch_offset_semis: snap.pitch_offset_semis,
-            amp_release_secs: snap.amp_release_secs,
+            osc1_level: snap.osc_main_levels[0],
+            osc1_detune_cents: snap.osc_main_detune_cents[0],
+            osc1_pan: snap.osc_main_pans[0],
             waveform: snap.waveform,
-            filter_mode: snap.filter_mode,
-            filter_cutoff_hz: snap.filter_cutoff_hz,
-            filter_resonance: snap.filter_resonance,
             osc1_unison_voices: snap.osc_main_unison_voices[0],
             osc1_unison_detune_cents: snap.osc_main_unison_detune_cents[0],
             osc1_unison_spread: snap.osc_main_unison_spreads[0],
+            filter_mode: snap.filter_mode,
+            filter_cutoff_hz: snap.filter_cutoff_hz,
+            filter_resonance: snap.filter_resonance,
+            amp_attack_secs: snap.amp_attack_secs,
+            amp_decay_secs: snap.amp_decay_secs,
+            amp_sustain_level: snap.amp_sustain_level,
+            amp_release_secs: snap.amp_release_secs,
+            pitch_offset_semis: snap.pitch_offset_semis,
+            master_volume: snap.master_volume,
             keyboard: VirtualKeyboard::default(),
             computer_keyboard: ComputerKeyboard::default(),
+            cpu_load,
         }
     }
 }
 
 impl eframe::App for ToneSmithyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Read computer-keyboard input first so notes start playing on
-        // the same frame as the keypress. The handler reads the
-        // current frame's input events from `ctx` and pumps NoteOn /
-        // NoteOff into the engine bus.
         self.computer_keyboard.handle_input(ctx, &self.events);
-
-        // Pull the latest snapshot once per frame so the displayed
-        // "voice active" flag stays current. The slider mirrors are
-        // owned by the UI (egui needs a `&mut f32`); the snapshot
-        // drives the read-only status footer only.
         let snapshot = load_snapshot(&self.snapshot_slot);
 
-        egui::CentralPanel::default().show(ctx, |ui| {
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.add_space(16.0);
-                    ui.heading("Tone Smithy");
-                    ui.add_space(4.0);
-                    ui.label("M2 — subtractive voice");
-                    ui.add_space(4.0);
-                    ui.label(&self.audio_status);
-                    ui.add_space(16.0);
-                });
-
-                ui.separator();
-                ui.add_space(8.0);
-
-                self.pitch_release_grid(ui);
-
-                ui.add_space(8.0);
-                ui.label("Waveform");
-                self.waveform_buttons(ui);
-
-                ui.add_space(12.0);
-                ui.separator();
-                ui.add_space(8.0);
-                ui.heading("Filter");
-                self.filter_section(ui);
-
-                ui.add_space(12.0);
-                ui.separator();
-                ui.add_space(8.0);
-                ui.heading("Unison (Osc 1)");
-                self.unison_section(ui);
-
-                ui.add_space(16.0);
-                ui.separator();
-                ui.add_space(8.0);
-                ui.label(format!(
-                    "Click and drag across keys, or type A S D F G H J (white) / W E T Y U (black) on your keyboard. Z / X shift octave. Current octave base: MIDI {} ({}).",
-                    self.computer_keyboard.octave_base(),
-                    midi_note_label(self.computer_keyboard.octave_base()),
-                ));
-                ui.add_space(6.0);
-                ui.vertical_centered(|ui| {
-                    self.keyboard.show(ui, &self.events);
-                });
-
-                ui.add_space(12.0);
-                ui.separator();
-                ui.add_space(8.0);
-                ui.label(format!(
-                    "voices: {} | wave: {:?} | filter: {:?} {:.0} Hz / res {:.2} | pitch {:+.2} st | release {:.3} s",
-                    snapshot.active_voice_count,
-                    snapshot.waveform,
-                    snapshot.filter_mode,
-                    snapshot.filter_cutoff_hz,
-                    snapshot.filter_resonance,
-                    snapshot.pitch_offset_semis,
-                    snapshot.amp_release_secs,
-                ));
-            });
+        // Footer (bottom panel, must be added before central panel).
+        egui::TopBottomPanel::bottom("footer").show(ctx, |ui| {
+            self.footer_bar(ui, &snapshot);
         });
 
-        // egui doesn't repaint by default unless an input event arrives.
-        // Request a steady repaint so the "voice active" flag updates as
-        // the envelope progresses.
-        ctx.request_repaint_after(std::time::Duration::from_millis(33));
-    }
-}
+        egui::CentralPanel::default().show(ctx, |ui| {
+            // Title row
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                ui.heading("Tone Smithy");
+                ui.separator();
+                ui.label(&self.audio_status);
+            });
+            ui.add_space(4.0);
+            ui.separator();
+            ui.add_space(8.0);
 
-impl ToneSmithyApp {
-    fn pitch_release_grid(&mut self, ui: &mut egui::Ui) {
-        egui::Grid::new("m2_pitch_release")
-            .num_columns(2)
-            .spacing([24.0, 8.0])
-            .show(ui, |ui| {
-                ui.label("Pitch offset (semitones)");
-                let r = ui.add(
-                    egui::Slider::new(
-                        &mut self.pitch_offset_semis,
-                        PITCH_OFFSET_MIN_SEMIS..=PITCH_OFFSET_MAX_SEMIS,
+            // Three panels side by side
+            ui.columns(3, |cols| {
+                self.osc1_panel(&mut cols[0]);
+                self.filter_panel(&mut cols[1]);
+                self.amp_env_panel(&mut cols[2]);
+            });
+
+            ui.add_space(8.0);
+            ui.separator();
+            ui.add_space(6.0);
+
+            // Master volume + pitch offset row
+            ui.horizontal(|ui| {
+                ui.label("Master");
+                if ui
+                    .add(
+                        Knob::new(&mut self.master_volume, 0.0..=1.0, "Volume")
+                            .default_value(0.8)
+                            .format(|v| format!("{:.0}%", v * 100.0)),
                     )
-                    .step_by(0.01)
-                    .clamping(egui::SliderClamping::Always),
-                );
-                if r.changed() {
+                    .changed()
+                {
+                    self.events.send(EngineEvent::ParameterChange {
+                        id: ParamId::MasterVolume,
+                        value: self.master_volume,
+                    });
+                }
+
+                ui.add_space(16.0);
+                ui.label("Pitch");
+                if ui
+                    .add(
+                        Knob::new(
+                            &mut self.pitch_offset_semis,
+                            -PITCH_OFFSET_RANGE..=PITCH_OFFSET_RANGE,
+                            "Offset",
+                        )
+                        .default_value(0.0)
+                        .format(|v| format!("{:+.2} st", v)),
+                    )
+                    .changed()
+                {
                     self.events.send(EngineEvent::ParameterChange {
                         id: ParamId::PitchOffsetSemis,
                         value: self.pitch_offset_semis,
                     });
                 }
-                ui.end_row();
-
-                ui.label("Amp release (seconds)");
-                let r = ui.add(
-                    egui::Slider::new(&mut self.amp_release_secs, RELEASE_MIN_SECS..=RELEASE_MAX_SECS)
-                        .logarithmic(true)
-                        .step_by(0.001)
-                        .clamping(egui::SliderClamping::Always),
-                );
-                if r.changed() {
-                    self.events.send(EngineEvent::ParameterChange {
-                        id: ParamId::AmpReleaseSecs,
-                        value: self.amp_release_secs,
-                    });
-                }
-                ui.end_row();
             });
-    }
 
-    fn waveform_buttons(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal(|ui| {
+            ui.add_space(8.0);
+            ui.separator();
+            ui.add_space(6.0);
+
+            // Computer keyboard hint
+            ui.label(format!(
+                "Keyboard: A S D F G H J (white) / W E T Y U (black). Z/X shift octave. Octave base: MIDI {} ({}).",
+                self.computer_keyboard.octave_base(),
+                midi_note_label(self.computer_keyboard.octave_base()),
+            ));
+            ui.add_space(6.0);
+
+            // Virtual keyboard
+            ui.vertical_centered(|ui| {
+                self.keyboard.show(ui, &self.events);
+            });
+        });
+
+        ctx.request_repaint_after(std::time::Duration::from_millis(33));
+    }
+}
+
+impl ToneSmithyApp {
+    fn osc1_panel(&mut self, ui: &mut egui::Ui) {
+        ui.heading("Osc 1");
+        ui.add_space(6.0);
+
+        // Waveform selector
+        ui.label("Waveform");
+        ui.horizontal_wrapped(|ui| {
             let mut changed = false;
             for w in [Waveform::Sine, Waveform::Saw, Waveform::Square, Waveform::Triangle] {
                 let label = match w {
                     Waveform::Sine => "Sine",
                     Waveform::Saw => "Saw",
-                    Waveform::Square => "Square",
-                    Waveform::Triangle => "Triangle",
+                    Waveform::Square => "Sq",
+                    Waveform::Triangle => "Tri",
                 };
                 if ui.selectable_value(&mut self.waveform, w, label).clicked() {
                     changed = true;
@@ -262,11 +235,120 @@ impl ToneSmithyApp {
                 });
             }
         });
+
+        ui.add_space(8.0);
+
+        // Level / detune / pan knobs
+        ui.horizontal(|ui| {
+            if ui
+                .add(
+                    Knob::new(&mut self.osc1_level, 0.0..=OSC_LEVEL_MAX, "Level")
+                        .default_value(1.0)
+                        .format(|v| format!("{:.2}", v)),
+                )
+                .changed()
+            {
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::Osc1Level,
+                    value: self.osc1_level,
+                });
+            }
+            if ui
+                .add(
+                    Knob::new(
+                        &mut self.osc1_detune_cents,
+                        -OSC_DETUNE_MAX_CENTS..=OSC_DETUNE_MAX_CENTS,
+                        "Detune",
+                    )
+                    .default_value(0.0)
+                    .format(|v| format!("{:+.1} ct", v)),
+                )
+                .changed()
+            {
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::Osc1DetuneCents,
+                    value: self.osc1_detune_cents,
+                });
+            }
+            if ui
+                .add(
+                    Knob::new(&mut self.osc1_pan, -1.0..=1.0, "Pan")
+                        .default_value(0.0)
+                        .format(|v| {
+                            if v < -0.01 {
+                                format!("L{:.0}", v.abs() * 100.0)
+                            } else if v > 0.01 {
+                                format!("R{:.0}", v * 100.0)
+                            } else {
+                                "C".to_string()
+                            }
+                        }),
+                )
+                .changed()
+            {
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::Osc1Pan,
+                    value: self.osc1_pan,
+                });
+            }
+        });
+
+        ui.add_space(8.0);
+        ui.label("Unison");
+        ui.horizontal(|ui| {
+            if ui
+                .add(
+                    Knob::new(&mut self.osc1_unison_voices, 1.0..=UNISON_VOICES_MAX, "Voices")
+                        .default_value(1.0)
+                        .format(|v| format!("{}", v.round() as u8)),
+                )
+                .changed()
+            {
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::Osc1UnisonVoices,
+                    value: self.osc1_unison_voices,
+                });
+            }
+            if ui
+                .add(
+                    Knob::new(
+                        &mut self.osc1_unison_detune_cents,
+                        0.0..=UNISON_DETUNE_MAX_CENTS,
+                        "Detune",
+                    )
+                    .default_value(10.0)
+                    .format(|v| format!("{:.1} ct", v)),
+                )
+                .changed()
+            {
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::Osc1UnisonDetuneCents,
+                    value: self.osc1_unison_detune_cents,
+                });
+            }
+            if ui
+                .add(
+                    Knob::new(&mut self.osc1_unison_spread, 0.0..=1.0, "Spread")
+                        .default_value(0.5)
+                        .format(|v| format!("{:.2}", v)),
+                )
+                .changed()
+            {
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::Osc1UnisonSpread,
+                    value: self.osc1_unison_spread,
+                });
+            }
+        });
     }
 
-    fn filter_section(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal(|ui| {
-            ui.label("Mode");
+    fn filter_panel(&mut self, ui: &mut egui::Ui) {
+        ui.heading("Filter");
+        ui.add_space(6.0);
+
+        // Mode selector
+        ui.label("Mode");
+        ui.horizontal_wrapped(|ui| {
             let mut changed = false;
             for m in [
                 FilterMode::LowPass,
@@ -289,92 +371,126 @@ impl ToneSmithyApp {
             }
         });
 
-        egui::Grid::new("m2_filter")
-            .num_columns(2)
-            .spacing([24.0, 8.0])
-            .show(ui, |ui| {
-                ui.label("Cutoff (Hz)");
-                let r = ui.add(
-                    egui::Slider::new(&mut self.filter_cutoff_hz, CUTOFF_MIN_HZ..=CUTOFF_MAX_HZ)
-                        .logarithmic(true)
-                        .clamping(egui::SliderClamping::Always),
-                );
-                if r.changed() {
-                    self.events.send(EngineEvent::ParameterChange {
-                        id: ParamId::FilterCutoffHz,
-                        value: self.filter_cutoff_hz,
-                    });
-                }
-                ui.end_row();
+        ui.add_space(8.0);
 
-                ui.label("Resonance");
-                let r = ui.add(
-                    egui::Slider::new(&mut self.filter_resonance, 0.0..=1.0)
-                        .step_by(0.01)
-                        .clamping(egui::SliderClamping::Always),
-                );
-                if r.changed() {
-                    self.events.send(EngineEvent::ParameterChange {
-                        id: ParamId::FilterResonance,
-                        value: self.filter_resonance,
-                    });
-                }
-                ui.end_row();
-            });
+        ui.horizontal(|ui| {
+            if ui
+                .add(
+                    Knob::new(&mut self.filter_cutoff_hz, CUTOFF_MIN_HZ..=CUTOFF_MAX_HZ, "Cutoff")
+                        .default_value(8_000.0)
+                        .format(|v| {
+                            if v >= 1_000.0 {
+                                format!("{:.1} kHz", v / 1000.0)
+                            } else {
+                                format!("{:.0} Hz", v)
+                            }
+                        }),
+                )
+                .changed()
+            {
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::FilterCutoffHz,
+                    value: self.filter_cutoff_hz,
+                });
+            }
+            if ui
+                .add(
+                    Knob::new(&mut self.filter_resonance, 0.0..=1.0, "Res")
+                        .default_value(0.0)
+                        .format(|v| format!("{:.2}", v)),
+                )
+                .changed()
+            {
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::FilterResonance,
+                    value: self.filter_resonance,
+                });
+            }
+        });
     }
 
-    fn unison_section(&mut self, ui: &mut egui::Ui) {
-        egui::Grid::new("m2_unison_osc1")
-            .num_columns(2)
-            .spacing([24.0, 8.0])
-            .show(ui, |ui| {
-                ui.label("Voices");
-                let r = ui.add(
-                    egui::Slider::new(&mut self.osc1_unison_voices, 1.0..=UNISON_VOICES_MAX)
-                        .step_by(1.0)
-                        .clamping(egui::SliderClamping::Always),
-                );
-                if r.changed() {
-                    self.events.send(EngineEvent::ParameterChange {
-                        id: ParamId::Osc1UnisonVoices,
-                        value: self.osc1_unison_voices,
-                    });
-                }
-                ui.end_row();
+    fn amp_env_panel(&mut self, ui: &mut egui::Ui) {
+        ui.heading("Amp Env");
+        ui.add_space(6.0);
 
-                ui.label("Detune (cents)");
-                let r = ui.add(
-                    egui::Slider::new(&mut self.osc1_unison_detune_cents, 0.0..=UNISON_DETUNE_MAX_CENTS)
-                        .step_by(0.1)
-                        .clamping(egui::SliderClamping::Always),
-                );
-                if r.changed() {
-                    self.events.send(EngineEvent::ParameterChange {
-                        id: ParamId::Osc1UnisonDetuneCents,
-                        value: self.osc1_unison_detune_cents,
-                    });
-                }
-                ui.end_row();
+        ui.horizontal(|ui| {
+            if ui
+                .add(
+                    Knob::new(&mut self.amp_attack_secs, ENV_MIN_SECS..=ENV_ATTACK_MAX_SECS, "A")
+                        .default_value(0.010)
+                        .format(secs_format),
+                )
+                .changed()
+            {
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::AmpAttackSecs,
+                    value: self.amp_attack_secs,
+                });
+            }
+            if ui
+                .add(
+                    Knob::new(&mut self.amp_decay_secs, ENV_MIN_SECS..=ENV_DECAY_MAX_SECS, "D")
+                        .default_value(0.200)
+                        .format(secs_format),
+                )
+                .changed()
+            {
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::AmpDecaySecs,
+                    value: self.amp_decay_secs,
+                });
+            }
+            if ui
+                .add(
+                    Knob::new(&mut self.amp_sustain_level, 0.0..=1.0, "S")
+                        .default_value(0.8)
+                        .format(|v| format!("{:.2}", v)),
+                )
+                .changed()
+            {
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::AmpSustainLevel,
+                    value: self.amp_sustain_level,
+                });
+            }
+            if ui
+                .add(
+                    Knob::new(&mut self.amp_release_secs, ENV_MIN_SECS..=ENV_RELEASE_MAX_SECS, "R")
+                        .default_value(0.200)
+                        .format(secs_format),
+                )
+                .changed()
+            {
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::AmpReleaseSecs,
+                    value: self.amp_release_secs,
+                });
+            }
+        });
+    }
 
-                ui.label("Spread");
-                let r = ui.add(
-                    egui::Slider::new(&mut self.osc1_unison_spread, 0.0..=1.0)
-                        .step_by(0.01)
-                        .clamping(egui::SliderClamping::Always),
-                );
-                if r.changed() {
-                    self.events.send(EngineEvent::ParameterChange {
-                        id: ParamId::Osc1UnisonSpread,
-                        value: self.osc1_unison_spread,
-                    });
-                }
-                ui.end_row();
-            });
+    fn footer_bar(&self, ui: &mut egui::Ui, snapshot: &synth_engine::ParamSnapshot) {
+        ui.horizontal(|ui| {
+            let cpu = f32::from_bits(self.cpu_load.load(Ordering::Relaxed));
+            ui.label(format!("CPU: {cpu:.1}%"));
+            ui.separator();
+            ui.label(format!("voices: {}", snapshot.active_voice_count));
+            ui.separator();
+            ui.label(&self.audio_status);
+        });
     }
 }
 
-/// Formats a MIDI note number as scientific-pitch notation (C4 = 60).
-/// Used in the status footer so the user sees `C3` rather than `48`.
+/// Formats seconds as ms (< 1 s) or seconds (>= 1 s) for envelope tooltips.
+fn secs_format(v: f32) -> String {
+    if v < 1.0 {
+        format!("{:.0} ms", v * 1000.0)
+    } else {
+        format!("{:.2} s", v)
+    }
+}
+
+/// Formats a MIDI note number as scientific pitch notation (C4 = 60).
 fn midi_note_label(note_midi: u8) -> String {
     const NAMES: [&str; 12] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
     let octave = i32::from(note_midi / 12) - 1;
@@ -399,5 +515,17 @@ mod tests {
     #[test]
     fn midi_69_is_a4() {
         assert_eq!(midi_note_label(69), "A4");
+    }
+
+    #[test]
+    fn secs_format_below_one_second_shows_ms() {
+        assert_eq!(secs_format(0.010), "10 ms");
+        assert_eq!(secs_format(0.200), "200 ms");
+    }
+
+    #[test]
+    fn secs_format_at_or_above_one_second_shows_s() {
+        assert!(secs_format(1.0).contains('s'));
+        assert!(secs_format(3.5).contains('s'));
     }
 }
