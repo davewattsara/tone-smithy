@@ -1,7 +1,7 @@
 # M4 — Minimal playable UI
 
 Branch: `milestone/m04-minimal-ui`  
-Status: **Pending user test** (code complete at 3f94922; tag `m04` to be created after testing)
+Status: **Done** — tag `m04` on `main`
 
 ## Done-when
 
