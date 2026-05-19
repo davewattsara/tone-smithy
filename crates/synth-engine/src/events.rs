@@ -11,6 +11,7 @@
 //! release time). Pitch bend, sustain, CC, presets, and the rest of the
 //! MIDI surface arrive in later milestones when their consumers exist.
 
+use crate::filter::FilterMode;
 use crate::oscillator::Waveform;
 use crate::params::ParamId;
 
@@ -45,6 +46,14 @@ pub enum EngineEvent {
     SetOscillatorWaveform {
         /// New waveform.
         waveform: Waveform,
+    },
+
+    /// Change the filter output mode. Discrete; takes effect at the
+    /// next block. The integrator state is preserved across the
+    /// transition so mode flips are click-free.
+    SetFilterMode {
+        /// New filter mode.
+        mode: FilterMode,
     },
 
     /// Change a continuous parameter identified by [`ParamId`]. The
