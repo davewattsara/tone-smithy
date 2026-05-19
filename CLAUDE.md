@@ -31,6 +31,7 @@ This is the Tone Smithy repo: a hybrid (subtractive + FM) standalone software sy
 
 ### When writing Rust code (M0 onward)
 - Follow [`docs/planning/04-tech-stack/code-style.md`](docs/planning/04-tech-stack/code-style.md): doc comments on every public item, audio-domain unit suffixes (`_hz`, `_cents`, etc.), prescribed file structure.
+- **`mod.rs` files must only declare submodules and re-export — no implementation code.** Put functions and types in named `.rs` files.
 - Follow [`docs/planning/03-architecture/design-patterns.md`](docs/planning/03-architecture/design-patterns.md): hexagonal layering, command-pattern events, single source of truth for parameters. **Real-time safety rules in Part 2 are non-negotiable** (no alloc / no lock / no syscall on the audio thread).
 - Add new files following [`docs/planning/06-implementation/project-structure.md`](docs/planning/06-implementation/project-structure.md).
 - **Before committing any `.rs` or `Cargo.toml` change**, run `cargo fmt --all --check` and fix any diff it reports. Then run `cargo clippy --workspace --all-targets -- -D warnings` and resolve all warnings. CI enforces both with `-D warnings`; a commit that skips this will fail the lint job.

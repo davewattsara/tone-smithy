@@ -60,7 +60,7 @@ Get the project's own engine producing sound.
 
 ---
 
-## M2 — Subtractive voice (4–5 weeks)
+## M2 — Subtractive voice ✓ (tag `m02`)
 
 Build out the full single subtractive voice.
 
@@ -100,6 +100,8 @@ Make the synth tweakable from the window, not just from MIDI.
 - Footer with CPU%, voice count, audio device indicator.
 - Window resizing with the enforced 1280×720 minimum.
 - The two later UI milestones (M11 polish, M12 browser) will build on these widgets — get them functional now, beautiful later.
+
+> **Known limitation (resolved at M13):** the audio device is opened once at launch using `cpal`'s default output device and held for the app's lifetime. Plugging in headphones after launch does not reroute audio — the user must restart the app. The device indicator in the footer is therefore read-only until M13 adds the device picker with live switching.
 
 **Done when:** A musician with no source-code access can play the synth from MIDI, sweep the filter, adjust ADSR, and find it usable. Visual polish not required yet.
 
