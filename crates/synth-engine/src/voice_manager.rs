@@ -154,6 +154,27 @@ impl VoiceManager {
         }
     }
 
+    /// Sets the amp-envelope attack time (in seconds) on every voice.
+    pub fn set_attack_secs(&mut self, attack_secs: f32) {
+        for v in &mut self.voices {
+            v.set_attack_secs(attack_secs);
+        }
+    }
+
+    /// Sets the amp-envelope decay time (in seconds) on every voice.
+    pub fn set_decay_secs(&mut self, decay_secs: f32) {
+        for v in &mut self.voices {
+            v.set_decay_secs(decay_secs);
+        }
+    }
+
+    /// Sets the amp-envelope sustain level (0..=1) on every voice.
+    pub fn set_sustain_level(&mut self, sustain_level: f32) {
+        for v in &mut self.voices {
+            v.set_sustain_level(sustain_level);
+        }
+    }
+
     /// Sets the amp-envelope release time (in seconds) on every voice.
     /// Stepped parameter — fans out immediately rather than per-sample.
     pub fn set_release_secs(&mut self, release_secs: f32) {
@@ -286,6 +307,7 @@ mod tests {
             osc_main_unison_detune_cents: snap.osc_main_unison_detune_cents,
             osc_main_unison_spreads: snap.osc_main_unison_spreads,
             pitch_bend_semis: snap.pitch_bend_semis,
+            master_volume: 1.0,
         }
     }
 

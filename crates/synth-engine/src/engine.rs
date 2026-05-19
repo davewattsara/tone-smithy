@@ -55,6 +55,9 @@ impl Engine {
         // Seed every voice with the parameter defaults so the first
         // note played sees the same values the tree publishes in the
         // first snapshot.
+        voices.set_attack_secs(params.amp_attack_secs());
+        voices.set_decay_secs(params.amp_decay_secs());
+        voices.set_sustain_level(params.amp_sustain_level());
         voices.set_release_secs(params.amp_release_secs());
         voices.set_main_waveform(params.waveform());
         voices.set_filter_mode(params.filter_mode());
@@ -98,8 +101,12 @@ impl Engine {
                 // transitions, so push the new value to the consumer
                 // immediately; smoothed params are sampled per frame
                 // from the tree and need no fan-out here.
-                if matches!(id, ParamId::AmpReleaseSecs) {
-                    self.voices.set_release_secs(value);
+                match id {
+                    ParamId::AmpAttackSecs => self.voices.set_attack_secs(value),
+                    ParamId::AmpDecaySecs => self.voices.set_decay_secs(value),
+                    ParamId::AmpSustainLevel => self.voices.set_sustain_level(value),
+                    ParamId::AmpReleaseSecs => self.voices.set_release_secs(value),
+                    _ => {}
                 }
             }
             EngineEvent::PitchBend { value_normalised } => {
@@ -135,8 +142,8 @@ impl Engine {
         for frame_index in 0..frames {
             let smoothed = self.params.next_sample();
             let (left, right) = self.voices.next_sample(&smoothed);
-            output[frame_index * 2] = left;
-            output[frame_index * 2 + 1] = right;
+            output[frame_index * 2] = left * smoothed.master_volume;
+            output[frame_index * 2 + 1] = right * smoothed.master_volume;
         }
 
         // Mirror the post-block voice count into the tree so the next

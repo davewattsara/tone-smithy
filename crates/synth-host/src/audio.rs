@@ -7,6 +7,9 @@
 //! the engine while diagnosing audio-host issues.
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::time::Instant;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use synth_engine::Engine;
@@ -103,6 +106,21 @@ pub struct AudioStream {
     /// build uses `BufferSize::Default`); later milestones will let the user
     /// pin a specific size.
     pub buffer_latency_hint: String,
+
+    /// Shared CPU load meter. The audio callback writes the percentage of each
+    /// block's available time spent in `render_block` as f32 bits. The UI
+    /// reads it via [`AudioStream::cpu_load_percent`].
+    pub cpu_load: Arc<AtomicU32>,
+}
+
+impl AudioStream {
+    /// Returns the most recently measured audio-thread CPU load as a
+    /// percentage (0.0 = idle, 100.0 = one full block budget, >100.0 =
+    /// overrun). Updated once per audio block.
+    #[must_use]
+    pub fn cpu_load_percent(&self) -> f32 {
+        f32::from_bits(self.cpu_load.load(Ordering::Relaxed))
+    }
 }
 
 /// Opens the default output device and writes silence to it.
@@ -174,6 +192,7 @@ pub fn start_silent() -> Result<AudioStream, AudioError> {
         sample_rate,
         channels,
         buffer_latency_hint,
+        cpu_load: Arc::new(AtomicU32::new(0)),
     })
 }
 
@@ -224,6 +243,11 @@ pub fn start_with_engine(
     let mut stereo_scratch: Vec<f32> = vec![0.0; synth_engine::MAX_BLOCK_SIZE * 2];
 
     let channels_usize = usize::from(channels);
+    let sample_rate_f32 = f32::from(sample_rate as u16); // safe: typical rates fit u16
+
+    let cpu_load = Arc::new(AtomicU32::new(0));
+    let cpu_load_cb = cpu_load.clone();
+
     let err_fn = |err: cpal::StreamError| tracing::error!("audio stream error: {err}");
 
     let stream = device.build_output_stream(
@@ -235,6 +259,8 @@ pub fn start_with_engine(
             // `panic = "abort"` makes catch_unwind a no-op, but keeping
             // the wrapper means dev builds get the same hard-fail
             // behaviour rather than unwinding into cpal's frame.
+            let frames = (data.len() / channels_usize).min(synth_engine::MAX_BLOCK_SIZE);
+            let t0 = Instant::now();
             let result = catch_unwind(AssertUnwindSafe(|| {
                 render_block(
                     data,
@@ -249,6 +275,12 @@ pub fn start_with_engine(
                 eprintln!("FATAL: audio thread panicked");
                 std::process::abort();
             }
+            // Compute block CPU% and publish. The block duration is
+            // frames / sample_rate; using sample_rate_f32 avoids a
+            // division-by-zero guard since sample rates are never zero.
+            let block_dur_secs = frames as f32 / sample_rate_f32;
+            let load_pct = (t0.elapsed().as_secs_f32() / block_dur_secs * 100.0).min(999.0);
+            cpu_load_cb.store(load_pct.to_bits(), Ordering::Relaxed);
         },
         err_fn,
         None,
@@ -261,6 +293,7 @@ pub fn start_with_engine(
         sample_rate,
         channels,
         buffer_latency_hint,
+        cpu_load,
     })
 }
 

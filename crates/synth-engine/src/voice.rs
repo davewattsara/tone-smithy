@@ -112,6 +112,21 @@ impl Voice {
         }
     }
 
+    /// Sets the amp envelope attack time in seconds.
+    pub fn set_attack_secs(&mut self, attack_secs: f32) {
+        self.amp_envelope.set_attack_secs(attack_secs);
+    }
+
+    /// Sets the amp envelope decay time in seconds.
+    pub fn set_decay_secs(&mut self, decay_secs: f32) {
+        self.amp_envelope.set_decay_secs(decay_secs);
+    }
+
+    /// Sets the amp envelope sustain level, 0..=1.
+    pub fn set_sustain_level(&mut self, sustain_level: f32) {
+        self.amp_envelope.set_sustain_level(sustain_level);
+    }
+
     /// Sets the amp envelope release time in seconds.
     pub fn set_release_secs(&mut self, release_secs: f32) {
         self.amp_envelope.set_release_secs(release_secs);
@@ -260,6 +275,7 @@ mod tests {
             osc_main_unison_detune_cents: snap.osc_main_unison_detune_cents,
             osc_main_unison_spreads: snap.osc_main_unison_spreads,
             pitch_bend_semis: snap.pitch_bend_semis,
+            master_volume: 1.0,
         }
     }
 
