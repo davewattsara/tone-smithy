@@ -1,25 +1,27 @@
 //! The top-level DSP engine.
 //!
-//! Holds the (currently single) voice and applies events to it.
-//! [`Engine::prepare`] is the once-per-stream setup point where all
-//! buffer sizing and pool allocation must happen — see
+//! Holds the (currently single) voice and the [`ParameterTree`] that
+//! owns all sound-affecting state. [`Engine::prepare`] is the
+//! once-per-stream setup point where all buffer sizing and pool
+//! allocation must happen — see
 //! `docs/planning/03-architecture/design-patterns.md` §2.5.
 //! [`Engine::process_stereo`] is allowed zero heap allocations.
+//!
+//! [`ParameterTree`]: crate::params::ParameterTree
 
 use crate::events::EngineEvent;
-use crate::oscillator::Waveform;
-use crate::params::{ParamId, ParamSnapshot};
+use crate::params::{ParamId, ParamSnapshot, ParameterTree};
 use crate::voice::Voice;
 
 /// Maximum block size the engine promises to handle, in frames.
 ///
 /// `process_stereo` is given the actual block size each call; this
 /// constant is a soft upper bound used by future internal scratch
-/// buffers. M1 has none yet, so the value is informative until M2
-/// needs it.
+/// buffers. M2.0 has none yet, so the value is informative until later
+/// M2 work needs it.
 pub const MAX_BLOCK_SIZE: usize = 4096;
 
-/// The DSP engine. Owns the voice and the parameter state.
+/// The DSP engine. Owns the parameter tree and the voice.
 ///
 /// Construct with [`Engine::new`], wire to the audio thread, and call
 /// [`Engine::handle`] for each input event before each block.
@@ -27,15 +29,12 @@ pub struct Engine {
     /// Sample rate the audio device opened with, captured at `new()`.
     sample_rate_hz: f32,
 
-    /// The single M1 voice. Replaced by a voice manager at M3.
-    voice: Voice,
+    /// Single source of truth for sound-affecting parameters per
+    /// design-patterns.md §1.3.
+    params: ParameterTree,
 
-    /// Current value mirror of the snapshot fields. Kept on the engine
-    /// so [`Engine::snapshot`] can produce a `ParamSnapshot` without
-    /// allocating. M2 replaces this with the typed parameter tree.
-    pitch_offset_semis: f32,
-    amp_release_secs: f32,
-    waveform: Waveform,
+    /// The single M2 voice. Replaced by a voice manager at M3.
+    voice: Voice,
 }
 
 impl Engine {
@@ -45,13 +44,17 @@ impl Engine {
     /// device changes rate, build a new engine.
     #[must_use]
     pub fn new(sample_rate_hz: f32) -> Self {
-        let defaults = ParamSnapshot::default();
+        let params = ParameterTree::new(sample_rate_hz);
+        let mut voice = Voice::new(sample_rate_hz);
+        // Seed the voice with the parameter defaults so its DSP
+        // components see the same values the tree publishes in the
+        // first snapshot.
+        voice.set_release_secs(params.amp_release_secs());
+        voice.set_waveform(params.waveform());
         Self {
             sample_rate_hz,
-            voice: Voice::new(sample_rate_hz),
-            pitch_offset_semis: defaults.pitch_offset_semis,
-            amp_release_secs: defaults.amp_release_secs,
-            waveform: defaults.waveform,
+            params,
+            voice,
         }
     }
 
@@ -66,25 +69,28 @@ impl Engine {
     pub fn handle(&mut self, event: EngineEvent) {
         match event {
             EngineEvent::NoteOn { note_midi, velocity: _ } => {
+                // Snap smoothed per-voice params so the first sample of
+                // the new note plays exactly at the current target.
+                self.params.snap_for_note_on();
                 self.voice.note_on(note_midi);
             }
             EngineEvent::NoteOff { note_midi } => {
                 self.voice.note_off(note_midi);
             }
             EngineEvent::SetOscillatorWaveform { waveform } => {
-                self.waveform = waveform;
+                self.params.set_waveform(waveform);
                 self.voice.set_waveform(waveform);
             }
-            EngineEvent::ParameterChange { id, value } => match id {
-                ParamId::PitchOffsetSemis => {
-                    self.pitch_offset_semis = value;
-                    self.voice.set_pitch_offset_semis(value);
-                }
-                ParamId::AmpReleaseSecs => {
-                    self.amp_release_secs = value;
+            EngineEvent::ParameterChange { id, value } => {
+                self.params.set_continuous(id, value);
+                // Stepped params are read by DSP only on edge
+                // transitions, so push the new value to the consumer
+                // immediately; smoothed params are sampled per frame
+                // from the tree and need no fan-out here.
+                if matches!(id, ParamId::AmpReleaseSecs) {
                     self.voice.set_release_secs(value);
                 }
-            },
+            }
         }
     }
 
@@ -98,13 +104,17 @@ impl Engine {
         debug_assert_eq!(output.len(), frames * 2);
 
         for frame_index in 0..frames {
-            let sample = self.voice.next_sample();
-            // Mono signal duplicated to both channels. Stereo pan
-            // arrives at M2 (per-oscillator pan) and via the master
-            // panner later.
+            let smoothed = self.params.next_sample();
+            let sample = self.voice.next_sample(smoothed.pitch_offset_semis);
+            // Mono signal duplicated to both channels. Real stereo
+            // (per-oscillator pan via the slot mixer) arrives in M2.3.
             output[frame_index * 2] = sample;
             output[frame_index * 2 + 1] = sample;
         }
+
+        // Mirror the post-block voice state into the tree so the next
+        // snapshot reflects what just played.
+        self.params.set_voice_active(!self.voice.is_idle());
     }
 
     /// Returns the current parameter snapshot by value, without
@@ -113,18 +123,14 @@ impl Engine {
     /// `docs/planning/03-architecture/design-patterns.md` §1.4).
     #[must_use]
     pub fn snapshot(&self) -> ParamSnapshot {
-        ParamSnapshot {
-            pitch_offset_semis: self.pitch_offset_semis,
-            amp_release_secs: self.amp_release_secs,
-            waveform: self.waveform,
-            voice_active: !self.voice.is_idle(),
-        }
+        self.params.snapshot()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::oscillator::Waveform;
 
     #[test]
     fn engine_starts_silent() {
@@ -163,7 +169,11 @@ mod tests {
         });
 
         let snap = engine.snapshot();
-        assert_eq!(snap.pitch_offset_semis, 7.0);
+        // Smoothed param: snapshot reads `current`, which has not yet
+        // advanced toward the new target (no block has run), so the
+        // value is still the default.
+        assert_eq!(snap.pitch_offset_semis, 0.0);
+        // Stepped param latches immediately.
         assert_eq!(snap.amp_release_secs, 1.5);
         assert_eq!(snap.waveform, Waveform::Saw);
         assert!(!snap.voice_active);
@@ -181,5 +191,24 @@ mod tests {
         let mut buffer = [0.0f32; 2];
         engine.process_stereo(&mut buffer, 1);
         assert!(engine.snapshot().voice_active);
+    }
+
+    #[test]
+    fn smoothed_param_snapshot_advances_with_processing() {
+        // After enough samples the smoothed param reaches its target
+        // and the snapshot reflects it.
+        let mut engine = Engine::new(48_000.0);
+        engine.handle(EngineEvent::ParameterChange {
+            id: ParamId::PitchOffsetSemis,
+            value: 5.0,
+        });
+        let mut buffer = [0.0f32; 4096 * 2];
+        engine.process_stereo(&mut buffer, 4096);
+        let snap = engine.snapshot();
+        assert!(
+            (snap.pitch_offset_semis - 5.0).abs() < 0.05,
+            "expected ~5.0 after smoothing, got {}",
+            snap.pitch_offset_semis
+        );
     }
 }

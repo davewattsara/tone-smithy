@@ -1,13 +1,16 @@
 //! A single synth voice.
 //!
-//! A voice owns one oscillator, one amp envelope, and the smoothed
-//! parameters that feed them. For now the engine owns a single voice
-//! and re-triggers it on every `NoteOn` (mono behaviour); the
-//! polyphonic voice manager joins later.
+//! A voice owns one oscillator and one amp envelope. Smoothed
+//! parameters (pitch offset, eventually cutoff, etc.) live in the
+//! engine's [`ParameterTree`] — the voice is a pure consumer that takes
+//! the current per-sample values as inputs to
+//! [`Voice::next_sample`]. The engine owns a single voice for M1/M2; a
+//! polyphonic voice manager joins at M3.
+//!
+//! [`ParameterTree`]: crate::params::ParameterTree
 
 use crate::envelope::Adsr;
 use crate::oscillator::{Oscillator, Waveform};
-use crate::smoothing::SmoothedParam;
 
 /// One synth voice: one oscillator gated by one amp envelope.
 pub struct Voice {
@@ -17,12 +20,6 @@ pub struct Voice {
     /// MIDI note currently being held by the voice, if any. Used so
     /// `note_off` only releases the matching note.
     held_note_midi: Option<u8>,
-
-    /// Smoothed pitch offset, in semitones. UI sets the target; the
-    /// audio thread advances `current` toward it each sample so that
-    /// dragging the slider doesn't introduce zipper noise on the
-    /// oscillator frequency (design-patterns.md §2.6).
-    pitch_offset_semis: SmoothedParam,
 }
 
 impl Voice {
@@ -33,20 +30,18 @@ impl Voice {
             oscillator: Oscillator::new(sample_rate_hz),
             amp_envelope: Adsr::new(sample_rate_hz),
             held_note_midi: None,
-            pitch_offset_semis: SmoothedParam::new(0.0, sample_rate_hz),
         }
     }
 
-    /// Triggers a note. Snaps the smoothed pitch to its target so the
-    /// first sample of the new note plays exactly on pitch, then starts
-    /// the amp envelope. The oscillator phase is only reset when the
-    /// envelope was idle (first note from silence); on retrigger the phase
-    /// continues uninterrupted so there is no discontinuity in the waveform
-    /// output while the envelope level is non-zero.
+    /// Triggers a note. The oscillator phase is only reset when the
+    /// envelope was idle (first note from silence); on retrigger the
+    /// phase continues uninterrupted so there is no discontinuity in
+    /// the waveform output while the envelope level is non-zero. The
+    /// caller (the engine) is responsible for snapping any per-voice
+    /// smoothed parameters before calling this so the first sample
+    /// plays exactly at the target value.
     pub fn note_on(&mut self, note_midi: u8) {
         self.held_note_midi = Some(note_midi);
-        self.pitch_offset_semis.snap_to_target();
-        self.update_frequency();
         if self.amp_envelope.is_idle() {
             self.oscillator.reset_phase();
         }
@@ -62,12 +57,6 @@ impl Voice {
             self.amp_envelope.note_off();
             self.held_note_midi = None;
         }
-    }
-
-    /// Sets the target pitch offset in semitones. The audio thread
-    /// glides `current` toward this each sample.
-    pub fn set_pitch_offset_semis(&mut self, pitch_offset_semis: f32) {
-        self.pitch_offset_semis.set_target(pitch_offset_semis);
     }
 
     /// Sets the amp envelope release time in seconds.
@@ -89,33 +78,34 @@ impl Voice {
         self.amp_envelope.is_idle()
     }
 
-    /// Produces one mono sample. Advances the smoothed pitch offset
-    /// and re-derives the oscillator frequency each sample so glide
+    /// Produces one mono sample. `pitch_offset_semis` is the current
+    /// smoothed pitch offset supplied by the engine for this frame; the
+    /// voice re-derives the oscillator frequency each sample so glide
     /// is sample-accurate.
-    pub fn next_sample(&mut self) -> f32 {
-        self.pitch_offset_semis.next_sample();
-        self.update_frequency();
+    pub fn next_sample(&mut self, pitch_offset_semis: f32) -> f32 {
+        self.update_frequency(pitch_offset_semis);
         let env = self.amp_envelope.next_sample();
         let osc = self.oscillator.next_sample();
         osc * env
     }
 
     /// Re-derives the oscillator frequency from the held note plus the
-    /// current smoothed pitch offset. When no note is held (release tail)
-    /// the frequency is left unchanged so the oscillator keeps cycling at
-    /// the correct pitch — stopping it causes a timbral discontinuity that
-    /// sounds like a click at note end.
-    fn update_frequency(&mut self) {
+    /// current pitch offset. When no note is held (release tail) the
+    /// frequency is left unchanged so the oscillator keeps cycling at
+    /// the correct pitch — stopping it causes a timbral discontinuity
+    /// that sounds like a click at note end.
+    fn update_frequency(&mut self, pitch_offset_semis: f32) {
         if let Some(note) = self.held_note_midi {
-            let note_with_offset = f32::from(note) + self.pitch_offset_semis.current();
+            let note_with_offset = f32::from(note) + pitch_offset_semis;
             // Standard MIDI-to-Hz formula with a fractional note number
             // so a non-integer smoothed offset glides cleanly through
             // semitones.
             let hz = 440.0 * 2.0_f32.powf((note_with_offset - 69.0) / 12.0);
             self.oscillator.set_frequency_hz(hz);
         }
-        // No else: when held_note_midi is None the oscillator retains its
-        // last phase_increment and rings through the release at correct pitch.
+        // No else: when held_note_midi is None the oscillator retains
+        // its last phase_increment and rings through the release at
+        // correct pitch.
     }
 }
 
@@ -128,7 +118,7 @@ mod tests {
         let mut voice = Voice::new(48_000.0);
         assert!(voice.is_idle());
         for _ in 0..256 {
-            assert_eq!(voice.next_sample(), 0.0);
+            assert_eq!(voice.next_sample(0.0), 0.0);
         }
     }
 
@@ -142,30 +132,33 @@ mod tests {
 
     #[test]
     fn retrigger_during_release_produces_no_output_discontinuity() {
-        // If a new note-on arrives while the envelope is still in release
-        // the output must not jump — the amplitude step between the last
-        // release sample and the first attack sample should be small.
+        // If a new note-on arrives while the envelope is still in
+        // release the output must not jump — the amplitude step
+        // between the last release sample and the first attack sample
+        // should be small.
         let sample_rate = 48_000.0;
         let mut voice = Voice::new(sample_rate);
 
         // Play note long enough to reach sustain.
         voice.note_on(60);
         for _ in 0..4_800 {
-            voice.next_sample();
+            voice.next_sample(0.0);
         }
 
         // Begin release.
         voice.note_off(60);
 
-        // Let a short portion of the release run so level is well above zero.
+        // Let a short portion of the release run so level is well
+        // above zero.
         let mut last_sample = 0.0;
         for _ in 0..480 {
-            last_sample = voice.next_sample();
+            last_sample = voice.next_sample(0.0);
         }
 
-        // Retrigger. The output must not jump by more than one attack step.
+        // Retrigger. The output must not jump by more than one attack
+        // step.
         voice.note_on(62);
-        let first_retrigger_sample = voice.next_sample();
+        let first_retrigger_sample = voice.next_sample(0.0);
 
         let jump = (first_retrigger_sample - last_sample).abs();
         assert!(

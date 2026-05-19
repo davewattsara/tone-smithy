@@ -7,9 +7,11 @@
 //! and `docs/planning/03-architecture/design-patterns.md` for the real-time
 //! safety rules that govern code in this crate.
 //!
-//! M1 exposes the minimum public surface needed to produce one note:
-//! [`Engine`], [`EngineEvent`], and the underlying [`Oscillator`] / [`Adsr`]
-//! / [`Voice`] types for unit testing.
+//! M2 exposes the public surface needed to drive the engine from the
+//! host: [`Engine`] and [`EngineEvent`] for the audio thread,
+//! [`ParamId`] / [`ParamSnapshot`] for the parameter bus, and the
+//! underlying [`Oscillator`] / [`Adsr`] / [`Voice`] / [`ParameterTree`]
+//! types for unit testing.
 
 #![doc(html_no_source)]
 
@@ -20,7 +22,7 @@ pub use crate::engine::{Engine, MAX_BLOCK_SIZE};
 pub use crate::envelope::Adsr;
 pub use crate::events::EngineEvent;
 pub use crate::oscillator::{Oscillator, Waveform, midi_note_to_hz};
-pub use crate::params::{ParamId, ParamSnapshot};
+pub use crate::params::{ParamId, ParamSnapshot, ParameterTree, SampleParams};
 pub use crate::smoothing::{DEFAULT_TIME_CONSTANT_MS, SmoothedParam};
 pub use crate::voice::Voice;
 
