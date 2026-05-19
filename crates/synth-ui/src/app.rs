@@ -75,6 +75,12 @@ pub struct ToneSmithyApp {
     keyboard: VirtualKeyboard,
     computer_keyboard: ComputerKeyboard,
 
+    /// Pitch-bend wheel position, -1.0..=1.0. Snaps back to 0.0 when
+    /// the user releases the slider.
+    pitch_bend: f32,
+    /// True while the on-screen sustain pedal button is toggled on.
+    sustain_held: bool,
+
     /// CPU load arc from the audio thread (f32 bits stored as u32).
     cpu_load: Arc<AtomicU32>,
 }
@@ -111,6 +117,8 @@ impl ToneSmithyApp {
             master_volume: snap.master_volume,
             keyboard: VirtualKeyboard::default(),
             computer_keyboard: ComputerKeyboard::default(),
+            pitch_bend: 0.0,
+            sustain_held: false,
             cpu_load,
         }
     }
@@ -207,8 +215,43 @@ impl eframe::App for ToneSmithyApp {
                 self.events.send(EngineEvent::NoteOff { note_midi: stuck });
             }
             let kb_notes = self.computer_keyboard.held_notes();
-            ui.vertical_centered(|ui| {
+
+            ui.horizontal(|ui| {
+                // Pitch-bend strip: vertical slider that springs to 0 on release.
+                ui.vertical(|ui| {
+                    ui.label("PB");
+                    let pb_r = ui.add(
+                        egui::Slider::new(&mut self.pitch_bend, -1.0..=1.0)
+                            .vertical()
+                            .show_value(false),
+                    );
+                    if pb_r.changed() {
+                        self.events.send(EngineEvent::PitchBend {
+                            value_normalised: self.pitch_bend,
+                        });
+                    }
+                    if pb_r.drag_stopped() {
+                        self.pitch_bend = 0.0;
+                        self.events.send(EngineEvent::PitchBend { value_normalised: 0.0 });
+                    }
+                });
+
+                // Virtual keyboard.
                 self.keyboard.show(ui, &self.events, kb_notes);
+
+                // Sustain pedal toggle.
+                ui.vertical(|ui| {
+                    ui.label("Sustain");
+                    if ui
+                        .selectable_label(self.sustain_held, if self.sustain_held { "ON " } else { "OFF" })
+                        .clicked()
+                    {
+                        self.sustain_held = !self.sustain_held;
+                        self.events.send(EngineEvent::Sustain {
+                            held: self.sustain_held,
+                        });
+                    }
+                });
             });
         });
 
