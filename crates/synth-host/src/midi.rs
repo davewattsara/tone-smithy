@@ -151,7 +151,37 @@ fn parse_midi_message(message: &[u8]) -> Option<EngineEvent> {
             let note = *message.get(1)?;
             Some(EngineEvent::NoteOff { note_midi: note })
         }
-        // CCs, program change, pitch bend, aftertouch — M3.3.
+        // Control change (0xBn): mod wheel, sustain pedal, arbitrary CC.
+        0xB0 => {
+            let cc = *message.get(1)?;
+            let raw = *message.get(2)?;
+            if cc == 64 {
+                // Sustain pedal: threshold at 64, matching GM spec.
+                Some(EngineEvent::Sustain { held: raw >= 64 })
+            } else {
+                Some(EngineEvent::ControlChange {
+                    cc,
+                    value_normalised: f32::from(raw) / 127.0,
+                })
+            }
+        }
+        // Pitch bend (0xEn): 14-bit value across two 7-bit bytes.
+        0xE0 => {
+            let lsb = *message.get(1)?;
+            let msb = *message.get(2)?;
+            let raw = (u16::from(msb) << 7) | u16::from(lsb);
+            // Centre = 8192; divide by 8192 so full-down = -1.0 exactly.
+            let value_normalised = (raw as f32 - 8192.0) / 8192.0;
+            Some(EngineEvent::PitchBend { value_normalised })
+        }
+        // Channel aftertouch (0xDn): single pressure byte.
+        0xD0 => {
+            let raw = *message.get(1)?;
+            Some(EngineEvent::ChannelAftertouch {
+                value_normalised: f32::from(raw) / 127.0,
+            })
+        }
+        // Program change, SysEx, etc. — not handled in M3.
         _ => None,
     }
 }
@@ -217,10 +247,113 @@ mod tests {
 
     #[test]
     fn unhandled_status_returns_none() {
-        // 0xB0 = CC, will be handled in M3.3 but ignored for now.
-        assert!(parse_midi_message(&[0xB0, 7, 100]).is_none());
-        // 0xE0 = pitch bend, also M3.3.
-        assert!(parse_midi_message(&[0xE0, 0, 64]).is_none());
+        // Program change (0xC0) is not handled.
+        assert!(parse_midi_message(&[0xC0, 5]).is_none());
+    }
+
+    #[test]
+    fn control_change_is_normalised_to_0_1() {
+        // CC 7 (volume), value 127 → 1.0.
+        let event = parse_midi_message(&[0xB0, 7, 127]);
+        assert!(matches!(
+            event,
+            Some(EngineEvent::ControlChange {
+                cc: 7,
+                value_normalised,
+            }) if (value_normalised - 1.0).abs() < 1e-4
+        ));
+        // CC 1 (mod wheel), value 64 → ~0.504.
+        let event = parse_midi_message(&[0xB0, 1, 64]);
+        assert!(matches!(
+            event,
+            Some(EngineEvent::ControlChange {
+                cc: 1,
+                value_normalised,
+            }) if value_normalised > 0.49 && value_normalised < 0.51
+        ));
+    }
+
+    #[test]
+    fn sustain_cc_produces_sustain_variant() {
+        // CC 64 ≥ 64 → pedal down.
+        let event = parse_midi_message(&[0xB0, 64, 127]);
+        assert!(matches!(event, Some(EngineEvent::Sustain { held: true })));
+        // CC 64 < 64 → pedal up.
+        let event = parse_midi_message(&[0xB0, 64, 0]);
+        assert!(matches!(event, Some(EngineEvent::Sustain { held: false })));
+        // Threshold at 64.
+        let event = parse_midi_message(&[0xB0, 64, 63]);
+        assert!(matches!(event, Some(EngineEvent::Sustain { held: false })));
+        let event = parse_midi_message(&[0xB0, 64, 64]);
+        assert!(matches!(event, Some(EngineEvent::Sustain { held: true })));
+    }
+
+    #[test]
+    fn pitch_bend_centre_is_zero() {
+        // Raw 8192 = centre → 0.0.
+        let lsb: u8 = (8192u16 & 0x7F) as u8;
+        let msb: u8 = ((8192u16 >> 7) & 0x7F) as u8;
+        let event = parse_midi_message(&[0xE0, lsb, msb]);
+        assert!(matches!(
+            event,
+            Some(EngineEvent::PitchBend { value_normalised })
+                if value_normalised.abs() < 1e-4
+        ));
+    }
+
+    #[test]
+    fn pitch_bend_full_down_is_minus_one() {
+        // Raw 0 → -1.0 exactly.
+        let event = parse_midi_message(&[0xE0, 0, 0]);
+        assert!(matches!(
+            event,
+            Some(EngineEvent::PitchBend { value_normalised })
+                if (value_normalised - (-1.0)).abs() < 1e-4
+        ));
+    }
+
+    #[test]
+    fn pitch_bend_full_up_is_near_plus_one() {
+        // Raw 16383 → (16383 - 8192) / 8192 ≈ +0.9999.
+        let event = parse_midi_message(&[0xE0, 0x7F, 0x7F]);
+        assert!(matches!(
+            event,
+            Some(EngineEvent::PitchBend { value_normalised })
+                if value_normalised > 0.99
+        ));
+    }
+
+    #[test]
+    fn channel_aftertouch_is_normalised() {
+        let event = parse_midi_message(&[0xD0, 127]);
+        assert!(matches!(
+            event,
+            Some(EngineEvent::ChannelAftertouch { value_normalised })
+                if (value_normalised - 1.0).abs() < 1e-4
+        ));
+        let event = parse_midi_message(&[0xD0, 0]);
+        assert!(matches!(
+            event,
+            Some(EngineEvent::ChannelAftertouch { value_normalised })
+                if value_normalised.abs() < 1e-4
+        ));
+    }
+
+    #[test]
+    fn truncated_cc_returns_none() {
+        assert!(parse_midi_message(&[0xB0, 7]).is_none());
+        assert!(parse_midi_message(&[0xB0]).is_none());
+    }
+
+    #[test]
+    fn truncated_pitch_bend_returns_none() {
+        assert!(parse_midi_message(&[0xE0, 0]).is_none());
+        assert!(parse_midi_message(&[0xE0]).is_none());
+    }
+
+    #[test]
+    fn truncated_aftertouch_returns_none() {
+        assert!(parse_midi_message(&[0xD0]).is_none());
     }
 
     #[test]

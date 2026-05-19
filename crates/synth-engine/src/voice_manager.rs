@@ -38,6 +38,11 @@ use crate::voice::Voice;
 /// note and releases it. If multiple voices play the same note (from
 /// rapid retriggering during release), the oldest is released first.
 ///
+/// **Sustain pedal** defers note-offs while the pedal is held. The
+/// deferred set is a fixed `[bool; 128]` array indexed by MIDI note
+/// number — no allocation. On pedal release all deferred notes fire.
+/// A retriggered note while the pedal is held cancels its deferral.
+///
 /// **Polyphony summing** is intentionally unscaled: thirty-two
 /// in-phase voices can exceed unity per channel. A soft limiter on
 /// the global mix is M8 effect-chain scope; in the meantime, master
@@ -61,6 +66,14 @@ pub struct VoiceManager {
     /// never run at all. Used to rank voices in the second-pass
     /// (oldest-releasing) steal.
     note_off_tick: [Option<u64>; POLYPHONY],
+
+    /// True while the sustain pedal (CC #64) is held down.
+    sustain_held: bool,
+
+    /// Per-MIDI-note flag: `true` means a NoteOff arrived while the
+    /// sustain pedal was held and should fire when the pedal releases.
+    /// Indexed by MIDI note number (0..=127).
+    deferred_note_offs: [bool; 128],
 }
 
 impl VoiceManager {
@@ -73,25 +86,66 @@ impl VoiceManager {
             next_tick: 0,
             note_on_tick: [None; POLYPHONY],
             note_off_tick: [None; POLYPHONY],
+            sustain_held: false,
+            deferred_note_offs: [false; 128],
         }
     }
 
     /// Triggers a note on the next available voice. Allocates a fresh
     /// voice if any are idle; otherwise steals per the policy in the
     /// type-level docs.
-    pub fn note_on(&mut self, note_midi: u8) {
+    ///
+    /// If the sustain pedal is held and `note_midi` has a deferred
+    /// release, the deferral is cancelled: the new note-on "re-takes"
+    /// the voice, so a new attack plays when the user presses again
+    /// while the pedal is down.
+    pub fn note_on(&mut self, note_midi: u8, velocity: u8) {
+        // Cancel any pending deferred release for this note so the
+        // re-attack sounds immediately rather than cutting off at pedal
+        // release.
+        self.deferred_note_offs[note_midi as usize] = false;
         let index = self.allocate_voice();
-        self.voices[index].note_on(note_midi);
+        self.voices[index].note_on(note_midi, velocity);
         self.note_on_tick[index] = Some(self.next_tick);
         self.note_off_tick[index] = None;
         self.next_tick += 1;
     }
 
-    /// Releases the voice currently holding `note_midi`, if any. A
-    /// note-off for a note no voice is holding is silently ignored
-    /// (the same behaviour polyphonic hardware exhibits for stray
-    /// note-off events).
+    /// Releases the voice currently holding `note_midi`, if any. If
+    /// the sustain pedal is held the release is deferred until the
+    /// pedal is lifted. A note-off for a note no voice holds is
+    /// silently ignored (same behaviour as polyphonic hardware).
     pub fn note_off(&mut self, note_midi: u8) {
+        if self.sustain_held {
+            // Only defer if a voice actually holds the note; phantom
+            // deferrals for notes that never played would fire
+            // spuriously when the pedal releases.
+            if self.find_oldest_voice_holding(note_midi).is_some() {
+                self.deferred_note_offs[note_midi as usize] = true;
+            }
+        } else {
+            self.release_note(note_midi);
+        }
+    }
+
+    /// Updates the sustain-pedal state. When `held` transitions to
+    /// `false` all deferred note-offs are fired in MIDI-note order.
+    pub fn set_sustain(&mut self, held: bool) {
+        self.sustain_held = held;
+        if !held {
+            for note in 0_u8..=127 {
+                if self.deferred_note_offs[note as usize] {
+                    self.deferred_note_offs[note as usize] = false;
+                    self.release_note(note);
+                }
+            }
+        }
+    }
+
+    /// Releases the voice holding `note_midi` immediately, without
+    /// consulting the sustain state. The `note_off` path goes through
+    /// this after the sustain check.
+    fn release_note(&mut self, note_midi: u8) {
         let chosen = self.find_oldest_voice_holding(note_midi);
         if let Some(index) = chosen {
             self.voices[index].note_off(note_midi);
@@ -231,6 +285,7 @@ mod tests {
             osc_main_unison_voices: snap.osc_main_unison_voices,
             osc_main_unison_detune_cents: snap.osc_main_unison_detune_cents,
             osc_main_unison_spreads: snap.osc_main_unison_spreads,
+            pitch_bend_semis: snap.pitch_bend_semis,
         }
     }
 
@@ -243,18 +298,18 @@ mod tests {
     #[test]
     fn note_on_increments_active_count() {
         let mut manager = VoiceManager::new(48_000.0);
-        manager.note_on(60);
+        manager.note_on(60, 100);
         assert_eq!(manager.active_count(), 1);
-        manager.note_on(64);
-        manager.note_on(67);
+        manager.note_on(64, 100);
+        manager.note_on(67, 100);
         assert_eq!(manager.active_count(), 3);
     }
 
     #[test]
     fn note_off_releases_the_matching_voice() {
         let mut manager = VoiceManager::new(48_000.0);
-        manager.note_on(60);
-        manager.note_on(64);
+        manager.note_on(60, 100);
+        manager.note_on(64, 100);
         manager.note_off(60);
         // The 60 voice is now in release (not yet idle); the 64 voice
         // is still attacking. Both contribute audio, so active_count
@@ -269,7 +324,7 @@ mod tests {
     #[test]
     fn note_off_for_unheld_note_is_a_no_op() {
         let mut manager = VoiceManager::new(48_000.0);
-        manager.note_on(60);
+        manager.note_on(60, 100);
         manager.note_off(99); // never played
         let still_holding_60 = (0..POLYPHONY).any(|i| manager.voices[i].held_note() == Some(60));
         assert!(still_holding_60, "stray note-off should not affect held notes");
@@ -280,7 +335,7 @@ mod tests {
         let mut manager = VoiceManager::new(48_000.0);
         for n in 0..POLYPHONY {
             #[allow(clippy::cast_possible_truncation)]
-            manager.note_on(36 + n as u8);
+            manager.note_on(36 + n as u8, 100);
         }
         assert_eq!(manager.active_count(), POLYPHONY);
         // Render a block and check the sum is audible — confirms
@@ -309,7 +364,7 @@ mod tests {
         // idle voice each time, so voice `i` ends up holding `36 + i`.
         for n in 0..POLYPHONY {
             #[allow(clippy::cast_possible_truncation)]
-            manager.note_on(36 + n as u8);
+            manager.note_on(36 + n as u8, 100);
         }
         // Settle envelopes past attack so `release_start_level` is
         // substantial; otherwise the release step is tiny and the
@@ -332,7 +387,7 @@ mod tests {
             manager.next_sample(&params);
         }
 
-        manager.note_on(99);
+        manager.note_on(99, 100);
         // Pass 1 finds no idle voice; pass 2 picks the smallest
         // `note_off_tick`, which is voice 0.
         let holding_99 = (0..POLYPHONY).find(|&i| manager.voices[i].held_note() == Some(99));
@@ -351,7 +406,7 @@ mod tests {
         // has the lowest. None of them are in release.
         for n in 0..POLYPHONY {
             #[allow(clippy::cast_possible_truncation)]
-            manager.note_on(36 + n as u8);
+            manager.note_on(36 + n as u8, 100);
             for _ in 0..16 {
                 manager.next_sample(&params);
             }
@@ -361,7 +416,7 @@ mod tests {
             (0..POLYPHONY).find(|&i| manager.voices[i].held_note() == Some(36 + (POLYPHONY as u8) - 1));
         assert!(last_added_index.is_some(), "test setup: last note must be findable");
 
-        manager.note_on(99);
+        manager.note_on(99, 100);
         // The quietest voice was the last-allocated one (it had the
         // shortest attack run). The steal should have put 99 into
         // that slot.
@@ -376,7 +431,7 @@ mod tests {
         // longer release actually applies.
         for n in 0..POLYPHONY {
             #[allow(clippy::cast_possible_truncation)]
-            manager.note_on(36 + n as u8);
+            manager.note_on(36 + n as u8, 100);
         }
         manager.set_release_secs(3.0);
         // Render to sustain, release them all, render 100 ms of audio.
@@ -401,11 +456,52 @@ mod tests {
     }
 
     #[test]
+    fn sustain_defers_note_off_until_pedal_release() {
+        let mut manager = VoiceManager::new(48_000.0);
+        manager.note_on(60, 100);
+        manager.set_sustain(true);
+        manager.note_off(60);
+        // Voice should still be held (not in release) while pedal is down.
+        let held = (0..POLYPHONY).any(|i| manager.voices[i].held_note() == Some(60));
+        assert!(held, "note should still be held with sustain down");
+        // Release the pedal — deferred note-off fires.
+        manager.set_sustain(false);
+        let still_held = (0..POLYPHONY).any(|i| manager.voices[i].held_note() == Some(60));
+        assert!(!still_held, "note should release when pedal lifts");
+    }
+
+    #[test]
+    fn retrigger_while_sustained_cancels_deferral() {
+        let mut manager = VoiceManager::new(48_000.0);
+        manager.note_on(60, 100);
+        manager.set_sustain(true);
+        manager.note_off(60); // deferred
+        // Re-attack the same note — should cancel the deferred release.
+        manager.note_on(60, 100);
+        manager.set_sustain(false);
+        // After pedal release the note should still be held (re-attack
+        // cancelled the deferral, so no deferred note-off fires).
+        let held = (0..POLYPHONY).any(|i| manager.voices[i].held_note() == Some(60));
+        assert!(held, "re-attack should cancel the deferred note-off");
+    }
+
+    #[test]
+    fn sustain_with_no_deferred_notes_is_harmless() {
+        let mut manager = VoiceManager::new(48_000.0);
+        manager.note_on(60, 100);
+        // Cycle sustain without a note-off — should not change voice state.
+        manager.set_sustain(true);
+        manager.set_sustain(false);
+        let held = (0..POLYPHONY).any(|i| manager.voices[i].held_note() == Some(60));
+        assert!(held, "voice should remain held after empty sustain cycle");
+    }
+
+    #[test]
     fn idle_voices_silent_after_release_completes() {
         let mut manager = VoiceManager::new(48_000.0);
         manager.set_release_secs(0.005);
         let params = default_sample_params();
-        manager.note_on(60);
+        manager.note_on(60, 100);
         // Settle into sustain.
         for _ in 0..4_800 {
             manager.next_sample(&params);

@@ -21,6 +21,11 @@ use crate::voice_manager::VoiceManager;
 /// M2 work needs it.
 pub const MAX_BLOCK_SIZE: usize = 4096;
 
+/// Default pitch-bend range in semitones (±2 = GM default). Applied
+/// symmetrically: a fully-deflected wheel shifts pitch by this many
+/// semitones up or down. Configurable via Settings in M13.
+pub const PITCH_BEND_RANGE_SEMIS: f32 = 2.0;
+
 /// The DSP engine. Owns the parameter tree and the polyphonic voice
 /// pool.
 ///
@@ -70,12 +75,11 @@ impl Engine {
     /// of each block, draining whatever the adapters have queued.
     pub fn handle(&mut self, event: EngineEvent) {
         match event {
-            // TODO: M3.3 — scale envelope peak by velocity (0..=127 → 0.0..=1.0).
-            EngineEvent::NoteOn { note_midi, velocity: _ } => {
+            EngineEvent::NoteOn { note_midi, velocity } => {
                 // Snap smoothed per-voice params so the first sample of
                 // the new note plays exactly at the current target.
                 self.params.snap_for_note_on();
-                self.voices.note_on(note_midi);
+                self.voices.note_on(note_midi, velocity);
             }
             EngineEvent::NoteOff { note_midi } => {
                 self.voices.note_off(note_midi);
@@ -97,6 +101,24 @@ impl Engine {
                 if matches!(id, ParamId::AmpReleaseSecs) {
                     self.voices.set_release_secs(value);
                 }
+            }
+            EngineEvent::PitchBend { value_normalised } => {
+                let semis = value_normalised * PITCH_BEND_RANGE_SEMIS;
+                self.params.set_continuous(ParamId::PitchBendSemis, semis);
+            }
+            EngineEvent::Sustain { held } => {
+                self.voices.set_sustain(held);
+            }
+            EngineEvent::ChannelAftertouch { value_normalised } => {
+                self.params.set_continuous(ParamId::ChannelAftertouch, value_normalised);
+            }
+            EngineEvent::ControlChange { cc, value_normalised } => {
+                if cc == 1 {
+                    self.params.set_continuous(ParamId::ModWheel, value_normalised);
+                }
+                // Store all CCs in the snapshot regardless of routing so
+                // M6's mod matrix can address any controller.
+                self.params.set_cc(cc, value_normalised);
             }
         }
     }
@@ -353,6 +375,121 @@ mod tests {
         assert!(
             closed_peak < open_peak * 0.1,
             "filter did not close the voice: open {open_peak}, closed {closed_peak}"
+        );
+    }
+
+    #[test]
+    fn low_velocity_produces_quieter_output_than_high_velocity() {
+        fn peak_for_velocity(velocity: u8) -> f32 {
+            let mut engine = Engine::new(48_000.0);
+            engine.handle(EngineEvent::NoteOn {
+                note_midi: 69,
+                velocity,
+            });
+            let mut buffer = vec![0.0f32; 4096 * 2];
+            // Render into sustain.
+            for _ in 0..3 {
+                engine.process_stereo(&mut buffer, 4096);
+            }
+            buffer.iter().fold(0.0f32, |a, s| a.max(s.abs()))
+        }
+        let quiet = peak_for_velocity(32);
+        let loud = peak_for_velocity(127);
+        assert!(
+            quiet < loud,
+            "velocity 32 should be quieter than 127 (quiet={quiet}, loud={loud})"
+        );
+    }
+
+    #[test]
+    fn pitch_bend_full_down_shifts_frequency() {
+        // Render a note with no bend and with full-down bend. The
+        // zero-crossing rate (frequency proxy) should be lower with bend.
+        fn count_zero_crossings(velocity: u8, bend: f32) -> u32 {
+            let mut engine = Engine::new(48_000.0);
+            engine.handle(EngineEvent::NoteOn {
+                note_midi: 69,
+                velocity,
+            });
+            engine.handle(EngineEvent::PitchBend { value_normalised: bend });
+            let mut buffer = vec![0.0f32; 8192 * 2];
+            // Settle smoothers.
+            for _ in 0..3 {
+                engine.process_stereo(&mut buffer, 8192);
+            }
+            let mut crossings = 0_u32;
+            let mut prev = buffer[0];
+            for chunk in buffer.chunks_exact(2) {
+                let s = chunk[0];
+                if (prev <= 0.0 && s > 0.0) || (prev >= 0.0 && s < 0.0) {
+                    crossings += 1;
+                }
+                prev = s;
+            }
+            crossings
+        }
+        let no_bend = count_zero_crossings(100, 0.0);
+        let full_down = count_zero_crossings(100, -1.0);
+        assert!(
+            full_down < no_bend,
+            "full-down bend should lower frequency (no_bend={no_bend}, bent={full_down})"
+        );
+    }
+
+    #[test]
+    fn sustain_keeps_voice_alive_after_note_off() {
+        let mut engine = Engine::new(48_000.0);
+        engine.handle(EngineEvent::NoteOn {
+            note_midi: 60,
+            velocity: 100,
+        });
+        let mut buffer = [0.0f32; 2];
+        engine.process_stereo(&mut buffer, 1);
+        engine.handle(EngineEvent::Sustain { held: true });
+        engine.handle(EngineEvent::NoteOff { note_midi: 60 });
+        engine.process_stereo(&mut buffer, 1);
+        // With sustain held the voice is still running.
+        assert_eq!(engine.snapshot().active_voice_count, 1);
+        // Release the pedal — voice enters release.
+        engine.handle(EngineEvent::Sustain { held: false });
+        engine.process_stereo(&mut buffer, 1);
+        assert_eq!(engine.snapshot().active_voice_count, 1, "voice still releasing");
+    }
+
+    #[test]
+    fn mod_wheel_and_aftertouch_appear_in_snapshot() {
+        let mut engine = Engine::new(48_000.0);
+        engine.handle(EngineEvent::ControlChange {
+            cc: 1,
+            value_normalised: 0.75,
+        });
+        engine.handle(EngineEvent::ChannelAftertouch { value_normalised: 0.5 });
+        // Stepped params — visible in the snapshot immediately.
+        let snap = engine.snapshot();
+        assert!(
+            (snap.mod_wheel - 0.75).abs() < 1e-4,
+            "mod_wheel not in snapshot: {}",
+            snap.mod_wheel
+        );
+        assert!(
+            (snap.channel_aftertouch - 0.5).abs() < 1e-4,
+            "channel_aftertouch not in snapshot: {}",
+            snap.channel_aftertouch
+        );
+    }
+
+    #[test]
+    fn arbitrary_cc_stored_in_snapshot() {
+        let mut engine = Engine::new(48_000.0);
+        engine.handle(EngineEvent::ControlChange {
+            cc: 74,
+            value_normalised: 0.8,
+        });
+        let snap = engine.snapshot();
+        assert!(
+            (snap.cc_values[74] - 0.8).abs() < 1e-4,
+            "CC 74 not stored in snapshot: {}",
+            snap.cc_values[74]
         );
     }
 }
