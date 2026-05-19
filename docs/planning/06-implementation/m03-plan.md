@@ -77,7 +77,7 @@ Alternative considered: MIDI before keyboard. Rejected because it bundles two un
 
 ### M3.1 — Computer keyboard input
 
-**Status:** Not started.
+**Status:** Done (`e9e9c68`).
 
 **Scope.** Add a computer-keyboard input layer in `synth-ui` that emits `EngineEvent::NoteOn` / `NoteOff` via the existing `EngineEventSender`. Validates M3.0's polyphony end-to-end without depending on MIDI hardware.
 
