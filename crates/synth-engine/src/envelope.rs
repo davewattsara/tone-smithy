@@ -124,6 +124,21 @@ impl Adsr {
         self.phase == Phase::Idle
     }
 
+    /// Returns true while the envelope is in its release phase. The
+    /// voice manager uses this in its second-pass steal: a voice that
+    /// is already releasing is the cheapest to interrupt.
+    #[must_use]
+    pub fn is_releasing(&self) -> bool {
+        self.phase == Phase::Release
+    }
+
+    /// Returns the current envelope level, 0..=1. The voice manager
+    /// reads this for its third-pass steal (lowest level wins).
+    #[must_use]
+    pub fn current_level(&self) -> f32 {
+        self.level
+    }
+
     /// Advances the envelope by one sample and returns the new level.
     pub fn next_sample(&mut self) -> f32 {
         match self.phase {

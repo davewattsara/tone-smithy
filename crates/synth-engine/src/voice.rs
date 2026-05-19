@@ -50,6 +50,11 @@ pub struct Voice {
     /// MIDI note currently being held by the voice, if any. Used so
     /// `note_off` only releases the matching note.
     held_note_midi: Option<u8>,
+
+    /// Linear velocity scale applied to the amp envelope output, 0..=1.
+    /// Set at `note_on` from the MIDI velocity byte. Allows soft notes
+    /// to be quieter than hard ones without changing the envelope shape.
+    velocity_scale: f32,
 }
 
 impl Voice {
@@ -67,6 +72,7 @@ impl Voice {
             filter_r: StateVariableFilter::new(sample_rate_hz),
             amp_envelope: Adsr::new(sample_rate_hz),
             held_note_midi: None,
+            velocity_scale: 1.0,
         }
     }
 
@@ -81,8 +87,9 @@ impl Voice {
     /// tail. The caller (the engine) is responsible for snapping any
     /// per-voice smoothed parameters before calling this so the first
     /// sample plays exactly at the target value.
-    pub fn note_on(&mut self, note_midi: u8) {
+    pub fn note_on(&mut self, note_midi: u8, velocity: u8) {
         self.held_note_midi = Some(note_midi);
+        self.velocity_scale = f32::from(velocity) / 127.0;
         if self.amp_envelope.is_idle() {
             for bank in &mut self.main_oscillators {
                 bank.randomize_phases();
@@ -136,12 +143,35 @@ impl Voice {
         self.amp_envelope.is_idle()
     }
 
+    /// Returns the MIDI note the voice is currently holding (i.e.
+    /// the most recent `note_on` not yet matched by a `note_off`).
+    /// Used by the voice manager to route incoming note-offs.
+    #[must_use]
+    pub fn held_note(&self) -> Option<u8> {
+        self.held_note_midi
+    }
+
+    /// Returns true while the amp envelope is in its release phase.
+    /// Voice-stealing prefers releasing voices over still-attacking
+    /// ones.
+    #[must_use]
+    pub fn is_releasing(&self) -> bool {
+        self.amp_envelope.is_releasing()
+    }
+
+    /// Returns the current amp-envelope level, 0..=1. Voice-stealing
+    /// uses this as the tiebreaker when no voice is in release.
+    #[must_use]
+    pub fn envelope_level(&self) -> f32 {
+        self.amp_envelope.current_level()
+    }
+
     /// Produces one stereo frame as `(left, right)`. Reads every
     /// per-sample smoothed parameter from `params`; the voice itself
     /// is stateless with respect to parameter sources.
     pub fn next_sample(&mut self, params: &SampleParams) -> (f32, f32) {
         self.update_voice_counts_and_frequencies(params);
-        let env = self.amp_envelope.next_sample();
+        let env = self.amp_envelope.next_sample() * self.velocity_scale;
 
         let mut sum_l = 0.0_f32;
         let mut sum_r = 0.0_f32;
@@ -181,7 +211,7 @@ impl Voice {
             bank.set_voice_count(count);
         }
         if let Some(note) = self.held_note_midi {
-            let base_semis = f32::from(note) + params.pitch_offset_semis;
+            let base_semis = f32::from(note) + params.pitch_offset_semis + params.pitch_bend_semis;
             for (i, bank) in self.main_oscillators.iter_mut().enumerate() {
                 let detune_semis = params.osc_main_detune_cents[i] * (1.0 / 100.0);
                 let semis = base_semis + detune_semis;
@@ -229,6 +259,7 @@ mod tests {
             osc_main_unison_voices: snap.osc_main_unison_voices,
             osc_main_unison_detune_cents: snap.osc_main_unison_detune_cents,
             osc_main_unison_spreads: snap.osc_main_unison_spreads,
+            pitch_bend_semis: snap.pitch_bend_semis,
         }
     }
 
@@ -245,7 +276,7 @@ mod tests {
     #[test]
     fn note_off_for_unrelated_note_is_ignored() {
         let mut voice = Voice::new(48_000.0);
-        voice.note_on(60);
+        voice.note_on(60, 100);
         voice.note_off(72);
         assert!(!voice.is_idle(), "voice should still be running");
     }
@@ -256,7 +287,7 @@ mod tests {
         let mut voice = Voice::new(sample_rate);
         let params = default_sample_params();
 
-        voice.note_on(60);
+        voice.note_on(60, 100);
         for _ in 0..4_800 {
             voice.next_sample(&params);
         }
@@ -267,7 +298,7 @@ mod tests {
             last = voice.next_sample(&params);
         }
 
-        voice.note_on(62);
+        voice.note_on(62, 100);
         let first = voice.next_sample(&params);
 
         let jump_l = (first.0 - last.0).abs();
@@ -282,7 +313,7 @@ mod tests {
         // sine; with center pans and unit levels the per-channel peak
         // sits around 0.707 thanks to the equal-power center pan.
         let mut voice = Voice::new(48_000.0);
-        voice.note_on(69);
+        voice.note_on(69, 100);
         let params = default_sample_params();
         let mut peak_l = 0.0_f32;
         let mut peak_r = 0.0_f32;
@@ -298,7 +329,7 @@ mod tests {
     #[test]
     fn hard_pan_routes_signal_to_one_channel() {
         let mut voice = Voice::new(48_000.0);
-        voice.note_on(69);
+        voice.note_on(69, 100);
         let mut params = default_sample_params();
         params.osc_main_levels = [1.0, 0.0, 0.0];
         params.sub_level = 0.0;
@@ -323,7 +354,7 @@ mod tests {
     fn mutes_all_silence_the_voice() {
         let mut voice = Voice::new(48_000.0);
         voice.set_main_waveform(Waveform::Saw);
-        voice.note_on(60);
+        voice.note_on(60, 100);
         let mut params = default_sample_params();
         params.osc_main_levels = [0.0; MAIN_OSCILLATOR_COUNT];
         params.sub_level = 0.0;
@@ -338,7 +369,7 @@ mod tests {
     #[test]
     fn detune_shifts_oscillator_pitch() {
         let mut voice = Voice::new(48_000.0);
-        voice.note_on(69);
+        voice.note_on(69, 100);
         let mut params = default_sample_params();
         params.osc_main_levels = [1.0, 0.0, 0.0];
         params.sub_level = 0.0;
@@ -369,7 +400,7 @@ mod tests {
         let mut voice = Voice::new(48_000.0);
         voice.set_main_waveform(Waveform::Saw);
         voice.set_filter_mode(FilterMode::LowPass);
-        voice.note_on(69);
+        voice.note_on(69, 100);
         let mut params = default_sample_params();
         params.filter_cutoff_hz = 30.0;
         for _ in 0..4_800 {
@@ -390,7 +421,7 @@ mod tests {
         // difference (= wider stereo) than the 1-voice case.
         fn measure_stereo_diff(voice_count: f32) -> f32 {
             let mut voice = Voice::new(48_000.0);
-            voice.note_on(69);
+            voice.note_on(69, 100);
             let mut params = default_sample_params();
             params.osc_main_levels = [1.0, 0.0, 0.0];
             params.sub_level = 0.0;
@@ -420,7 +451,7 @@ mod tests {
         // Passing a wildly out-of-range voice count should not crash
         // or produce non-finite output.
         let mut voice = Voice::new(48_000.0);
-        voice.note_on(69);
+        voice.note_on(69, 100);
         let mut params = default_sample_params();
         params.osc_main_unison_voices = [-3.0, 99.0, 3.6];
 

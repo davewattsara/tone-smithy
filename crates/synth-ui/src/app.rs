@@ -13,6 +13,7 @@ use eframe::egui;
 use synth_engine::param_bus::{EngineEventSender, SnapshotSlot, load_snapshot};
 use synth_engine::{EngineEvent, FilterMode, ParamId, Waveform};
 
+use crate::computer_keyboard::ComputerKeyboard;
 use crate::keyboard::VirtualKeyboard;
 
 /// Lower bound for the pitch offset slider, in semitones.
@@ -83,6 +84,11 @@ pub struct ToneSmithyApp {
 
     /// The on-screen keyboard. Owns its own held-note state.
     keyboard: VirtualKeyboard,
+
+    /// Computer-keyboard input layer. Reads egui input each frame
+    /// and forwards notes through the same parameter bus the virtual
+    /// keyboard uses.
+    computer_keyboard: ComputerKeyboard,
 }
 
 impl ToneSmithyApp {
@@ -108,12 +114,19 @@ impl ToneSmithyApp {
             osc1_unison_detune_cents: snap.osc_main_unison_detune_cents[0],
             osc1_unison_spread: snap.osc_main_unison_spreads[0],
             keyboard: VirtualKeyboard::default(),
+            computer_keyboard: ComputerKeyboard::default(),
         }
     }
 }
 
 impl eframe::App for ToneSmithyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Read computer-keyboard input first so notes start playing on
+        // the same frame as the keypress. The handler reads the
+        // current frame's input events from `ctx` and pumps NoteOn /
+        // NoteOff into the engine bus.
+        self.computer_keyboard.handle_input(ctx, &self.events);
+
         // Pull the latest snapshot once per frame so the displayed
         // "voice active" flag stays current. The slider mirrors are
         // owned by the UI (egui needs a `&mut f32`); the snapshot
@@ -156,7 +169,11 @@ impl eframe::App for ToneSmithyApp {
                 ui.add_space(16.0);
                 ui.separator();
                 ui.add_space(8.0);
-                ui.label("Click and drag across keys to play.");
+                ui.label(format!(
+                    "Click and drag across keys, or type A S D F G H J (white) / W E T Y U (black) on your keyboard. Z / X shift octave. Current octave base: MIDI {} ({}).",
+                    self.computer_keyboard.octave_base(),
+                    midi_note_label(self.computer_keyboard.octave_base()),
+                ));
                 ui.add_space(6.0);
                 ui.vertical_centered(|ui| {
                     self.keyboard.show(ui, &self.events);
@@ -353,5 +370,34 @@ impl ToneSmithyApp {
                 }
                 ui.end_row();
             });
+    }
+}
+
+/// Formats a MIDI note number as scientific-pitch notation (C4 = 60).
+/// Used in the status footer so the user sees `C3` rather than `48`.
+fn midi_note_label(note_midi: u8) -> String {
+    const NAMES: [&str; 12] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    let octave = i32::from(note_midi / 12) - 1;
+    let name = NAMES[usize::from(note_midi % 12)];
+    format!("{name}{octave}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn midi_60_is_c4() {
+        assert_eq!(midi_note_label(60), "C4");
+    }
+
+    #[test]
+    fn midi_48_is_c3() {
+        assert_eq!(midi_note_label(48), "C3");
+    }
+
+    #[test]
+    fn midi_69_is_a4() {
+        assert_eq!(midi_note_label(69), "A4");
     }
 }

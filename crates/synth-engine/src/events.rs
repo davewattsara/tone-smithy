@@ -6,10 +6,9 @@
 //! never calls back into adapters synchronously — see
 //! `docs/planning/03-architecture/design-patterns.md` §1.2.
 //!
-//! M1 ships only the variants needed for "play a note triggered from the UI"
-//! plus the few engine settings exposed in C2/C4 (waveform, pitch offset,
-//! release time). Pitch bend, sustain, CC, presets, and the rest of the
-//! MIDI surface arrive in later milestones when their consumers exist.
+//! M3.3 adds the MIDI controller surface: pitch bend, sustain pedal, mod
+//! wheel, channel aftertouch, and arbitrary CC. The mod-matrix wiring that
+//! routes these as modulation sources to destinations lives in M6.
 
 use crate::filter::FilterMode;
 use crate::oscillator::Waveform;
@@ -66,5 +65,41 @@ pub enum EngineEvent {
         /// New target value. Units depend on the parameter — see
         /// [`ParamId`] for the convention per variant.
         value: f32,
+    },
+
+    /// MIDI pitch-bend wheel position. `value_normalised` is -1.0 (full
+    /// down) to +1.0 (full up); 0.0 is centre / no bend. The engine maps
+    /// this to semitones via [`crate::engine::PITCH_BEND_RANGE_SEMIS`].
+    PitchBend {
+        /// Normalised wheel position, -1.0..=1.0.
+        value_normalised: f32,
+    },
+
+    /// MIDI sustain pedal (CC #64). While `held` is true incoming
+    /// note-offs are deferred; they fire when the pedal is released.
+    Sustain {
+        /// `true` when the pedal crosses the threshold going down;
+        /// `false` when it rises above the threshold.
+        held: bool,
+    },
+
+    /// MIDI channel aftertouch (0xD0). `value_normalised` is 0..=1.
+    /// Stored in the parameter snapshot so the mod matrix (M6) can
+    /// route it as a modulation source.
+    ChannelAftertouch {
+        /// Normalised aftertouch pressure, 0.0..=1.0.
+        value_normalised: f32,
+    },
+
+    /// MIDI control change (CC). `cc` is the controller number 0..=127;
+    /// `value_normalised` is 0..=1. Mod wheel (CC #1) is routed to
+    /// [`ParamId::ModWheel`] by the engine; sustain (CC #64) uses the
+    /// typed [`Sustain`](Self::Sustain) variant instead. All other CCs
+    /// are stored in the snapshot for future mod-matrix wiring (M6).
+    ControlChange {
+        /// MIDI controller number, 0..=127.
+        cc: u8,
+        /// Normalised value, 0.0..=1.0.
+        value_normalised: f32,
     },
 }

@@ -144,6 +144,19 @@ pub enum ParamId {
     Osc2UnisonSpread,
     /// Main oscillator 3 unison stereo spread (0..=1).
     Osc3UnisonSpread,
+
+    /// Pitch-bend wheel position converted to semitones. The engine
+    /// scales the normalised -1..1 wheel value by
+    /// [`crate::engine::PITCH_BEND_RANGE_SEMIS`] before writing here.
+    PitchBendSemis,
+
+    /// Mod wheel (MIDI CC #1), normalised 0..=1. Not yet wired to a
+    /// destination; stored so M6 can route it without an API change.
+    ModWheel,
+
+    /// Channel aftertouch, normalised 0..=1. Same M6 rationale as
+    /// `ModWheel`.
+    ChannelAftertouch,
 }
 
 /// An immutable snapshot of the engine's outward-facing parameter
@@ -204,6 +217,20 @@ pub struct ParamSnapshot {
     /// the engine is silent. At M2 this is 0 or 1; the voice manager
     /// at M3 raises the ceiling to 32.
     pub active_voice_count: u8,
+
+    /// Pitch-bend wheel position in semitones (±[`crate::engine::PITCH_BEND_RANGE_SEMIS`]).
+    pub pitch_bend_semis: f32,
+
+    /// Mod wheel (CC #1) position, 0..=1.
+    pub mod_wheel: f32,
+
+    /// Channel aftertouch pressure, 0..=1.
+    pub channel_aftertouch: f32,
+
+    /// Raw CC values for all 128 controllers, normalised to 0..=1.
+    /// Indexed by CC number. Available for the mod matrix (M6) to read
+    /// as modulation sources without a further API change.
+    pub cc_values: [f32; 128],
 }
 
 impl Default for ParamSnapshot {
@@ -224,6 +251,10 @@ impl Default for ParamSnapshot {
             osc_main_unison_detune_cents: [DEFAULT_UNISON_DETUNE_CENTS; MAIN_OSCILLATOR_COUNT],
             osc_main_unison_spreads: [DEFAULT_UNISON_SPREAD; MAIN_OSCILLATOR_COUNT],
             active_voice_count: 0,
+            pitch_bend_semis: 0.0,
+            mod_wheel: 0.0,
+            channel_aftertouch: 0.0,
+            cc_values: [0.0; 128],
         }
     }
 }
@@ -268,6 +299,15 @@ pub struct ParameterTree {
     filter_mode: FilterMode,
 
     active_voice_count: u8,
+
+    pitch_bend_semis: SmoothedParam,
+    /// Mod wheel and aftertouch are stepped (plain f32) at M3.3 because
+    /// they have no per-sample audio consumer until M6 routes them
+    /// through the mod matrix. Smoothing can be added then.
+    mod_wheel: f32,
+    channel_aftertouch: f32,
+    /// CC values for all 128 controllers, normalised 0..=1. Stepped.
+    cc_values: [f32; 128],
 }
 
 impl ParameterTree {
@@ -299,6 +339,10 @@ impl ParameterTree {
             waveform: defaults.waveform,
             filter_mode: defaults.filter_mode,
             active_voice_count: defaults.active_voice_count,
+            pitch_bend_semis: SmoothedParam::new(defaults.pitch_bend_semis, sample_rate_hz),
+            mod_wheel: defaults.mod_wheel,
+            channel_aftertouch: defaults.channel_aftertouch,
+            cc_values: defaults.cc_values,
         }
     }
 
@@ -332,7 +376,18 @@ impl ParameterTree {
             ParamId::Osc1UnisonSpread => self.osc_main_unison_spreads[0].set_target(value),
             ParamId::Osc2UnisonSpread => self.osc_main_unison_spreads[1].set_target(value),
             ParamId::Osc3UnisonSpread => self.osc_main_unison_spreads[2].set_target(value),
+            ParamId::PitchBendSemis => self.pitch_bend_semis.set_target(value),
+            ParamId::ModWheel => self.mod_wheel = value,
+            ParamId::ChannelAftertouch => self.channel_aftertouch = value,
         }
+    }
+
+    /// Stores the normalised (0..=1) value for a raw MIDI CC number.
+    /// Called by the engine when a [`EngineEvent::ControlChange`] arrives
+    /// for a CC that does not have its own typed `ParamId`. Values are
+    /// available to the mod matrix (M6) via the parameter snapshot.
+    pub fn set_cc(&mut self, cc: u8, value_normalised: f32) {
+        self.cc_values[cc as usize] = value_normalised;
     }
 
     /// Sets the oscillator waveform. Discrete: takes effect at the next
@@ -418,6 +473,7 @@ impl ParameterTree {
                 self.osc_main_unison_spreads[1].next_sample(),
                 self.osc_main_unison_spreads[2].next_sample(),
             ],
+            pitch_bend_semis: self.pitch_bend_semis.next_sample(),
         }
     }
 
@@ -462,6 +518,10 @@ impl ParameterTree {
                 self.osc_main_unison_spreads[2].current(),
             ],
             active_voice_count: self.active_voice_count,
+            pitch_bend_semis: self.pitch_bend_semis.current(),
+            mod_wheel: self.mod_wheel,
+            channel_aftertouch: self.channel_aftertouch,
+            cc_values: self.cc_values,
         }
     }
 }
@@ -510,6 +570,11 @@ pub struct SampleParams {
     /// Per-main-oscillator unison stereo spread (0..=1) for this
     /// sample.
     pub osc_main_unison_spreads: [f32; MAIN_OSCILLATOR_COUNT],
+
+    /// Pitch-bend offset in semitones for this sample. Added to the
+    /// held MIDI note and any per-osc detune in the voice's frequency
+    /// calculation.
+    pub pitch_bend_semis: f32,
 }
 
 #[cfg(test)]

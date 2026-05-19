@@ -1,10 +1,13 @@
-//! The parameter bus: lock-free UI ↔ engine communication.
+//! The parameter bus: lock-free input ↔ engine communication.
 //!
 //! Two channels:
 //!
-//! - **UI → engine** is a bounded SPSC queue of [`EngineEvent`] that the
-//!   UI fills with `try_send` (non-blocking) and the audio callback drains
-//!   with `try_recv` at the top of each block. Sizing follows
+//! - **Inputs → engine** is a bounded MPMC queue (via `crossbeam_channel`)
+//!   of [`EngineEvent`] that producers fill with `try_send` (non-blocking)
+//!   and the audio callback drains with `try_recv` at the top of each
+//!   block. [`EngineEventSender`] is `Clone`, so the on-screen keyboard,
+//!   the computer keyboard, and the MIDI input thread can each hold their
+//!   own handle without a merger thread. Sizing follows
 //!   `docs/planning/03-architecture/design-patterns.md` §2.2 (`4096`).
 //! - **Engine → UI** is an [`ArcSwap`]-backed single-slot snapshot that
 //!   the audio callback stores into once per block and any number of UI

@@ -36,7 +36,7 @@ Alternative considered: MIDI before keyboard. Rejected because it bundles two un
 
 ### M3.0 — VoiceManager
 
-**Status:** Not started.
+**Status:** Done (`3e4a018`).
 
 **Scope.** Replace `Engine::voice: Voice` with a fixed-size 32-voice array behind a `VoiceManager` that owns allocation, stealing, and per-block summing.
 
@@ -77,7 +77,7 @@ Alternative considered: MIDI before keyboard. Rejected because it bundles two un
 
 ### M3.1 — Computer keyboard input
 
-**Status:** Not started.
+**Status:** Done (`e9e9c68`).
 
 **Scope.** Add a computer-keyboard input layer in `synth-ui` that emits `EngineEvent::NoteOn` / `NoteOff` via the existing `EngineEventSender`. Validates M3.0's polyphony end-to-end without depending on MIDI hardware.
 
@@ -111,7 +111,7 @@ Alternative considered: MIDI before keyboard. Rejected because it bundles two un
 
 ### M3.2 — MIDI hardware input (notes)
 
-**Status:** Not started.
+**Status:** Done (`be38d0a`). Hot-plug intentionally deferred — if no MIDI device is present at startup the app runs without MIDI; if one is added later the user restarts. Same shape as the audio device hot-plug limitation noted at M4.
 
 **Scope.** `midir` integration in `synth-host`. Enumerate input ports, open one, route note-on/note-off (with velocity) into the existing `EngineEventSender` SPSC.
 
@@ -140,7 +140,7 @@ Alternative considered: MIDI before keyboard. Rejected because it bundles two un
 
 ### M3.3 — MIDI controllers
 
-**Status:** Not started.
+**Status:** Done (`aa7b9d6`).
 
 **Scope.** Pitch bend, mod wheel, sustain pedal, channel aftertouch, arbitrary CC routing.
 
@@ -165,7 +165,7 @@ Alternative considered: MIDI before keyboard. Rejected because it bundles two un
 
 ### M3.4 — Architecture review / lock-in
 
-**Status:** Not started.
+**Status:** Done (`aa7b9d6` + review pass below).
 
 **Scope.** Mirror the M2.5 pattern. Read every file touched in M3.0–M3.3 against `design-patterns.md` and `audio-engine.md`. Look for:
 
@@ -176,17 +176,22 @@ Alternative considered: MIDI before keyboard. Rejected because it bundles two un
 
 **Exit criteria.** Either everything is clean, or two-to-four small follow-up commits land before the M3 close-out. M3 done-when ("CPU well below 50% with 32 simple voices") is verified by running the binary, holding 32 notes via the computer keyboard, and watching the footer's CPU% (the indicator is M4 scope, but a manual `tracing::info!` of the audio callback duration is fine in M3.4 if M4 hasn't surfaced it yet).
 
+**Review notes (2026-05-19):**
+- No allocation / lock / syscall found on the audio path. Sustain uses `[bool;128]`, CC values use `[f32;128]` — both fixed-size stack arrays.
+- `EngineEvent` surface is stable for M4–M6: existing variants are immutable; new controller variants (`PitchBend`, `Sustain`, `ChannelAftertouch`, `ControlChange`) match the M6 mod-matrix source list.
+- `VoiceManager` API exposes `active_count()` for the M4 polyphony indicator — already being read by `synth-ui`.
+- `mod_wheel` and `channel_aftertouch` are stepped (not smoothed) in the parameter tree because they have no DSP consumer until M6. Smoothing to be added there.
+- Queue capacity (4096) comfortably handles worst-case burst (32×2 note events + 128 CC values per block).
+- Open question resolved: default pitch-bend range is ±2 semitones (`PITCH_BEND_RANGE_SEMIS`), configurable in M13.
+- Velocity curve: linear for v1 (implemented M3.3). Log in open-questions if a non-linear curve is desired before M6.
+
 ## Cross-cutting concerns
 
 **Real-time safety.** The audio thread already meets the no-alloc / no-lock / no-syscall rule. M3 adds 32× the inner-loop cost; profile with `tracing::info!` of callback duration in the M3.4 review. The audio callback is currently called every ~10 ms (256-frame block at 48 kHz); 32 simple voices through one filter should comfortably fit in 5 ms.
 
 **No-alloc tests.** `crates/synth-engine/tests/no_alloc.rs` must be extended in M3.0 to cover the 32-voice case. Don't accept passing single-voice no-alloc as proof — voice fan-out can hide allocation bugs that only fire when stealing kicks in.
 
-**MIDI thread → audio thread bridge.** Both the on-screen keyboard, the computer keyboard, and the MIDI input thread all clone `EngineEventSender` and push into the same SPSC. The "single producer" of SPSC is technically violated. Two options:
-1. Switch to a Multi-Producer-Single-Consumer (MPSC) queue (`crossbeam-channel` provides one).
-2. Keep SPSC but have a thin merger thread that drains UI + MIDI into the audio-bound SPSC.
-
-Option 1 is simpler; M3.2 should make the call and update `audio-engine.md` if MPSC is chosen. The relevant assertions in `design-patterns.md` §2.x should also be re-checked.
+**MIDI thread → audio thread bridge.** Resolved at M3.2: the bus is already MPMC (`crossbeam_channel::bounded`), so the on-screen keyboard, the computer keyboard, and the MIDI thread each clone `EngineEventSender` and push directly. The `param_bus.rs` doc comment that called it "SPSC" was wrong and was fixed in the M3.2 commit.
 
 **Naming.** `crossbeam-channel`'s "queue capacity" already exists from M1. Confirm the capacity is sized for the worst case: 32 voices × (note-on + note-off) + ~16 CCs/frame = comfortably under 256. Current capacity is set in `param_bus.rs`; verify.
 

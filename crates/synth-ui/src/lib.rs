@@ -9,4 +9,5 @@
 //! `docs/planning/05-design/ui-design.md` for the visual direction.
 
 pub mod app;
+pub mod computer_keyboard;
 pub mod keyboard;

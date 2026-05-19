@@ -13,17 +13,20 @@ use anyhow::{Context, Result};
 use synth_engine::Engine;
 use synth_engine::param_bus;
 use synth_host::audio::{self, AudioStream};
+use synth_host::midi::MidiInputStream;
 use synth_ui::app::ToneSmithyApp;
 
-/// Owns the audio stream and delegates UI work to [`ToneSmithyApp`].
+/// Owns the audio + MIDI streams and delegates UI work to [`ToneSmithyApp`].
 ///
-/// The audio stream lives here (rather than inside the UI app) because
+/// The streams live here (rather than inside the UI app) because
 /// `cpal::Stream` is `!Send` and binding it to the UI struct keeps the
 /// lifetime obvious — when the window closes and this struct drops, audio
-/// stops. The UI app owns its bus handles (sender + snapshot slot) so
-/// it can read snapshots and send parameter changes directly.
+/// stops. The MIDI input rides alongside for the same reason. The UI app
+/// owns its bus handles (sender + snapshot slot) so it can read snapshots
+/// and send parameter changes directly.
 struct AppShell {
     _audio: AudioStream,
+    _midi: MidiInputStream,
     ui: ToneSmithyApp,
 }
 
@@ -45,8 +48,16 @@ fn main() -> Result<()> {
 
     let audio =
         audio::start_with_engine(engine, events_rx, snapshot_slot.clone()).context("could not start audio output")?;
+    // Open the first available MIDI input port (if any). The events
+    // sender is cloned here — the bus is MPMC, so the UI thread, the
+    // computer keyboard, and the MIDI thread all push into it.
+    let midi = MidiInputStream::start(events_tx.clone()).context("could not start MIDI input")?;
+    let midi_status = match midi.port_name() {
+        Some(name) => format!("MIDI in: {name}"),
+        None => "MIDI in: no device".to_string(),
+    };
     let status = format!(
-        "audio out: {} Hz, {} channel(s), {} — play the on-screen keys",
+        "audio out: {} Hz, {} channel(s), {} | {midi_status}",
         audio.sample_rate, audio.channels, audio.buffer_latency_hint,
     );
     tracing::info!("{status}");
@@ -61,6 +72,7 @@ fn main() -> Result<()> {
 
     let shell = AppShell {
         _audio: audio,
+        _midi: midi,
         ui: ToneSmithyApp::new(status, events_tx, snapshot_slot),
     };
 
