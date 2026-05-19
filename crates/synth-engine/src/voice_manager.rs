@@ -40,8 +40,11 @@ use crate::voice::Voice;
 ///
 /// **Sustain pedal** defers note-offs while the pedal is held. The
 /// deferred set is a fixed `[bool; 128]` array indexed by MIDI note
-/// number — no allocation. On pedal release all deferred notes fire.
-/// A retriggered note while the pedal is held cancels its deferral.
+/// number — no allocation. On pedal release all deferred notes fire,
+/// releasing every voice that holds the note (not just the oldest) to
+/// prevent stuck voices when a note is retriggered while the pedal is
+/// held. A retriggered note clears its deferral, but NoteOff for the
+/// new attack re-defers it before pedal release cleans up both voices.
 ///
 /// **Polyphony summing** is intentionally unscaled: thirty-two
 /// in-phase voices can exceed unity per channel. A soft limiter on
@@ -136,7 +139,19 @@ impl VoiceManager {
             for note in 0_u8..=127 {
                 if self.deferred_note_offs[note as usize] {
                     self.deferred_note_offs[note as usize] = false;
-                    self.release_note(note);
+                    // Release every voice holding this note, not just the
+                    // oldest. Multiple voices can hold the same MIDI note when
+                    // the note is retriggered while the pedal is down (the new
+                    // attack allocates a fresh voice while the old one keeps
+                    // sounding). Releasing only the oldest would leave the
+                    // newer voice stuck with no path to note-off.
+                    for i in 0..self.voices.len() {
+                        if self.voices[i].held_note() == Some(note) {
+                            self.voices[i].note_off(note);
+                            self.note_off_tick[i] = Some(self.next_tick);
+                            self.next_tick += 1;
+                        }
+                    }
                 }
             }
         }
@@ -505,6 +520,32 @@ mod tests {
         // cancelled the deferral, so no deferred note-off fires).
         let held = (0..POLYPHONY).any(|i| manager.voices[i].held_note() == Some(60));
         assert!(held, "re-attack should cancel the deferred note-off");
+    }
+
+    #[test]
+    fn sustain_pedal_release_frees_all_voices_holding_same_note() {
+        // Regression: play A, defer NoteOff(A), play B, play A again.
+        // NoteOn(A) clears deferred[A] and allocates a second voice for A.
+        // NoteOff(A) re-defers, targeting the oldest voice. When the pedal
+        // releases, both voices holding A must exit — not just the oldest.
+        let mut manager = VoiceManager::new(48_000.0);
+        manager.set_sustain(true);
+
+        manager.note_on(60, 100); // voice 0 plays A
+        manager.note_off(60); // deferred
+        manager.note_on(62, 100); // voice 1 plays B
+        manager.note_off(62); // deferred
+        manager.note_on(60, 100); // NoteOn(A) clears deferred[A]; voice 2 plays A
+        manager.note_off(60); // deferred, targets oldest voice (voice 0)
+
+        manager.set_sustain(false);
+
+        // Every voice should be in release (held_note cleared) — no stuck voice.
+        let any_held = (0..POLYPHONY).any(|i| manager.voices[i].held_note().is_some());
+        assert!(
+            !any_held,
+            "all voices should release when pedal lifts; a voice is stuck"
+        );
     }
 
     #[test]
