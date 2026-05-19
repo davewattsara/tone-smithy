@@ -49,7 +49,8 @@ in **[-1, +1]**:
 - positive → logarithmic (fast initial change, slow tail — sounds "snappy")
 - negative → exponential (slow initial change, fast tail — sounds "smooth")
 
-Implemented as `y = x^(2^curve)` evaluated on the normalised stage fraction.
+Implemented as `y = x^(2^(-curve))` evaluated on the normalised stage fraction.
+Note: the exponent is `2^(-curve)`, not `2^curve`. Positive curve → exponent < 1 (e.g. √x at curve=1) → fast initial rise; negative curve → exponent > 1 (e.g. x² at curve=-1) → slow initial rise.
 The amp envelope keeps linear stages (no curve parameters) — the change is
 Env2-specific per v1 scope.
 
