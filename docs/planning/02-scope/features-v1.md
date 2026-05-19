@@ -77,6 +77,8 @@ Each FX has a bypass toggle and is fully mod-matrix-addressable for its key para
 
 ### On-screen virtual keyboard
 - Always-visible at the bottom of the window. Configurable octave range. Velocity from vertical click position (optional, default uniform).
+- On-screen pitch bend strip (vertical slider, springs back to centre on release) and sustain toggle button alongside the keyboard, so the synth is fully playable without MIDI hardware.
+- Computer-keyboard keys are highlighted on the virtual keyboard while held, and the virtual keyboard scrolls to match the computer keyboard's current octave.
 
 ### Computer keyboard
 - Standard layout: A W S E D F T G Y H U J for one octave plus accidentals. Z / X shift octave. C / V shift velocity preset.
