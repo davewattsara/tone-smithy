@@ -32,6 +32,84 @@ pub enum LfoShape {
     SmoothRandom,
 }
 
+/// BPM sync division for an LFO.
+///
+/// Represents the period of the LFO in bars (assuming 4/4 time). Index
+/// ordering matches the UI selector: shortest period first.
+///
+/// Rate formula: `rate_hz = bpm / 60 / (4 × multiplier_bars)`, clamped to
+/// the LFO's `[0.01, 20]` Hz range by [`Lfo::set_rate_hz`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SyncDivision {
+    /// 1/32 of a bar — fastest sync option.
+    ThirtySecond,
+    /// 1/16 of a bar.
+    Sixteenth,
+    /// 1/8 of a bar.
+    Eighth,
+    /// 1/4 of a bar (one beat in 4/4).
+    Quarter,
+    /// 1/2 of a bar.
+    Half,
+    /// 1 bar.
+    #[default]
+    One,
+    /// 2 bars.
+    Two,
+    /// 4 bars — slowest sync option.
+    Four,
+}
+
+impl SyncDivision {
+    /// Period in bars for this division. Used in the rate formula.
+    #[must_use]
+    pub fn multiplier_bars(self) -> f32 {
+        match self {
+            Self::ThirtySecond => 1.0 / 32.0,
+            Self::Sixteenth => 1.0 / 16.0,
+            Self::Eighth => 1.0 / 8.0,
+            Self::Quarter => 1.0 / 4.0,
+            Self::Half => 1.0 / 2.0,
+            Self::One => 1.0,
+            Self::Two => 2.0,
+            Self::Four => 4.0,
+        }
+    }
+
+    /// Returns the `SyncDivision` for a zero-based index.
+    /// Indices beyond the last variant clamp to `Four`.
+    #[must_use]
+    pub fn from_index(index: usize) -> Self {
+        match index {
+            0 => Self::ThirtySecond,
+            1 => Self::Sixteenth,
+            2 => Self::Eighth,
+            3 => Self::Quarter,
+            4 => Self::Half,
+            5 => Self::One,
+            6 => Self::Two,
+            _ => Self::Four,
+        }
+    }
+
+    /// Zero-based index of this division, inverse of [`from_index`].
+    ///
+    /// [`from_index`]: Self::from_index
+    #[must_use]
+    pub fn index(self) -> usize {
+        match self {
+            Self::ThirtySecond => 0,
+            Self::Sixteenth => 1,
+            Self::Eighth => 2,
+            Self::Quarter => 3,
+            Self::Half => 4,
+            Self::One => 5,
+            Self::Two => 6,
+            Self::Four => 7,
+        }
+    }
+}
+
 impl LfoShape {
     /// Returns the `LfoShape` corresponding to a zero-based index.
     /// Indices beyond the last valid variant clamp to `SmoothRandom`.

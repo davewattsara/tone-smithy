@@ -24,6 +24,7 @@
 
 use crate::MAIN_OSCILLATOR_COUNT;
 use crate::filter::FilterMode;
+use crate::lfo::SyncDivision;
 use crate::oscillator::Waveform;
 use crate::smoothing::SmoothedParam;
 
@@ -184,6 +185,52 @@ pub enum ParamId {
     /// Channel aftertouch, normalised 0..=1. Same M6 rationale as
     /// `ModWheel`.
     ChannelAftertouch,
+
+    // ── LFO 1 ──────────────────────────────────────────────────────────
+    /// LFO1 rate in Hz when sync is off. Range 0.01..=20.0. Stepped.
+    Lfo1RateHz,
+    /// LFO1 waveform shape; value is the zero-based `LfoShape` index.
+    Lfo1Shape,
+    /// LFO1 phase-reset on note-on; 0.0 = off, 1.0 = on. Stepped.
+    Lfo1ResetOnNoteOn,
+    /// LFO1 BPM-sync enable; 0.0 = free, 1.0 = synced. Stepped.
+    Lfo1SyncEnabled,
+    /// LFO1 BPM-sync division; value is the zero-based `SyncDivision`
+    /// index. Only used when sync is enabled.
+    Lfo1SyncDivision,
+
+    // ── LFO 2 ──────────────────────────────────────────────────────────
+    /// LFO2 rate in Hz when sync is off.
+    Lfo2RateHz,
+    /// LFO2 waveform shape index.
+    Lfo2Shape,
+    /// LFO2 phase-reset on note-on.
+    Lfo2ResetOnNoteOn,
+    /// LFO2 BPM-sync enable.
+    Lfo2SyncEnabled,
+    /// LFO2 BPM-sync division index.
+    Lfo2SyncDivision,
+
+    // ── Env2 (modulation envelope) ─────────────────────────────────────
+    /// Env2 attack time, in seconds.
+    Env2AttackSecs,
+    /// Env2 decay time, in seconds.
+    Env2DecaySecs,
+    /// Env2 sustain level, 0..=1.
+    Env2SustainLevel,
+    /// Env2 release time, in seconds.
+    Env2ReleaseSecs,
+    /// Env2 Attack stage curve, -1..=1.
+    Env2AttackCurve,
+    /// Env2 Decay stage curve, -1..=1.
+    Env2DecayCurve,
+    /// Env2 Release stage curve, -1..=1.
+    Env2ReleaseCurve,
+
+    // ── Global ─────────────────────────────────────────────────────────
+    /// Global tempo in BPM. Used for BPM-sync LFO rate computation.
+    /// Range 20..=300. Stepped.
+    Bpm,
 }
 
 /// An immutable snapshot of the engine's outward-facing parameter
@@ -270,6 +317,58 @@ pub struct ParamSnapshot {
     /// Indexed by CC number. Available for the mod matrix (M6) to read
     /// as modulation sources without a further API change.
     pub cc_values: [f32; 128],
+
+    // ── LFO 1 parameter mirrors ────────────────────────────────────────
+    /// LFO1 rate in Hz (free-running).
+    pub lfo1_rate_hz: f32,
+    /// LFO1 waveform shape as a zero-based `LfoShape` index.
+    pub lfo1_shape_index: usize,
+    /// LFO1 phase-reset-on-note-on flag.
+    pub lfo1_reset_on_note_on: bool,
+    /// LFO1 BPM-sync enabled flag.
+    pub lfo1_sync_enabled: bool,
+    /// LFO1 BPM-sync division as a zero-based `SyncDivision` index.
+    pub lfo1_sync_division_index: usize,
+
+    // ── LFO 2 parameter mirrors ────────────────────────────────────────
+    /// LFO2 rate in Hz (free-running).
+    pub lfo2_rate_hz: f32,
+    /// LFO2 waveform shape index.
+    pub lfo2_shape_index: usize,
+    /// LFO2 phase-reset-on-note-on flag.
+    pub lfo2_reset_on_note_on: bool,
+    /// LFO2 BPM-sync enabled flag.
+    pub lfo2_sync_enabled: bool,
+    /// LFO2 BPM-sync division index.
+    pub lfo2_sync_division_index: usize,
+
+    // ── Env2 parameter mirrors ─────────────────────────────────────────
+    /// Env2 attack time, seconds.
+    pub env2_attack_secs: f32,
+    /// Env2 decay time, seconds.
+    pub env2_decay_secs: f32,
+    /// Env2 sustain level, 0..=1.
+    pub env2_sustain_level: f32,
+    /// Env2 release time, seconds.
+    pub env2_release_secs: f32,
+    /// Env2 Attack stage curve, -1..=1.
+    pub env2_attack_curve: f32,
+    /// Env2 Decay stage curve, -1..=1.
+    pub env2_decay_curve: f32,
+    /// Env2 Release stage curve, -1..=1.
+    pub env2_release_curve: f32,
+
+    // ── Global ─────────────────────────────────────────────────────────
+    /// Global tempo in BPM.
+    pub bpm: f32,
+
+    // ── Live modulator outputs ─────────────────────────────────────────
+    /// Most recent LFO1 output from the first active voice, or 0.0.
+    pub lfo1_out: f32,
+    /// Most recent LFO2 output from the first active voice, or 0.0.
+    pub lfo2_out: f32,
+    /// Most recent Env2 output from the first active voice, or 0.0.
+    pub env2_out: f32,
 }
 
 impl Default for ParamSnapshot {
@@ -298,6 +397,27 @@ impl Default for ParamSnapshot {
             mod_wheel: 0.0,
             channel_aftertouch: 0.0,
             cc_values: [0.0; 128],
+            lfo1_rate_hz: 1.0,
+            lfo1_shape_index: 0,
+            lfo1_reset_on_note_on: false,
+            lfo1_sync_enabled: false,
+            lfo1_sync_division_index: 5, // 1 bar
+            lfo2_rate_hz: 1.0,
+            lfo2_shape_index: 0,
+            lfo2_reset_on_note_on: false,
+            lfo2_sync_enabled: false,
+            lfo2_sync_division_index: 5,
+            env2_attack_secs: 0.010,
+            env2_decay_secs: 0.200,
+            env2_sustain_level: 0.8,
+            env2_release_secs: 0.200,
+            env2_attack_curve: 0.0,
+            env2_decay_curve: 0.0,
+            env2_release_curve: 0.0,
+            bpm: 120.0,
+            lfo1_out: 0.0,
+            lfo2_out: 0.0,
+            env2_out: 0.0,
         }
     }
 }
@@ -359,6 +479,37 @@ pub struct ParameterTree {
     channel_aftertouch: f32,
     /// CC values for all 128 controllers, normalised 0..=1. Stepped.
     cc_values: [f32; 128],
+
+    // ── LFO 1 ──────────────────────────────────────────────────────────
+    lfo1_rate_hz: f32,
+    lfo1_shape_index: usize,
+    lfo1_reset_on_note_on: bool,
+    lfo1_sync_enabled: bool,
+    lfo1_sync_division: SyncDivision,
+
+    // ── LFO 2 ──────────────────────────────────────────────────────────
+    lfo2_rate_hz: f32,
+    lfo2_shape_index: usize,
+    lfo2_reset_on_note_on: bool,
+    lfo2_sync_enabled: bool,
+    lfo2_sync_division: SyncDivision,
+
+    // ── Env2 ───────────────────────────────────────────────────────────
+    env2_attack_secs: f32,
+    env2_decay_secs: f32,
+    env2_sustain_level: f32,
+    env2_release_secs: f32,
+    env2_attack_curve: f32,
+    env2_decay_curve: f32,
+    env2_release_curve: f32,
+
+    // ── Global ─────────────────────────────────────────────────────────
+    bpm: f32,
+
+    // ── Live modulator outputs (written by engine each block) ──────────
+    lfo1_out: f32,
+    lfo2_out: f32,
+    env2_out: f32,
 }
 
 impl ParameterTree {
@@ -398,6 +549,27 @@ impl ParameterTree {
             mod_wheel: defaults.mod_wheel,
             channel_aftertouch: defaults.channel_aftertouch,
             cc_values: defaults.cc_values,
+            lfo1_rate_hz: defaults.lfo1_rate_hz,
+            lfo1_shape_index: defaults.lfo1_shape_index,
+            lfo1_reset_on_note_on: defaults.lfo1_reset_on_note_on,
+            lfo1_sync_enabled: defaults.lfo1_sync_enabled,
+            lfo1_sync_division: SyncDivision::from_index(defaults.lfo1_sync_division_index),
+            lfo2_rate_hz: defaults.lfo2_rate_hz,
+            lfo2_shape_index: defaults.lfo2_shape_index,
+            lfo2_reset_on_note_on: defaults.lfo2_reset_on_note_on,
+            lfo2_sync_enabled: defaults.lfo2_sync_enabled,
+            lfo2_sync_division: SyncDivision::from_index(defaults.lfo2_sync_division_index),
+            env2_attack_secs: defaults.env2_attack_secs,
+            env2_decay_secs: defaults.env2_decay_secs,
+            env2_sustain_level: defaults.env2_sustain_level,
+            env2_release_secs: defaults.env2_release_secs,
+            env2_attack_curve: defaults.env2_attack_curve,
+            env2_decay_curve: defaults.env2_decay_curve,
+            env2_release_curve: defaults.env2_release_curve,
+            bpm: defaults.bpm,
+            lfo1_out: 0.0,
+            lfo2_out: 0.0,
+            env2_out: 0.0,
         }
     }
 
@@ -438,6 +610,28 @@ impl ParameterTree {
             ParamId::PitchBendSemis => self.pitch_bend_semis.set_target(value),
             ParamId::ModWheel => self.mod_wheel = value,
             ParamId::ChannelAftertouch => self.channel_aftertouch = value,
+            ParamId::Lfo1RateHz => self.lfo1_rate_hz = value,
+            ParamId::Lfo1Shape => self.lfo1_shape_index = value as usize,
+            ParamId::Lfo1ResetOnNoteOn => self.lfo1_reset_on_note_on = value >= 0.5,
+            ParamId::Lfo1SyncEnabled => self.lfo1_sync_enabled = value >= 0.5,
+            ParamId::Lfo1SyncDivision => {
+                self.lfo1_sync_division = SyncDivision::from_index(value as usize);
+            }
+            ParamId::Lfo2RateHz => self.lfo2_rate_hz = value,
+            ParamId::Lfo2Shape => self.lfo2_shape_index = value as usize,
+            ParamId::Lfo2ResetOnNoteOn => self.lfo2_reset_on_note_on = value >= 0.5,
+            ParamId::Lfo2SyncEnabled => self.lfo2_sync_enabled = value >= 0.5,
+            ParamId::Lfo2SyncDivision => {
+                self.lfo2_sync_division = SyncDivision::from_index(value as usize);
+            }
+            ParamId::Env2AttackSecs => self.env2_attack_secs = value,
+            ParamId::Env2DecaySecs => self.env2_decay_secs = value,
+            ParamId::Env2SustainLevel => self.env2_sustain_level = value,
+            ParamId::Env2ReleaseSecs => self.env2_release_secs = value,
+            ParamId::Env2AttackCurve => self.env2_attack_curve = value,
+            ParamId::Env2DecayCurve => self.env2_decay_curve = value,
+            ParamId::Env2ReleaseCurve => self.env2_release_curve = value,
+            ParamId::Bpm => self.bpm = value,
         }
     }
 
@@ -512,6 +706,103 @@ impl ParameterTree {
     #[must_use]
     pub fn amp_release_secs(&self) -> f32 {
         self.amp_release_secs
+    }
+
+    /// Returns LFO1 effective rate in Hz, accounting for BPM sync.
+    /// When sync is enabled, the rate is derived from the BPM and
+    /// division; otherwise the free-running rate is returned.
+    #[must_use]
+    pub fn lfo1_effective_rate_hz(&self) -> f32 {
+        if self.lfo1_sync_enabled {
+            sync_rate_hz(self.bpm, self.lfo1_sync_division)
+        } else {
+            self.lfo1_rate_hz
+        }
+    }
+
+    /// Returns LFO2 effective rate in Hz, accounting for BPM sync.
+    #[must_use]
+    pub fn lfo2_effective_rate_hz(&self) -> f32 {
+        if self.lfo2_sync_enabled {
+            sync_rate_hz(self.bpm, self.lfo2_sync_division)
+        } else {
+            self.lfo2_rate_hz
+        }
+    }
+
+    /// Returns all LFO1 and LFO2 stepped params needed by the engine
+    /// fan-out. Grouped to avoid many individual getters.
+    #[must_use]
+    pub fn lfo1_shape_index(&self) -> usize {
+        self.lfo1_shape_index
+    }
+
+    /// Returns true if LFO1 phase resets on note-on.
+    #[must_use]
+    pub fn lfo1_reset_on_note_on(&self) -> bool {
+        self.lfo1_reset_on_note_on
+    }
+
+    /// Returns LFO2 shape index.
+    #[must_use]
+    pub fn lfo2_shape_index(&self) -> usize {
+        self.lfo2_shape_index
+    }
+
+    /// Returns true if LFO2 phase resets on note-on.
+    #[must_use]
+    pub fn lfo2_reset_on_note_on(&self) -> bool {
+        self.lfo2_reset_on_note_on
+    }
+
+    /// Returns all Env2 stepped params as a flat tuple for engine fan-out.
+    #[must_use]
+    pub fn env2_attack_secs(&self) -> f32 {
+        self.env2_attack_secs
+    }
+
+    /// Returns Env2 decay time.
+    #[must_use]
+    pub fn env2_decay_secs(&self) -> f32 {
+        self.env2_decay_secs
+    }
+
+    /// Returns Env2 sustain level.
+    #[must_use]
+    pub fn env2_sustain_level(&self) -> f32 {
+        self.env2_sustain_level
+    }
+
+    /// Returns Env2 release time.
+    #[must_use]
+    pub fn env2_release_secs(&self) -> f32 {
+        self.env2_release_secs
+    }
+
+    /// Returns Env2 Attack curve.
+    #[must_use]
+    pub fn env2_attack_curve(&self) -> f32 {
+        self.env2_attack_curve
+    }
+
+    /// Returns Env2 Decay curve.
+    #[must_use]
+    pub fn env2_decay_curve(&self) -> f32 {
+        self.env2_decay_curve
+    }
+
+    /// Returns Env2 Release curve.
+    #[must_use]
+    pub fn env2_release_curve(&self) -> f32 {
+        self.env2_release_curve
+    }
+
+    /// Stores the live modulator outputs from the first active voice.
+    /// Called by the engine each block, before the snapshot is published.
+    pub fn set_modulator_outputs(&mut self, lfo1: f32, lfo2: f32, env2: f32) {
+        self.lfo1_out = lfo1;
+        self.lfo2_out = lfo2;
+        self.env2_out = env2;
     }
 
     /// Advances all smoothed parameters by one sample and returns the
@@ -604,8 +895,41 @@ impl ParameterTree {
             mod_wheel: self.mod_wheel,
             channel_aftertouch: self.channel_aftertouch,
             cc_values: self.cc_values,
+            lfo1_rate_hz: self.lfo1_rate_hz,
+            lfo1_shape_index: self.lfo1_shape_index,
+            lfo1_reset_on_note_on: self.lfo1_reset_on_note_on,
+            lfo1_sync_enabled: self.lfo1_sync_enabled,
+            lfo1_sync_division_index: self.lfo1_sync_division.index(),
+            lfo2_rate_hz: self.lfo2_rate_hz,
+            lfo2_shape_index: self.lfo2_shape_index,
+            lfo2_reset_on_note_on: self.lfo2_reset_on_note_on,
+            lfo2_sync_enabled: self.lfo2_sync_enabled,
+            lfo2_sync_division_index: self.lfo2_sync_division.index(),
+            env2_attack_secs: self.env2_attack_secs,
+            env2_decay_secs: self.env2_decay_secs,
+            env2_sustain_level: self.env2_sustain_level,
+            env2_release_secs: self.env2_release_secs,
+            env2_attack_curve: self.env2_attack_curve,
+            env2_decay_curve: self.env2_decay_curve,
+            env2_release_curve: self.env2_release_curve,
+            bpm: self.bpm,
+            lfo1_out: self.lfo1_out,
+            lfo2_out: self.lfo2_out,
+            env2_out: self.env2_out,
         }
     }
+}
+
+/// Computes the LFO rate in Hz for BPM-sync mode.
+///
+/// `rate_hz = bpm / 60 / (4 × division.multiplier_bars())`
+///
+/// The result is not clamped here; [`Lfo::set_rate_hz`] clamps to
+/// `[0.01, 20.0]`.
+///
+/// [`Lfo::set_rate_hz`]: crate::lfo::Lfo::set_rate_hz
+fn sync_rate_hz(bpm: f32, division: SyncDivision) -> f32 {
+    bpm / 60.0 / (4.0 * division.multiplier_bars())
 }
 
 /// Per-sample smoothed parameter values consumed by the audio path.
