@@ -166,8 +166,8 @@ impl eframe::App for ToneSmithyApp {
                 ui.separator();
                 ui.add_space(8.0);
                 ui.label(format!(
-                    "voice active: {} | wave: {:?} | filter: {:?} {:.0} Hz / Q {:.2} | pitch {:+.2} st | release {:.3} s",
-                    snapshot.voice_active,
+                    "voices: {} | wave: {:?} | filter: {:?} {:.0} Hz / Q {:.2} | pitch {:+.2} st | release {:.3} s",
+                    snapshot.active_voice_count,
                     snapshot.waveform,
                     snapshot.filter_mode,
                     snapshot.filter_cutoff_hz,

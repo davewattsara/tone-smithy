@@ -200,8 +200,10 @@ pub struct ParamSnapshot {
     /// Per-main-oscillator unison stereo spread (0..=1).
     pub osc_main_unison_spreads: [f32; MAIN_OSCILLATOR_COUNT],
 
-    /// True if a voice is currently producing audio (not idle).
-    pub voice_active: bool,
+    /// Number of voices currently producing audio (not idle). Zero means
+    /// the engine is silent. At M2 this is 0 or 1; the voice manager
+    /// at M3 raises the ceiling to 32.
+    pub active_voice_count: u8,
 }
 
 impl Default for ParamSnapshot {
@@ -221,7 +223,7 @@ impl Default for ParamSnapshot {
             osc_main_unison_voices: [DEFAULT_UNISON_VOICES; MAIN_OSCILLATOR_COUNT],
             osc_main_unison_detune_cents: [DEFAULT_UNISON_DETUNE_CENTS; MAIN_OSCILLATOR_COUNT],
             osc_main_unison_spreads: [DEFAULT_UNISON_SPREAD; MAIN_OSCILLATOR_COUNT],
-            voice_active: false,
+            active_voice_count: 0,
         }
     }
 }
@@ -231,7 +233,7 @@ impl Default for ParamSnapshot {
 /// Owns every sound-affecting parameter the engine exposes. Mutation
 /// happens through [`set_continuous`](Self::set_continuous),
 /// [`set_waveform`](Self::set_waveform), and similar typed setters; the
-/// crate-private `set_voice_active` lets the engine reflect runtime
+/// crate-private `set_active_voice_count` lets the engine reflect runtime
 /// voice state into the next snapshot.
 ///
 /// The tree itself does no I/O and holds no audio DSP. It is the place
@@ -265,7 +267,7 @@ pub struct ParameterTree {
     waveform: Waveform,
     filter_mode: FilterMode,
 
-    voice_active: bool,
+    active_voice_count: u8,
 }
 
 impl ParameterTree {
@@ -296,7 +298,7 @@ impl ParameterTree {
             amp_release_secs: defaults.amp_release_secs,
             waveform: defaults.waveform,
             filter_mode: defaults.filter_mode,
-            voice_active: defaults.voice_active,
+            active_voice_count: defaults.active_voice_count,
         }
     }
 
@@ -344,11 +346,12 @@ impl ParameterTree {
         self.filter_mode = mode;
     }
 
-    /// Mirrors the engine's voice activity into the next snapshot. Not
-    /// driven by an `EngineEvent` — the engine writes this each block
-    /// before publishing.
-    pub fn set_voice_active(&mut self, active: bool) {
-        self.voice_active = active;
+    /// Mirrors the engine's active voice count into the next snapshot.
+    /// Not driven by an `EngineEvent` — the engine writes this each
+    /// block before publishing. At M2 the value is 0 or 1; the voice
+    /// manager at M3 will pass values up to 32.
+    pub fn set_active_voice_count(&mut self, count: u8) {
+        self.active_voice_count = count;
     }
 
     /// Snaps smoothed params that should jump to their target on
@@ -458,7 +461,7 @@ impl ParameterTree {
                 self.osc_main_unison_spreads[1].current(),
                 self.osc_main_unison_spreads[2].current(),
             ],
-            voice_active: self.voice_active,
+            active_voice_count: self.active_voice_count,
         }
     }
 }
@@ -618,10 +621,10 @@ mod tests {
     }
 
     #[test]
-    fn voice_active_mirror_is_published() {
+    fn active_voice_count_is_published() {
         let mut tree = ParameterTree::new(48_000.0);
-        assert!(!tree.snapshot().voice_active);
-        tree.set_voice_active(true);
-        assert!(tree.snapshot().voice_active);
+        assert_eq!(tree.snapshot().active_voice_count, 0);
+        tree.set_active_voice_count(3);
+        assert_eq!(tree.snapshot().active_voice_count, 3);
     }
 }

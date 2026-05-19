@@ -69,6 +69,7 @@ impl Engine {
     /// of each block, draining whatever the adapters have queued.
     pub fn handle(&mut self, event: EngineEvent) {
         match event {
+            // TODO: M3 — scale envelope peak by velocity (0..=127 → 0.0..=1.0).
             EngineEvent::NoteOn { note_midi, velocity: _ } => {
                 // Snap smoothed per-voice params so the first sample of
                 // the new note plays exactly at the current target.
@@ -116,8 +117,9 @@ impl Engine {
         }
 
         // Mirror the post-block voice state into the tree so the next
-        // snapshot reflects what just played.
-        self.params.set_voice_active(!self.voice.is_idle());
+        // snapshot reflects what just played. At M3 the voice manager
+        // will supply the real count; for now it's 0 or 1.
+        self.params.set_active_voice_count(u8::from(!self.voice.is_idle()));
     }
 
     /// Returns the current parameter snapshot by value, without
@@ -184,13 +186,13 @@ mod tests {
         assert_eq!(snap.amp_release_secs, 1.5);
         assert_eq!(snap.waveform, Waveform::Saw);
         assert_eq!(snap.filter_mode, FilterMode::BandPass);
-        assert!(!snap.voice_active);
+        assert_eq!(snap.active_voice_count, 0);
     }
 
     #[test]
-    fn voice_active_flag_tracks_note_state() {
+    fn active_voice_count_tracks_note_state() {
         let mut engine = Engine::new(48_000.0);
-        assert!(!engine.snapshot().voice_active);
+        assert_eq!(engine.snapshot().active_voice_count, 0);
         engine.handle(EngineEvent::NoteOn {
             note_midi: 60,
             velocity: 100,
@@ -198,7 +200,7 @@ mod tests {
         // One sample is enough to leave idle.
         let mut buffer = [0.0f32; 2];
         engine.process_stereo(&mut buffer, 1);
-        assert!(engine.snapshot().voice_active);
+        assert_eq!(engine.snapshot().active_voice_count, 1);
     }
 
     #[test]
