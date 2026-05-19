@@ -36,7 +36,7 @@ Alternative considered: MIDI before keyboard. Rejected because it bundles two un
 
 ### M3.0 — VoiceManager
 
-**Status:** Not started.
+**Status:** Done (`3e4a018`).
 
 **Scope.** Replace `Engine::voice: Voice` with a fixed-size 32-voice array behind a `VoiceManager` that owns allocation, stealing, and per-block summing.
 
