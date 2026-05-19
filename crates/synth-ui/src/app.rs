@@ -230,7 +230,9 @@ impl eframe::App for ToneSmithyApp {
                             value_normalised: self.pitch_bend,
                         });
                     }
-                    if pb_r.drag_stopped() {
+                    // Spring back to centre the moment the mouse button is released,
+                    // whether the interaction was a drag or a click.
+                    if !pb_r.is_pointer_button_down_on() && self.pitch_bend != 0.0 {
                         self.pitch_bend = 0.0;
                         self.events.send(EngineEvent::PitchBend { value_normalised: 0.0 });
                     }
