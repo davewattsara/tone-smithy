@@ -93,7 +93,10 @@ Doc updates, conversation log entries, single-commit fixes, routine planning ite
 
 ### Milestone completion → merge `development` to `main`
 
+> **AGENTS: do not perform steps 2–5 until the user confirms the build passes their own test.** The done-when criteria for playable milestones are experiential and cannot be verified by a test suite or a clean build alone. Present the completed work, ask the user to run `cargo run --bin tonesmithy` and test it, and wait for explicit sign-off before proceeding with any close-out steps.
+
 1. Verify the milestone's success criteria are met (per [`planning/06-implementation/milestones.md`](planning/06-implementation/milestones.md)).
+   - **For playable milestones (M4 onward):** the user must run the binary and confirm. A passing test suite is necessary but not sufficient.
 2. Final commit on `development` — tick off the milestone in the plan, update any version numbers.
 3. Merge into `main` with a visible merge commit:
    ```bash

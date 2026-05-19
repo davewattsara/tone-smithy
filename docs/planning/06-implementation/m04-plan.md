@@ -1,7 +1,7 @@
 # M4 — Minimal playable UI
 
 Branch: `milestone/m04-minimal-ui`  
-Status: **Done (3f94922)**
+Status: **Done** — tag `m04` on `main`
 
 ## Done-when
 
@@ -79,6 +79,43 @@ Filter, Amp Envelope) plus a footer. All continuous parameters use the new
   `footer_bar` helper; top-level `update` wired to panels + keyboard
 - `crates/synth-app/src/main.rs` — pass `audio.cpu_load.clone()` into
   `ToneSmithyApp::new`
+
+---
+
+### M4.3b — Keyboard enhancements (post-code-complete polish)
+
+**Status:** Done (various commits during M4 user testing)
+
+Improvements to make the synth fully testable without MIDI hardware, and to
+fix correctness issues discovered during testing.
+
+- **Computer-keyboard key highlighting** — virtual keyboard keys turn blue
+  while the corresponding computer keyboard key is held, matching mouse-click
+  behaviour. `VirtualKeyboard::show` accepts a `keyboard_lit: &[Option<u8>]`
+  slice; `ComputerKeyboard::held_notes()` exposes the per-key state.
+  (commit `318b3ba`)
+
+- **Virtual keyboard octave sync** — `VirtualKeyboard::set_start_note` shifts
+  the visible range to match `ComputerKeyboard::octave_base()` each frame, so
+  Z/X octave shifts scroll the on-screen keyboard too. Returns the previously
+  held note (if any) so the caller can send a NoteOff for it before the range
+  changes, fixing a stuck-note-on-octave-change bug.
+  (commits `6c8ea5b`, `e919515`)
+
+- **On-screen pitch bend and sustain** — a vertical slider (springs to 0 on
+  mouse release via `is_pointer_button_down_on` check) and a sustain toggle
+  button sit beside the virtual keyboard. Both send the existing
+  `EngineEvent::PitchBend` / `Sustain` variants so the MIDI and on-screen
+  paths are identical.
+  (commits `c8be777`, `7e3c69b`)
+
+- **Sustain stuck-note fix (engine)** — `VoiceManager::set_sustain(false)`
+  previously called `release_note()` which freed only the *oldest* voice
+  holding a deferred note. When a note is retriggered while the pedal is down,
+  a second voice allocates for the same MIDI note; on pedal release the older
+  voice was freed but the newer one had no path to note-off. Fixed by walking
+  every voice in the pool for each deferred note. Regression test added.
+  (commit `ffaceda`)
 
 ---
 

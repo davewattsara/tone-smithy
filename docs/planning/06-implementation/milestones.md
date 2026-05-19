@@ -92,7 +92,7 @@ Make the synth playable from real hardware.
 
 ---
 
-## M4 — Minimal playable UI ✓ (tag `m04`)
+## M4 — Minimal playable UI ✓
 
 Make the synth tweakable from the window, not just from MIDI.
 

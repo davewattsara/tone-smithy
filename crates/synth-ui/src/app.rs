@@ -75,6 +75,12 @@ pub struct ToneSmithyApp {
     keyboard: VirtualKeyboard,
     computer_keyboard: ComputerKeyboard,
 
+    /// Pitch-bend wheel position, -1.0..=1.0. Snaps back to 0.0 when
+    /// the user releases the slider.
+    pitch_bend: f32,
+    /// True while the on-screen sustain pedal button is toggled on.
+    sustain_held: bool,
+
     /// CPU load arc from the audio thread (f32 bits stored as u32).
     cpu_load: Arc<AtomicU32>,
 }
@@ -111,6 +117,8 @@ impl ToneSmithyApp {
             master_volume: snap.master_volume,
             keyboard: VirtualKeyboard::default(),
             computer_keyboard: ComputerKeyboard::default(),
+            pitch_bend: 0.0,
+            sustain_held: false,
             cpu_load,
         }
     }
@@ -199,9 +207,53 @@ impl eframe::App for ToneSmithyApp {
             ));
             ui.add_space(6.0);
 
-            // Virtual keyboard
-            ui.vertical_centered(|ui| {
-                self.keyboard.show(ui, &self.events);
+            // Keep the virtual keyboard's visible range in sync with the
+            // computer keyboard's current octave so highlighted keys are
+            // always visible. If a mouse-held note was active when the
+            // range shifted, send NoteOff so the engine releases it.
+            if let Some(stuck) = self.keyboard.set_start_note(self.computer_keyboard.octave_base()) {
+                self.events.send(EngineEvent::NoteOff { note_midi: stuck });
+            }
+            let kb_notes = self.computer_keyboard.held_notes();
+
+            ui.horizontal(|ui| {
+                // Pitch-bend strip: vertical slider that springs to 0 on release.
+                ui.vertical(|ui| {
+                    ui.label("PB");
+                    let pb_r = ui.add(
+                        egui::Slider::new(&mut self.pitch_bend, -1.0..=1.0)
+                            .vertical()
+                            .show_value(false),
+                    );
+                    if pb_r.changed() {
+                        self.events.send(EngineEvent::PitchBend {
+                            value_normalised: self.pitch_bend,
+                        });
+                    }
+                    // Spring back to centre the moment the mouse button is released,
+                    // whether the interaction was a drag or a click.
+                    if !pb_r.is_pointer_button_down_on() && self.pitch_bend != 0.0 {
+                        self.pitch_bend = 0.0;
+                        self.events.send(EngineEvent::PitchBend { value_normalised: 0.0 });
+                    }
+                });
+
+                // Virtual keyboard.
+                self.keyboard.show(ui, &self.events, kb_notes);
+
+                // Sustain pedal toggle.
+                ui.vertical(|ui| {
+                    ui.label("Sustain");
+                    if ui
+                        .selectable_label(self.sustain_held, if self.sustain_held { "ON " } else { "OFF" })
+                        .clicked()
+                    {
+                        self.sustain_held = !self.sustain_held;
+                        self.events.send(EngineEvent::Sustain {
+                            held: self.sustain_held,
+                        });
+                    }
+                });
             });
         });
 

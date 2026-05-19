@@ -63,8 +63,31 @@ impl Default for VirtualKeyboard {
 }
 
 impl VirtualKeyboard {
+    /// Sets the MIDI note of the leftmost white key. Call before [`show`]
+    /// each frame to keep the visible range in sync with the computer
+    /// keyboard's octave base.
+    ///
+    /// Returns the MIDI note that was being held by the mouse if the
+    /// range actually changed, so the caller can send a `NoteOff` event
+    /// to release it. If the range is unchanged, or no note was held,
+    /// returns `None`.
+    ///
+    /// [`show`]: Self::show
+    pub fn set_start_note(&mut self, note_midi: u8) -> Option<u8> {
+        if self.start_note_midi != note_midi {
+            self.start_note_midi = note_midi;
+            self.held_note.take()
+        } else {
+            None
+        }
+    }
+
     /// Renders the keyboard and pumps mouse interaction through `sender`.
-    pub fn show(&mut self, ui: &mut egui::Ui, sender: &EngineEventSender) {
+    ///
+    /// `keyboard_lit` is a slice of MIDI notes currently held by the
+    /// computer-keyboard layer; those keys are highlighted in the same
+    /// blue as mouse-held keys so the visual feedback matches the sound.
+    pub fn show(&mut self, ui: &mut egui::Ui, sender: &EngineEventSender, keyboard_lit: &[Option<u8>]) {
         let total_white_keys = u32::from(self.octaves) * 7;
         let desired_width = white_key_column_x_offset(total_white_keys);
         let (rect, response) = ui.allocate_exact_size(
@@ -103,7 +126,7 @@ impl VirtualKeyboard {
             _ => {}
         }
 
-        self.paint(ui, rect);
+        self.paint(ui, rect, keyboard_lit);
     }
 
     /// Returns the MIDI note under `pos`, or `None` if the pointer is
@@ -140,7 +163,7 @@ impl VirtualKeyboard {
         Some(self.start_note_midi + octave * 12 + semitone_offset)
     }
 
-    fn paint(&self, ui: &mut egui::Ui, rect: egui::Rect) {
+    fn paint(&self, ui: &mut egui::Ui, rect: egui::Rect, keyboard_lit: &[Option<u8>]) {
         let painter = ui.painter_at(rect);
         let stroke = egui::Stroke::new(1.0, ui.visuals().widgets.noninteractive.fg_stroke.color);
 
@@ -155,7 +178,7 @@ impl VirtualKeyboard {
                 );
                 let note = self.start_note_midi + octave * 12 + semitone_offset;
 
-                let fill = if self.held_note == Some(note) {
+                let fill = if self.held_note == Some(note) || keyboard_lit.contains(&Some(note)) {
                     egui::Color32::from_rgb(180, 210, 255)
                 } else {
                     egui::Color32::WHITE
@@ -170,7 +193,7 @@ impl VirtualKeyboard {
             for (semitone_offset, boundary_column) in BLACK_KEYS {
                 let key_rect = self.black_key_rect(rect, octave, boundary_column);
                 let note = self.start_note_midi + octave * 12 + semitone_offset;
-                let fill = if self.held_note == Some(note) {
+                let fill = if self.held_note == Some(note) || keyboard_lit.contains(&Some(note)) {
                     egui::Color32::from_rgb(80, 110, 180)
                 } else {
                     egui::Color32::BLACK

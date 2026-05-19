@@ -72,9 +72,9 @@ Don't update it for internal refactors, doc-only planning changes, or conversati
 
 ## Project state at a glance
 
-- **Stage:** M4 (minimal playable UI) complete and merged to `main` at tag `m04`. Active milestone: **M5 (LFOs + Env2)** on `development`.
+- **Stage:** M4 (minimal playable UI) complete — tag `m04` on `main`. Active: **M5 (LFOs + Env2)**.
 - **Licence:** `MIT OR Apache-2.0` dual.
 - **Product name:** Tone Smithy.
-- **Branches:** `main` (stable; last update was the M1 merge at tag `m01`); `development` (active work — commit here).
+- **Branches:** `main` (stable; last milestone merge is M4 at tag `m04`); `development` (active work — commit here).
 - **v1 scope:** Path B — trimmed to ship in ~12–15 months. One filter (12 dB/oct), one mod envelope (Env2), 8-slot mod matrix, arpeggiator only, ~60-preset factory bank. The remaining engine features (second filter, 24 dB/oct, Env3, 16 slots, step sequencer, full factory bank) are restored in v1.1.
 - **Open questions remaining:** code signing certificate, MPE/microtuning/oversampling scope (now v1.3+), factory content authoring approach, auto-update mechanism (all flagged in `docs/planning/01-vision/open-questions.md`).
