@@ -90,8 +90,8 @@ pub struct Lfo {
 ```
 
 **Methods:**
-- `advance(block_size: usize, sample_rate_hz: f32) -> f32` — advances phase,
-  returns current output
+- `advance(block_size: usize) -> f32` — advances phase, returns current output.
+  (`sample_rate_hz` is stored in the struct at construction, not passed each call.)
 - `note_on(&mut self)` — resets phase to 0 if `reset_on_note_on`
 - `set_rate_hz`, `set_shape`, `set_reset_on_note_on`
 
@@ -108,20 +108,27 @@ similar to `Adsr` but with per-stage curve parameters and block-rate stepping.
 **State:**
 ```rust
 pub struct ModEnv {
-    stage: ModEnvStage,    // Idle, Attack, Decay, Sustain, Release
-    level: f32,            // current output 0..1
+    sample_rate_hz: f32,
+    stage: ModEnvStage,      // Idle, Attack, Decay, Sustain, Release
+    progress: f32,           // normalised 0..1 through the current stage
+    stage_start_level: f32,  // output level at which the current stage began
     attack_secs: f32,
     decay_secs: f32,
     sustain_level: f32,
     release_secs: f32,
-    attack_curve: f32,     // -1..1
+    attack_curve: f32,       // -1..1
     decay_curve: f32,
     release_curve: f32,
 }
 ```
 
+`progress` (not a single `level`) is required so the curve function can be
+applied to the normalised stage fraction rather than the output. `stage_start_level`
+enables legato-safe retrigger: `note_on` captures the current output and
+restarts attack from there instead of from 0.
+
 **Methods:**
-- `advance(block_size: usize, sample_rate_hz: f32) -> f32`
+- `advance(block_size: usize) -> f32` — `sample_rate_hz` stored in struct
 - `note_on(&mut self)` — restarts from current level (legato-safe)
 - `note_off(&mut self)` — enters release from current level
 - `is_idle() -> bool`
@@ -195,21 +202,20 @@ Add LFO and Env2 panels. Live readouts let the user verify output without
 needing to route anything.
 
 **LFO panel** (show for LFO1; LFO2 is a copy):
-- Shape selector: 7-button row (Sine / Tri / SawUp / SawDown / Square / S&H / Smooth)
-- Rate knob (Hz, logarithmic feel — use `format` to show "0.1 Hz", "20.0 Hz")
-- Phase-reset toggle
-- BPM sync toggle + division dropdown/selector (1/32, 1/16, 1/8, 1/4, 1/2, 1, 2, 4)
-- Live readout: small label showing current output value from snapshot, e.g. "0.73"
+- Shape selector: 7-button row. Implemented labels: Sin / Tri / Saw+ / Saw- / Sq / S&H / Rnd.
+- Rate knob (0.01–20 Hz), hidden when sync is active. Currently linear; logarithmic feel deferred to M11.
+- Phase-reset toggle (labelled "Reset")
+- BPM sync toggle + 8 division buttons (1/32 1/16 1/8 1/4 1/2 1 2 4), shown only when synced
+- Live readout: e.g. "Out: 0.734"
 
 **Env2 panel:**
-- A / D / S / R knobs (same format as amp env)
-- Attack / Decay / Release curve knobs (-1..=1, format e.g. "-0.5 exp")
-- Live readout: "0.00"
+- A / D / S / R knobs (same ranges as amp env)
+- Curve knobs for A / D / R, range -1..+1, format e.g. "+0.50"
+- Live readout: e.g. "Out: 0.000"
 
-**Layout:** LFO1 and LFO2 can share a tabbed view or sit side by side in a
-fourth column to the right of the current three. Env2 can go in a fifth column
-or below the amp envelope. Exact layout is flexible — usability over polish,
-M11 handles the final layout.
+**Layout implemented:** LFO1, LFO2, Env2 as a second row of three columns
+directly below the Osc1/Filter/AmpEnv row. Exact layout is flexible — usability
+over polish, M11 handles the final layout.
 
 **Files:**
 - `crates/synth-ui/src/app.rs` — new `lfo_panel`, `env2_panel` helpers; new
