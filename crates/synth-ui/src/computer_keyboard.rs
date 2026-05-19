@@ -88,6 +88,14 @@ impl ComputerKeyboard {
         self.octave_base
     }
 
+    /// Returns the per-key held-note state. Each entry is the MIDI note
+    /// the corresponding key is currently sustaining, or `None` if the
+    /// key is up. Used by the virtual keyboard to highlight active keys.
+    #[must_use]
+    pub fn held_notes(&self) -> &[Option<u8>] {
+        &self.held_notes
+    }
+
     /// Shifts the octave base down by 12 semitones, clamped at
     /// [`OCTAVE_BASE_MIN`]. Bound to `Z` in [`Self::handle_input`].
     pub fn shift_octave_down(&mut self) {
