@@ -104,6 +104,28 @@ fn process_stereo_and_handle_do_not_allocate() {
                     mode: modes[(block_index / 128) % modes.len()],
                 });
             }
+            if block_index.is_multiple_of(96) {
+                // Per-osc level / detune / pan sweeps. Covers the M2.3
+                // smoothers and per-sample pan/detune arithmetic.
+                #[allow(clippy::cast_precision_loss)]
+                let phase = (block_index % 16) as f32 / 16.0;
+                engine.handle(EngineEvent::ParameterChange {
+                    id: ParamId::Osc1Level,
+                    value: phase,
+                });
+                engine.handle(EngineEvent::ParameterChange {
+                    id: ParamId::Osc2DetuneCents,
+                    value: phase * 50.0 - 25.0,
+                });
+                engine.handle(EngineEvent::ParameterChange {
+                    id: ParamId::Osc3Pan,
+                    value: phase * 2.0 - 1.0,
+                });
+                engine.handle(EngineEvent::ParameterChange {
+                    id: ParamId::SubPan,
+                    value: 1.0 - phase * 2.0,
+                });
+            }
             // Re-trigger every second to drive the envelope state
             // machine through all phases.
             if block_index.is_multiple_of(blocks_per_second) && block_index > 0 {

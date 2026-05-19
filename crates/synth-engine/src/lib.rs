@@ -18,6 +18,12 @@
 /// Compile-time version of the engine, matched to the workspace `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// How many main oscillators (excluding the sub) each subtractive
+/// voice carries. Promoted to a top-level constant so the parameter
+/// tree, the voice, and any future consumer (preset format, UI) all
+/// agree on the array sizes that flow through the snapshot.
+pub const MAIN_OSCILLATOR_COUNT: usize = 3;
+
 pub use crate::engine::{Engine, MAX_BLOCK_SIZE};
 pub use crate::envelope::Adsr;
 pub use crate::events::EngineEvent;

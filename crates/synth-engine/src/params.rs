@@ -22,6 +22,7 @@
 //!
 //! [`EngineEvent`]: crate::EngineEvent
 
+use crate::MAIN_OSCILLATOR_COUNT;
 use crate::filter::FilterMode;
 use crate::oscillator::Waveform;
 use crate::smoothing::SmoothedParam;
@@ -37,6 +38,18 @@ const DEFAULT_FILTER_CUTOFF_HZ: f32 = 8_000.0;
 /// Default filter resonance, on the 0..=1 user-facing scale. Zero is
 /// the maximally damped end of the range — no peak at all.
 const DEFAULT_FILTER_RESONANCE: f32 = 0.0;
+
+/// Default per-oscillator level. All four oscillators arrive at unity;
+/// the slot mixer's headroom scale handles the worst-case in-phase
+/// sum without clipping.
+const DEFAULT_OSC_LEVEL: f32 = 1.0;
+
+/// Default per-oscillator detune, in cents. Zero detune = exactly on
+/// pitch with the held note.
+const DEFAULT_OSC_DETUNE_CENTS: f32 = 0.0;
+
+/// Default per-oscillator pan position. Centered.
+const DEFAULT_OSC_PAN: f32 = 0.0;
 
 /// Identifies a continuous parameter for [`EngineEvent::ParameterChange`].
 ///
@@ -66,6 +79,32 @@ pub enum ParamId {
     /// Filter resonance on a 0..=1 scale, mapped internally to a
     /// musically useful Q range. Values outside 0..=1 are clamped.
     FilterResonance,
+
+    /// Main oscillator 1 level (0..=1).
+    Osc1Level,
+    /// Main oscillator 2 level (0..=1).
+    Osc2Level,
+    /// Main oscillator 3 level (0..=1).
+    Osc3Level,
+    /// Sub oscillator level (0..=1).
+    SubLevel,
+
+    /// Main oscillator 1 detune, in cents (±100 = one semitone).
+    Osc1DetuneCents,
+    /// Main oscillator 2 detune, in cents.
+    Osc2DetuneCents,
+    /// Main oscillator 3 detune, in cents.
+    Osc3DetuneCents,
+
+    /// Main oscillator 1 pan position (-1 = full left, +1 = full
+    /// right). Equal-power.
+    Osc1Pan,
+    /// Main oscillator 2 pan position.
+    Osc2Pan,
+    /// Main oscillator 3 pan position.
+    Osc3Pan,
+    /// Sub oscillator pan position.
+    SubPan,
 }
 
 /// An immutable snapshot of the engine's outward-facing parameter
@@ -97,6 +136,20 @@ pub struct ParamSnapshot {
     /// Current filter output mode.
     pub filter_mode: FilterMode,
 
+    /// Per-main-oscillator levels (0..=1), indexed as the voice
+    /// indexes its main oscillators.
+    pub osc_main_levels: [f32; MAIN_OSCILLATOR_COUNT],
+    /// Sub oscillator level (0..=1).
+    pub sub_level: f32,
+
+    /// Per-main-oscillator detune in cents.
+    pub osc_main_detune_cents: [f32; MAIN_OSCILLATOR_COUNT],
+
+    /// Per-main-oscillator pan position (-1..=1).
+    pub osc_main_pans: [f32; MAIN_OSCILLATOR_COUNT],
+    /// Sub oscillator pan position (-1..=1).
+    pub sub_pan: f32,
+
     /// True if a voice is currently producing audio (not idle).
     pub voice_active: bool,
 }
@@ -110,6 +163,11 @@ impl Default for ParamSnapshot {
             filter_cutoff_hz: DEFAULT_FILTER_CUTOFF_HZ,
             filter_resonance: DEFAULT_FILTER_RESONANCE,
             filter_mode: FilterMode::LowPass,
+            osc_main_levels: [DEFAULT_OSC_LEVEL; MAIN_OSCILLATOR_COUNT],
+            sub_level: DEFAULT_OSC_LEVEL,
+            osc_main_detune_cents: [DEFAULT_OSC_DETUNE_CENTS; MAIN_OSCILLATOR_COUNT],
+            osc_main_pans: [DEFAULT_OSC_PAN; MAIN_OSCILLATOR_COUNT],
+            sub_pan: DEFAULT_OSC_PAN,
             voice_active: false,
         }
     }
@@ -132,6 +190,14 @@ pub struct ParameterTree {
     filter_cutoff_hz: SmoothedParam,
     filter_resonance: SmoothedParam,
 
+    osc_main_levels: [SmoothedParam; MAIN_OSCILLATOR_COUNT],
+    sub_level: SmoothedParam,
+
+    osc_main_detune_cents: [SmoothedParam; MAIN_OSCILLATOR_COUNT],
+
+    osc_main_pans: [SmoothedParam; MAIN_OSCILLATOR_COUNT],
+    sub_pan: SmoothedParam,
+
     amp_release_secs: f32,
 
     waveform: Waveform,
@@ -151,6 +217,13 @@ impl ParameterTree {
             pitch_offset_semis: SmoothedParam::new(defaults.pitch_offset_semis, sample_rate_hz),
             filter_cutoff_hz: SmoothedParam::new(defaults.filter_cutoff_hz, sample_rate_hz),
             filter_resonance: SmoothedParam::new(defaults.filter_resonance, sample_rate_hz),
+            osc_main_levels: defaults.osc_main_levels.map(|v| SmoothedParam::new(v, sample_rate_hz)),
+            sub_level: SmoothedParam::new(defaults.sub_level, sample_rate_hz),
+            osc_main_detune_cents: defaults
+                .osc_main_detune_cents
+                .map(|v| SmoothedParam::new(v, sample_rate_hz)),
+            osc_main_pans: defaults.osc_main_pans.map(|v| SmoothedParam::new(v, sample_rate_hz)),
+            sub_pan: SmoothedParam::new(defaults.sub_pan, sample_rate_hz),
             amp_release_secs: defaults.amp_release_secs,
             waveform: defaults.waveform,
             filter_mode: defaults.filter_mode,
@@ -168,6 +241,17 @@ impl ParameterTree {
             ParamId::AmpReleaseSecs => self.amp_release_secs = value,
             ParamId::FilterCutoffHz => self.filter_cutoff_hz.set_target(value),
             ParamId::FilterResonance => self.filter_resonance.set_target(value),
+            ParamId::Osc1Level => self.osc_main_levels[0].set_target(value),
+            ParamId::Osc2Level => self.osc_main_levels[1].set_target(value),
+            ParamId::Osc3Level => self.osc_main_levels[2].set_target(value),
+            ParamId::SubLevel => self.sub_level.set_target(value),
+            ParamId::Osc1DetuneCents => self.osc_main_detune_cents[0].set_target(value),
+            ParamId::Osc2DetuneCents => self.osc_main_detune_cents[1].set_target(value),
+            ParamId::Osc3DetuneCents => self.osc_main_detune_cents[2].set_target(value),
+            ParamId::Osc1Pan => self.osc_main_pans[0].set_target(value),
+            ParamId::Osc2Pan => self.osc_main_pans[1].set_target(value),
+            ParamId::Osc3Pan => self.osc_main_pans[2].set_target(value),
+            ParamId::SubPan => self.sub_pan.set_target(value),
         }
     }
 
@@ -193,7 +277,8 @@ impl ParameterTree {
     /// note-on so the first sample of a new note plays exactly at the
     /// current target value rather than mid-glide. Filter params
     /// deliberately keep smoothing so a note hit does not click the
-    /// cutoff.
+    /// cutoff. Per-osc level / pan / detune also stay smoothed so a
+    /// mid-glide adjustment continues smoothly into the new note.
     pub fn snap_for_note_on(&mut self) {
         self.pitch_offset_semis.snap_to_target();
     }
@@ -224,6 +309,23 @@ impl ParameterTree {
             pitch_offset_semis: self.pitch_offset_semis.next_sample(),
             filter_cutoff_hz: self.filter_cutoff_hz.next_sample(),
             filter_resonance: self.filter_resonance.next_sample(),
+            osc_main_levels: [
+                self.osc_main_levels[0].next_sample(),
+                self.osc_main_levels[1].next_sample(),
+                self.osc_main_levels[2].next_sample(),
+            ],
+            sub_level: self.sub_level.next_sample(),
+            osc_main_detune_cents: [
+                self.osc_main_detune_cents[0].next_sample(),
+                self.osc_main_detune_cents[1].next_sample(),
+                self.osc_main_detune_cents[2].next_sample(),
+            ],
+            osc_main_pans: [
+                self.osc_main_pans[0].next_sample(),
+                self.osc_main_pans[1].next_sample(),
+                self.osc_main_pans[2].next_sample(),
+            ],
+            sub_pan: self.sub_pan.next_sample(),
         }
     }
 
@@ -239,6 +341,23 @@ impl ParameterTree {
             filter_cutoff_hz: self.filter_cutoff_hz.current(),
             filter_resonance: self.filter_resonance.current(),
             filter_mode: self.filter_mode,
+            osc_main_levels: [
+                self.osc_main_levels[0].current(),
+                self.osc_main_levels[1].current(),
+                self.osc_main_levels[2].current(),
+            ],
+            sub_level: self.sub_level.current(),
+            osc_main_detune_cents: [
+                self.osc_main_detune_cents[0].current(),
+                self.osc_main_detune_cents[1].current(),
+                self.osc_main_detune_cents[2].current(),
+            ],
+            osc_main_pans: [
+                self.osc_main_pans[0].current(),
+                self.osc_main_pans[1].current(),
+                self.osc_main_pans[2].current(),
+            ],
+            sub_pan: self.sub_pan.current(),
             voice_active: self.voice_active,
         }
     }
@@ -261,6 +380,19 @@ pub struct SampleParams {
 
     /// Filter resonance for this sample, on the 0..=1 user scale.
     pub filter_resonance: f32,
+
+    /// Per-main-oscillator levels for this sample.
+    pub osc_main_levels: [f32; MAIN_OSCILLATOR_COUNT],
+    /// Sub oscillator level for this sample.
+    pub sub_level: f32,
+
+    /// Per-main-oscillator detune in cents for this sample.
+    pub osc_main_detune_cents: [f32; MAIN_OSCILLATOR_COUNT],
+
+    /// Per-main-oscillator pan positions for this sample.
+    pub osc_main_pans: [f32; MAIN_OSCILLATOR_COUNT],
+    /// Sub oscillator pan position for this sample.
+    pub sub_pan: f32,
 }
 
 #[cfg(test)]
@@ -278,7 +410,6 @@ mod tests {
     fn set_continuous_pitch_offset_smooths_toward_target() {
         let mut tree = ParameterTree::new(48_000.0);
         tree.set_continuous(ParamId::PitchOffsetSemis, 12.0);
-        // First sample is far from target — smoothing must not jump.
         let first = tree.next_sample().pitch_offset_semis;
         assert!(first.abs() < 0.5, "expected gradual rise, got {first}");
     }
@@ -296,7 +427,6 @@ mod tests {
     fn set_continuous_amp_release_latches_immediately() {
         let mut tree = ParameterTree::new(48_000.0);
         tree.set_continuous(ParamId::AmpReleaseSecs, 1.5);
-        // Stepped — the value is visible without advancing any sample.
         assert_eq!(tree.amp_release_secs(), 1.5);
         assert_eq!(tree.snapshot().amp_release_secs, 1.5);
     }
@@ -307,8 +437,6 @@ mod tests {
         tree.set_continuous(ParamId::FilterCutoffHz, 2_000.0);
         tree.set_continuous(ParamId::FilterResonance, 0.8);
         let first = tree.next_sample();
-        // Starting from defaults (8000 Hz, 0.0), the first sample must
-        // not jump to the targets.
         assert!(
             first.filter_cutoff_hz > 4_000.0,
             "cutoff jumped: {}",
@@ -319,6 +447,44 @@ mod tests {
             "resonance jumped: {}",
             first.filter_resonance
         );
+    }
+
+    #[test]
+    fn per_osc_params_route_to_the_right_slot() {
+        // Set each per-osc param to a distinct value and confirm the
+        // snapshot reflects the right field. Smoothing has not been
+        // ticked, so we just verify the targets are dispatched
+        // correctly — current() still reads the default until samples
+        // advance, so we tick a long way before asserting.
+        let mut tree = ParameterTree::new(48_000.0);
+        tree.set_continuous(ParamId::Osc1Level, 0.10);
+        tree.set_continuous(ParamId::Osc2Level, 0.20);
+        tree.set_continuous(ParamId::Osc3Level, 0.30);
+        tree.set_continuous(ParamId::SubLevel, 0.40);
+        tree.set_continuous(ParamId::Osc1DetuneCents, 11.0);
+        tree.set_continuous(ParamId::Osc2DetuneCents, 22.0);
+        tree.set_continuous(ParamId::Osc3DetuneCents, 33.0);
+        tree.set_continuous(ParamId::Osc1Pan, -0.5);
+        tree.set_continuous(ParamId::Osc2Pan, 0.0);
+        tree.set_continuous(ParamId::Osc3Pan, 0.5);
+        tree.set_continuous(ParamId::SubPan, 0.25);
+
+        // Tick long enough that smoothers reach their targets.
+        for _ in 0..8_192 {
+            let _ = tree.next_sample();
+        }
+        let snap = tree.snapshot();
+        assert!((snap.osc_main_levels[0] - 0.10).abs() < 1e-3);
+        assert!((snap.osc_main_levels[1] - 0.20).abs() < 1e-3);
+        assert!((snap.osc_main_levels[2] - 0.30).abs() < 1e-3);
+        assert!((snap.sub_level - 0.40).abs() < 1e-3);
+        assert!((snap.osc_main_detune_cents[0] - 11.0).abs() < 1e-2);
+        assert!((snap.osc_main_detune_cents[1] - 22.0).abs() < 1e-2);
+        assert!((snap.osc_main_detune_cents[2] - 33.0).abs() < 1e-2);
+        assert!((snap.osc_main_pans[0] - -0.5).abs() < 1e-3);
+        assert!((snap.osc_main_pans[1] - 0.0).abs() < 1e-3);
+        assert!((snap.osc_main_pans[2] - 0.5).abs() < 1e-3);
+        assert!((snap.sub_pan - 0.25).abs() < 1e-3);
     }
 
     #[test]
@@ -342,6 +508,10 @@ mod tests {
         let mut tree = ParameterTree::new(48_000.0);
         assert!(!tree.snapshot().voice_active);
         tree.set_voice_active(true);
+        assert!(tree.snapshot().voice_active);
+    }
+}
+ctive(true);
         assert!(tree.snapshot().voice_active);
     }
 }

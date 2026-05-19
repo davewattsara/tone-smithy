@@ -110,11 +110,9 @@ impl Engine {
 
         for frame_index in 0..frames {
             let smoothed = self.params.next_sample();
-            let sample = self.voice.next_sample(&smoothed);
-            // Mono signal duplicated to both channels. Real stereo
-            // (per-oscillator pan via the slot mixer) arrives in M2.3.
-            output[frame_index * 2] = sample;
-            output[frame_index * 2 + 1] = sample;
+            let (left, right) = self.voice.next_sample(&smoothed);
+            output[frame_index * 2] = left;
+            output[frame_index * 2 + 1] = right;
         }
 
         // Mirror the post-block voice state into the tree so the next
@@ -218,6 +216,48 @@ mod tests {
             "expected ~5.0 after smoothing, got {}",
             snap.pitch_offset_semis
         );
+    }
+
+    #[test]
+    fn hard_pan_routes_audio_to_one_stereo_channel() {
+        // End-to-end: pan osc1 hard left, mute oscs 2/3/sub, render a
+        // note. The right channel of the interleaved output should
+        // contain only essentially silent samples.
+        let mut engine = Engine::new(48_000.0);
+        engine.handle(EngineEvent::ParameterChange {
+            id: ParamId::Osc2Level,
+            value: 0.0,
+        });
+        engine.handle(EngineEvent::ParameterChange {
+            id: ParamId::Osc3Level,
+            value: 0.0,
+        });
+        engine.handle(EngineEvent::ParameterChange {
+            id: ParamId::SubLevel,
+            value: 0.0,
+        });
+        engine.handle(EngineEvent::ParameterChange {
+            id: ParamId::Osc1Pan,
+            value: -1.0,
+        });
+        engine.handle(EngineEvent::NoteOn {
+            note_midi: 69,
+            velocity: 100,
+        });
+
+        let mut buffer = vec![0.0f32; 4096 * 2];
+        // Render long enough for the pan/level smoothers to settle.
+        for _ in 0..6 {
+            engine.process_stereo(&mut buffer, 4096);
+        }
+        let mut peak_l = 0.0_f32;
+        let mut peak_r = 0.0_f32;
+        for frame in buffer.chunks_exact(2) {
+            peak_l = peak_l.max(frame[0].abs());
+            peak_r = peak_r.max(frame[1].abs());
+        }
+        assert!(peak_l > 0.1, "expected audible left, got {peak_l}");
+        assert!(peak_r < 0.01, "expected silent right, got {peak_r}");
     }
 
     #[test]
