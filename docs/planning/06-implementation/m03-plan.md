@@ -111,7 +111,7 @@ Alternative considered: MIDI before keyboard. Rejected because it bundles two un
 
 ### M3.2 — MIDI hardware input (notes)
 
-**Status:** Not started.
+**Status:** Done (`be38d0a`). Hot-plug intentionally deferred — if no MIDI device is present at startup the app runs without MIDI; if one is added later the user restarts. Same shape as the audio device hot-plug limitation noted at M4.
 
 **Scope.** `midir` integration in `synth-host`. Enumerate input ports, open one, route note-on/note-off (with velocity) into the existing `EngineEventSender` SPSC.
 
@@ -182,11 +182,7 @@ Alternative considered: MIDI before keyboard. Rejected because it bundles two un
 
 **No-alloc tests.** `crates/synth-engine/tests/no_alloc.rs` must be extended in M3.0 to cover the 32-voice case. Don't accept passing single-voice no-alloc as proof — voice fan-out can hide allocation bugs that only fire when stealing kicks in.
 
-**MIDI thread → audio thread bridge.** Both the on-screen keyboard, the computer keyboard, and the MIDI input thread all clone `EngineEventSender` and push into the same SPSC. The "single producer" of SPSC is technically violated. Two options:
-1. Switch to a Multi-Producer-Single-Consumer (MPSC) queue (`crossbeam-channel` provides one).
-2. Keep SPSC but have a thin merger thread that drains UI + MIDI into the audio-bound SPSC.
-
-Option 1 is simpler; M3.2 should make the call and update `audio-engine.md` if MPSC is chosen. The relevant assertions in `design-patterns.md` §2.x should also be re-checked.
+**MIDI thread → audio thread bridge.** Resolved at M3.2: the bus is already MPMC (`crossbeam_channel::bounded`), so the on-screen keyboard, the computer keyboard, and the MIDI thread each clone `EngineEventSender` and push directly. The `param_bus.rs` doc comment that called it "SPSC" was wrong and was fixed in the M3.2 commit.
 
 **Naming.** `crossbeam-channel`'s "queue capacity" already exists from M1. Confirm the capacity is sized for the worst case: 32 voices × (note-on + note-off) + ~16 CCs/frame = comfortably under 256. Current capacity is set in `param_bus.rs`; verify.
 
