@@ -67,13 +67,18 @@ impl VirtualKeyboard {
     /// each frame to keep the visible range in sync with the computer
     /// keyboard's octave base.
     ///
+    /// Returns the MIDI note that was being held by the mouse if the
+    /// range actually changed, so the caller can send a `NoteOff` event
+    /// to release it. If the range is unchanged, or no note was held,
+    /// returns `None`.
+    ///
     /// [`show`]: Self::show
-    pub fn set_start_note(&mut self, note_midi: u8) {
+    pub fn set_start_note(&mut self, note_midi: u8) -> Option<u8> {
         if self.start_note_midi != note_midi {
-            // Release any mouse-held note so it doesn't get stuck when
-            // the keyboard scrolls away from it.
-            self.held_note = None;
             self.start_note_midi = note_midi;
+            self.held_note.take()
+        } else {
+            None
         }
     }
 

@@ -201,8 +201,11 @@ impl eframe::App for ToneSmithyApp {
 
             // Keep the virtual keyboard's visible range in sync with the
             // computer keyboard's current octave so highlighted keys are
-            // always visible.
-            self.keyboard.set_start_note(self.computer_keyboard.octave_base());
+            // always visible. If a mouse-held note was active when the
+            // range shifted, send NoteOff so the engine releases it.
+            if let Some(stuck) = self.keyboard.set_start_note(self.computer_keyboard.octave_base()) {
+                self.events.send(EngineEvent::NoteOff { note_midi: stuck });
+            }
             let kb_notes = self.computer_keyboard.held_notes();
             ui.vertical_centered(|ui| {
                 self.keyboard.show(ui, &self.events, kb_notes);
