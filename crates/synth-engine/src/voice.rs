@@ -3,12 +3,11 @@
 //! A voice owns the subtractive slot's four oscillators — three main
 //! [`UnisonOscillator`] banks (each one a 1..=7 voice unison sharing
 //! a waveform), plus a dedicated sub oscillator that is always a sine
-//! an octave below the held pitch — one filter (per channel), and one
-//! amp envelope. Smoothed parameters live in the engine's
-//! [`ParameterTree`]; the voice consumes the current per-sample values
-//! as a [`SampleParams`] reference passed to [`Voice::next_sample`].
-//! The engine owns a single voice for M2; a polyphonic voice manager
-//! joins at M3.
+//! an octave below the held pitch — one filter (per channel), one amp
+//! envelope, two LFOs, and one modulation envelope (Env2). Smoothed
+//! parameters live in the engine's [`ParameterTree`]; the voice
+//! consumes the current per-sample values as a [`SampleParams`]
+//! reference passed to [`Voice::next_sample`].
 //!
 //! Signal flow per sample: each main oscillator bank produces a
 //! stereo pair (its unison voices already mixed with the per-osc pan
@@ -18,6 +17,11 @@
 //! filter sits *after* the per-osc mix so LP cutoff sweeps act on
 //! the whole slot.
 //!
+//! LFOs and Env2 are block-rate: advance them once per inner block
+//! via [`Voice::advance_modulators`] before the per-sample loop.
+//! Their most recent outputs are available via [`Voice::lfo1_out`],
+//! [`Voice::lfo2_out`], and [`Voice::env2_out`].
+//!
 //! [`ParameterTree`]: crate::params::ParameterTree
 //! [`SampleParams`]: crate::params::SampleParams
 //! [`UnisonOscillator`]: crate::oscillator::UnisonOscillator
@@ -25,9 +29,16 @@
 use crate::MAIN_OSCILLATOR_COUNT;
 use crate::envelope::Adsr;
 use crate::filter::{FilterMode, StateVariableFilter};
+use crate::lfo::{Lfo, LfoShape};
+use crate::mod_env::ModEnv;
 use crate::oscillator::{Oscillator, UnisonOscillator, Waveform};
 use crate::panning::equal_power_pan;
 use crate::params::SampleParams;
+
+/// LFO1 and LFO2 use different seeds so their S&H and SmoothRandom
+/// sequences are independent from the very first note.
+const LFO1_SEED: u32 = 0x1234_5678;
+const LFO2_SEED: u32 = 0x9ABC_DEF0;
 
 /// Headroom scale applied to each channel's slot sum. Sized so the
 /// worst-case in-phase sum of four unit-level oscillators (3 main
@@ -39,13 +50,16 @@ const SLOT_MIX_SCALE: f32 = 1.0 / 4.0;
 /// One synth voice: three unison main oscillator banks + a sub
 /// oscillator, mixed through per-osc level/pan into a stereo slot
 /// sum, fed through one filter (per channel), gated by one amp
-/// envelope.
+/// envelope, and accompanied by two LFOs and a modulation envelope.
 pub struct Voice {
     main_oscillators: [UnisonOscillator; MAIN_OSCILLATOR_COUNT],
     sub_oscillator: Oscillator,
     filter_l: StateVariableFilter,
     filter_r: StateVariableFilter,
     amp_envelope: Adsr,
+    lfo1: Lfo,
+    lfo2: Lfo,
+    mod_env: ModEnv,
 
     /// MIDI note currently being held by the voice, if any. Used so
     /// `note_off` only releases the matching note.
@@ -55,6 +69,14 @@ pub struct Voice {
     /// Set at `note_on` from the MIDI velocity byte. Allows soft notes
     /// to be quieter than hard ones without changing the envelope shape.
     velocity_scale: f32,
+
+    /// Most recent output of LFO1, set by `advance_modulators`. Consumed
+    /// by the mod matrix (M6) and exposed to the UI via the snapshot.
+    lfo1_out: f32,
+    /// Most recent output of LFO2.
+    lfo2_out: f32,
+    /// Most recent output of Env2 (the modulation envelope).
+    env2_out: f32,
 }
 
 impl Voice {
@@ -71,8 +93,14 @@ impl Voice {
             filter_l: StateVariableFilter::new(sample_rate_hz),
             filter_r: StateVariableFilter::new(sample_rate_hz),
             amp_envelope: Adsr::new(sample_rate_hz),
+            lfo1: Lfo::new(sample_rate_hz, LFO1_SEED),
+            lfo2: Lfo::new(sample_rate_hz, LFO2_SEED),
+            mod_env: ModEnv::new(sample_rate_hz),
             held_note_midi: None,
             velocity_scale: 1.0,
+            lfo1_out: 0.0,
+            lfo2_out: 0.0,
+            env2_out: 0.0,
         }
     }
 
@@ -99,6 +127,9 @@ impl Voice {
             self.filter_r.reset();
         }
         self.amp_envelope.note_on();
+        self.lfo1.note_on();
+        self.lfo2.note_on();
+        self.mod_env.note_on();
     }
 
     /// Releases the held note. Ignored if a different note is currently
@@ -108,6 +139,7 @@ impl Voice {
     pub fn note_off(&mut self, note_midi: u8) {
         if self.held_note_midi == Some(note_midi) {
             self.amp_envelope.note_off();
+            self.mod_env.note_off();
             self.held_note_midi = None;
         }
     }
@@ -132,6 +164,97 @@ impl Voice {
         self.amp_envelope.set_release_secs(release_secs);
     }
 
+    /// Sets the LFO1 rate in Hz. Clamped to `[0.01, 20.0]` inside `Lfo`.
+    pub fn set_lfo1_rate_hz(&mut self, rate_hz: f32) {
+        self.lfo1.set_rate_hz(rate_hz);
+    }
+
+    /// Sets the LFO1 waveform shape.
+    pub fn set_lfo1_shape(&mut self, shape: LfoShape) {
+        self.lfo1.set_shape(shape);
+    }
+
+    /// Enables or disables LFO1 phase reset on note-on.
+    pub fn set_lfo1_reset_on_note_on(&mut self, reset: bool) {
+        self.lfo1.set_reset_on_note_on(reset);
+    }
+
+    /// Sets the LFO2 rate in Hz.
+    pub fn set_lfo2_rate_hz(&mut self, rate_hz: f32) {
+        self.lfo2.set_rate_hz(rate_hz);
+    }
+
+    /// Sets the LFO2 waveform shape.
+    pub fn set_lfo2_shape(&mut self, shape: LfoShape) {
+        self.lfo2.set_shape(shape);
+    }
+
+    /// Enables or disables LFO2 phase reset on note-on.
+    pub fn set_lfo2_reset_on_note_on(&mut self, reset: bool) {
+        self.lfo2.set_reset_on_note_on(reset);
+    }
+
+    /// Sets the Env2 attack time in seconds.
+    pub fn set_env2_attack_secs(&mut self, secs: f32) {
+        self.mod_env.set_attack_secs(secs);
+    }
+
+    /// Sets the Env2 decay time in seconds.
+    pub fn set_env2_decay_secs(&mut self, secs: f32) {
+        self.mod_env.set_decay_secs(secs);
+    }
+
+    /// Sets the Env2 sustain level, clamped to `[0, 1]`.
+    pub fn set_env2_sustain_level(&mut self, level: f32) {
+        self.mod_env.set_sustain_level(level);
+    }
+
+    /// Sets the Env2 release time in seconds.
+    pub fn set_env2_release_secs(&mut self, secs: f32) {
+        self.mod_env.set_release_secs(secs);
+    }
+
+    /// Sets the Env2 Attack stage curve, `[-1, +1]`.
+    pub fn set_env2_attack_curve(&mut self, curve: f32) {
+        self.mod_env.set_attack_curve(curve);
+    }
+
+    /// Sets the Env2 Decay stage curve, `[-1, +1]`.
+    pub fn set_env2_decay_curve(&mut self, curve: f32) {
+        self.mod_env.set_decay_curve(curve);
+    }
+
+    /// Sets the Env2 Release stage curve, `[-1, +1]`.
+    pub fn set_env2_release_curve(&mut self, curve: f32) {
+        self.mod_env.set_release_curve(curve);
+    }
+
+    /// Advances LFO1, LFO2, and Env2 by `block_size` samples and caches
+    /// their outputs. Call once per inner block, before the per-sample loop.
+    pub fn advance_modulators(&mut self, block_size: usize) {
+        self.lfo1_out = self.lfo1.advance(block_size);
+        self.lfo2_out = self.lfo2.advance(block_size);
+        self.env2_out = self.mod_env.advance(block_size);
+    }
+
+    /// Most recent LFO1 output from `advance_modulators`.
+    #[must_use]
+    pub fn lfo1_out(&self) -> f32 {
+        self.lfo1_out
+    }
+
+    /// Most recent LFO2 output from `advance_modulators`.
+    #[must_use]
+    pub fn lfo2_out(&self) -> f32 {
+        self.lfo2_out
+    }
+
+    /// Most recent Env2 output from `advance_modulators`.
+    #[must_use]
+    pub fn env2_out(&self) -> f32 {
+        self.env2_out
+    }
+
     /// Sets the waveform on every voice of all three main oscillator
     /// banks. The sub oscillator is unaffected — it is always a sine
     /// per `docs/planning/05-design/dsp-and-sound.md`. The discrete-
@@ -151,10 +274,20 @@ impl Voice {
         self.filter_r.set_mode(mode);
     }
 
-    /// Returns true if the voice is fully idle (amp envelope at zero
-    /// and no note held).
+    /// Returns true if the voice is fully idle: both the amp envelope
+    /// and Env2 have completed. Env2 may still be releasing after the
+    /// amp goes silent, keeping the voice alive for M6 modulation use.
     #[must_use]
     pub fn is_idle(&self) -> bool {
+        self.amp_envelope.is_idle() && self.mod_env.is_idle()
+    }
+
+    /// Returns true when the amp envelope has fully released and the
+    /// voice is producing no audio. Env2 may still be running.
+    /// Use this for the UI voice counter — voices that are silent but
+    /// still cleaning up their Env2 should not show as "active".
+    #[must_use]
+    pub fn is_amp_silent(&self) -> bool {
         self.amp_envelope.is_idle()
     }
 

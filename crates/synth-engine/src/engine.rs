@@ -139,6 +139,10 @@ impl Engine {
     pub fn process_stereo(&mut self, output: &mut [f32], frames: usize) {
         debug_assert_eq!(output.len(), frames * 2);
 
+        // Advance block-rate modulators (LFOs and Env2) once per block
+        // before the per-sample loop.
+        self.voices.advance_modulators(frames);
+
         for frame_index in 0..frames {
             let smoothed = self.params.next_sample();
             let (left, right) = self.voices.next_sample(&smoothed);
