@@ -140,7 +140,7 @@ Alternative considered: MIDI before keyboard. Rejected because it bundles two un
 
 ### M3.3 — MIDI controllers
 
-**Status:** Not started.
+**Status:** Done (`aa7b9d6`).
 
 **Scope.** Pitch bend, mod wheel, sustain pedal, channel aftertouch, arbitrary CC routing.
 
@@ -165,7 +165,7 @@ Alternative considered: MIDI before keyboard. Rejected because it bundles two un
 
 ### M3.4 — Architecture review / lock-in
 
-**Status:** Not started.
+**Status:** Done (`aa7b9d6` + review pass below).
 
 **Scope.** Mirror the M2.5 pattern. Read every file touched in M3.0–M3.3 against `design-patterns.md` and `audio-engine.md`. Look for:
 
@@ -175,6 +175,15 @@ Alternative considered: MIDI before keyboard. Rejected because it bundles two un
 - Anything marked `// TODO: M3` from M2 — verify it's been addressed.
 
 **Exit criteria.** Either everything is clean, or two-to-four small follow-up commits land before the M3 close-out. M3 done-when ("CPU well below 50% with 32 simple voices") is verified by running the binary, holding 32 notes via the computer keyboard, and watching the footer's CPU% (the indicator is M4 scope, but a manual `tracing::info!` of the audio callback duration is fine in M3.4 if M4 hasn't surfaced it yet).
+
+**Review notes (2026-05-19):**
+- No allocation / lock / syscall found on the audio path. Sustain uses `[bool;128]`, CC values use `[f32;128]` — both fixed-size stack arrays.
+- `EngineEvent` surface is stable for M4–M6: existing variants are immutable; new controller variants (`PitchBend`, `Sustain`, `ChannelAftertouch`, `ControlChange`) match the M6 mod-matrix source list.
+- `VoiceManager` API exposes `active_count()` for the M4 polyphony indicator — already being read by `synth-ui`.
+- `mod_wheel` and `channel_aftertouch` are stepped (not smoothed) in the parameter tree because they have no DSP consumer until M6. Smoothing to be added there.
+- Queue capacity (4096) comfortably handles worst-case burst (32×2 note events + 128 CC values per block).
+- Open question resolved: default pitch-bend range is ±2 semitones (`PITCH_BEND_RANGE_SEMIS`), configurable in M13.
+- Velocity curve: linear for v1 (implemented M3.3). Log in open-questions if a non-linear curve is desired before M6.
 
 ## Cross-cutting concerns
 
