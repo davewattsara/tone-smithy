@@ -50,7 +50,7 @@ impl Engine {
         // components see the same values the tree publishes in the
         // first snapshot.
         voice.set_release_secs(params.amp_release_secs());
-        voice.set_waveform(params.waveform());
+        voice.set_main_waveform(params.waveform());
         Self {
             sample_rate_hz,
             params,
@@ -79,7 +79,7 @@ impl Engine {
             }
             EngineEvent::SetOscillatorWaveform { waveform } => {
                 self.params.set_waveform(waveform);
-                self.voice.set_waveform(waveform);
+                self.voice.set_main_waveform(waveform);
             }
             EngineEvent::ParameterChange { id, value } => {
                 self.params.set_continuous(id, value);
