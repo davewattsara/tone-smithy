@@ -78,6 +78,8 @@ Build out the full single subtractive voice.
 
 Make the synth playable from real hardware.
 
+> Implementation plan: [`m03-plan.md`](m03-plan.md) — sub-milestone breakdown, file-level scope, and resumable status tracking.
+
 - `midir` integration in `synth-host`.
 - Device enumeration, selection, hot-plug detection.
 - Notes (with velocity), pitch bend, mod wheel, sustain, channel aftertouch, arbitrary CC.
