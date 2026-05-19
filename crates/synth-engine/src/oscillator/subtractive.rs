@@ -145,7 +145,7 @@ impl Oscillator {
         };
 
         self.phase += dt;
-        if self.phase >= 1.0 {
+        while self.phase >= 1.0 {
             self.phase -= 1.0;
         }
         sample
