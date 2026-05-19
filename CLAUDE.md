@@ -72,7 +72,7 @@ Don't update it for internal refactors, doc-only planning changes, or conversati
 
 ## Project state at a glance
 
-- **Stage:** M1 (first sound) complete and merged to `main` at tag `m01`. Active milestone: **M2 (subtractive voice)** on `development`.
+- **Stage:** M3 (MIDI input + polyphony) complete and merged to `main` at tag `m03`. Active milestone: **M4 (minimal playable UI)** on `development`.
 - **Licence:** `MIT OR Apache-2.0` dual.
 - **Product name:** Tone Smithy.
 - **Branches:** `main` (stable; last update was the M1 merge at tag `m01`); `development` (active work — commit here).
