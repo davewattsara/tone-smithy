@@ -51,6 +51,21 @@ const DEFAULT_OSC_DETUNE_CENTS: f32 = 0.0;
 /// Default per-oscillator pan position. Centered.
 const DEFAULT_OSC_PAN: f32 = 0.0;
 
+/// Default unison voice count per main oscillator. `1` means unison
+/// is effectively off — the bank behaves like a single oscillator
+/// and unison detune / spread are inert.
+const DEFAULT_UNISON_VOICES: f32 = 1.0;
+
+/// Default unison detune in cents. Subtle enough not to be obvious if
+/// the user enables unison without touching the detune knob, but
+/// large enough to actually beat audibly between voices.
+const DEFAULT_UNISON_DETUNE_CENTS: f32 = 10.0;
+
+/// Default unison stereo spread (0..=1). Half spread is musical when
+/// the user first enables unison without dialling in the width
+/// explicitly.
+const DEFAULT_UNISON_SPREAD: f32 = 0.5;
+
 /// Identifies a continuous parameter for [`EngineEvent::ParameterChange`].
 ///
 /// Discrete parameters (e.g. waveform, filter mode) have their own
@@ -105,6 +120,30 @@ pub enum ParamId {
     Osc3Pan,
     /// Sub oscillator pan position.
     SubPan,
+
+    /// Main oscillator 1 unison voice count, treated as an integer
+    /// 1..=MAX_UNISON_VOICES (rounded and clamped when consumed).
+    Osc1UnisonVoices,
+    /// Main oscillator 2 unison voice count.
+    Osc2UnisonVoices,
+    /// Main oscillator 3 unison voice count.
+    Osc3UnisonVoices,
+
+    /// Main oscillator 1 unison detune width, in cents. Voices spread
+    /// across `[-detune, +detune]`.
+    Osc1UnisonDetuneCents,
+    /// Main oscillator 2 unison detune width, in cents.
+    Osc2UnisonDetuneCents,
+    /// Main oscillator 3 unison detune width, in cents.
+    Osc3UnisonDetuneCents,
+
+    /// Main oscillator 1 unison stereo spread (0..=1). Voices spread
+    /// across the stereo field around the per-osc pan.
+    Osc1UnisonSpread,
+    /// Main oscillator 2 unison stereo spread (0..=1).
+    Osc2UnisonSpread,
+    /// Main oscillator 3 unison stereo spread (0..=1).
+    Osc3UnisonSpread,
 }
 
 /// An immutable snapshot of the engine's outward-facing parameter
@@ -150,6 +189,17 @@ pub struct ParamSnapshot {
     /// Sub oscillator pan position (-1..=1).
     pub sub_pan: f32,
 
+    /// Per-main-oscillator unison voice count (1..=MAX_UNISON_VOICES,
+    /// stored as f32 because the parameter bus carries f32 values;
+    /// rounded and clamped at the consumer).
+    pub osc_main_unison_voices: [f32; MAIN_OSCILLATOR_COUNT],
+
+    /// Per-main-oscillator unison detune width, in cents.
+    pub osc_main_unison_detune_cents: [f32; MAIN_OSCILLATOR_COUNT],
+
+    /// Per-main-oscillator unison stereo spread (0..=1).
+    pub osc_main_unison_spreads: [f32; MAIN_OSCILLATOR_COUNT],
+
     /// True if a voice is currently producing audio (not idle).
     pub voice_active: bool,
 }
@@ -168,6 +218,9 @@ impl Default for ParamSnapshot {
             osc_main_detune_cents: [DEFAULT_OSC_DETUNE_CENTS; MAIN_OSCILLATOR_COUNT],
             osc_main_pans: [DEFAULT_OSC_PAN; MAIN_OSCILLATOR_COUNT],
             sub_pan: DEFAULT_OSC_PAN,
+            osc_main_unison_voices: [DEFAULT_UNISON_VOICES; MAIN_OSCILLATOR_COUNT],
+            osc_main_unison_detune_cents: [DEFAULT_UNISON_DETUNE_CENTS; MAIN_OSCILLATOR_COUNT],
+            osc_main_unison_spreads: [DEFAULT_UNISON_SPREAD; MAIN_OSCILLATOR_COUNT],
             voice_active: false,
         }
     }
@@ -198,6 +251,15 @@ pub struct ParameterTree {
     osc_main_pans: [SmoothedParam; MAIN_OSCILLATOR_COUNT],
     sub_pan: SmoothedParam,
 
+    osc_main_unison_detune_cents: [SmoothedParam; MAIN_OSCILLATOR_COUNT],
+    osc_main_unison_spreads: [SmoothedParam; MAIN_OSCILLATOR_COUNT],
+
+    /// Unison voice counts. Stepped (not smoothed) because the
+    /// quantised integer values do not benefit from interpolation —
+    /// switching from 3 to 4 voices is meant to be instant, not a
+    /// glide through 3.4 voices.
+    osc_main_unison_voices: [f32; MAIN_OSCILLATOR_COUNT],
+
     amp_release_secs: f32,
 
     waveform: Waveform,
@@ -224,6 +286,13 @@ impl ParameterTree {
                 .map(|v| SmoothedParam::new(v, sample_rate_hz)),
             osc_main_pans: defaults.osc_main_pans.map(|v| SmoothedParam::new(v, sample_rate_hz)),
             sub_pan: SmoothedParam::new(defaults.sub_pan, sample_rate_hz),
+            osc_main_unison_detune_cents: defaults
+                .osc_main_unison_detune_cents
+                .map(|v| SmoothedParam::new(v, sample_rate_hz)),
+            osc_main_unison_spreads: defaults
+                .osc_main_unison_spreads
+                .map(|v| SmoothedParam::new(v, sample_rate_hz)),
+            osc_main_unison_voices: defaults.osc_main_unison_voices,
             amp_release_secs: defaults.amp_release_secs,
             waveform: defaults.waveform,
             filter_mode: defaults.filter_mode,
@@ -252,6 +321,15 @@ impl ParameterTree {
             ParamId::Osc2Pan => self.osc_main_pans[1].set_target(value),
             ParamId::Osc3Pan => self.osc_main_pans[2].set_target(value),
             ParamId::SubPan => self.sub_pan.set_target(value),
+            ParamId::Osc1UnisonVoices => self.osc_main_unison_voices[0] = value,
+            ParamId::Osc2UnisonVoices => self.osc_main_unison_voices[1] = value,
+            ParamId::Osc3UnisonVoices => self.osc_main_unison_voices[2] = value,
+            ParamId::Osc1UnisonDetuneCents => self.osc_main_unison_detune_cents[0].set_target(value),
+            ParamId::Osc2UnisonDetuneCents => self.osc_main_unison_detune_cents[1].set_target(value),
+            ParamId::Osc3UnisonDetuneCents => self.osc_main_unison_detune_cents[2].set_target(value),
+            ParamId::Osc1UnisonSpread => self.osc_main_unison_spreads[0].set_target(value),
+            ParamId::Osc2UnisonSpread => self.osc_main_unison_spreads[1].set_target(value),
+            ParamId::Osc3UnisonSpread => self.osc_main_unison_spreads[2].set_target(value),
         }
     }
 
@@ -326,6 +404,17 @@ impl ParameterTree {
                 self.osc_main_pans[2].next_sample(),
             ],
             sub_pan: self.sub_pan.next_sample(),
+            osc_main_unison_voices: self.osc_main_unison_voices,
+            osc_main_unison_detune_cents: [
+                self.osc_main_unison_detune_cents[0].next_sample(),
+                self.osc_main_unison_detune_cents[1].next_sample(),
+                self.osc_main_unison_detune_cents[2].next_sample(),
+            ],
+            osc_main_unison_spreads: [
+                self.osc_main_unison_spreads[0].next_sample(),
+                self.osc_main_unison_spreads[1].next_sample(),
+                self.osc_main_unison_spreads[2].next_sample(),
+            ],
         }
     }
 
@@ -358,6 +447,17 @@ impl ParameterTree {
                 self.osc_main_pans[2].current(),
             ],
             sub_pan: self.sub_pan.current(),
+            osc_main_unison_voices: self.osc_main_unison_voices,
+            osc_main_unison_detune_cents: [
+                self.osc_main_unison_detune_cents[0].current(),
+                self.osc_main_unison_detune_cents[1].current(),
+                self.osc_main_unison_detune_cents[2].current(),
+            ],
+            osc_main_unison_spreads: [
+                self.osc_main_unison_spreads[0].current(),
+                self.osc_main_unison_spreads[1].current(),
+                self.osc_main_unison_spreads[2].current(),
+            ],
             voice_active: self.voice_active,
         }
     }
@@ -393,6 +493,20 @@ pub struct SampleParams {
     pub osc_main_pans: [f32; MAIN_OSCILLATOR_COUNT],
     /// Sub oscillator pan position for this sample.
     pub sub_pan: f32,
+
+    /// Per-main-oscillator unison voice counts. Carried as f32 to
+    /// match the parameter bus; the voice rounds and clamps when
+    /// consuming. Stepped, so this field's value is constant across
+    /// the samples between two `ParameterChange` events.
+    pub osc_main_unison_voices: [f32; MAIN_OSCILLATOR_COUNT],
+
+    /// Per-main-oscillator unison detune width in cents for this
+    /// sample.
+    pub osc_main_unison_detune_cents: [f32; MAIN_OSCILLATOR_COUNT],
+
+    /// Per-main-oscillator unison stereo spread (0..=1) for this
+    /// sample.
+    pub osc_main_unison_spreads: [f32; MAIN_OSCILLATOR_COUNT],
 }
 
 #[cfg(test)]
@@ -508,10 +622,6 @@ mod tests {
         let mut tree = ParameterTree::new(48_000.0);
         assert!(!tree.snapshot().voice_active);
         tree.set_voice_active(true);
-        assert!(tree.snapshot().voice_active);
-    }
-}
-ctive(true);
         assert!(tree.snapshot().voice_active);
     }
 }

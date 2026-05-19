@@ -1,42 +1,47 @@
 //! A single synth voice.
 //!
-//! A voice owns the subtractive slot's four oscillators (three main
-//! oscillators sharing a waveform, plus a dedicated sub that is always
-//! a sine an octave below the held pitch), one filter, and one amp
-//! envelope. Smoothed parameters (pitch offset, filter cutoff,
-//! resonance, per-osc level / detune / pan, …) live in the engine's
-//! [`ParameterTree`] — the voice is a pure consumer that takes the
-//! current per-sample values as a [`SampleParams`] reference passed
-//! to [`Voice::next_sample`]. The engine owns a single voice for M2;
-//! a polyphonic voice manager joins at M3.
+//! A voice owns the subtractive slot's four oscillators — three main
+//! [`UnisonOscillator`] banks (each one a 1..=7 voice unison sharing
+//! a waveform), plus a dedicated sub oscillator that is always a sine
+//! an octave below the held pitch — one filter (per channel), and one
+//! amp envelope. Smoothed parameters live in the engine's
+//! [`ParameterTree`]; the voice consumes the current per-sample values
+//! as a [`SampleParams`] reference passed to [`Voice::next_sample`].
+//! The engine owns a single voice for M2; a polyphonic voice manager
+//! joins at M3.
 //!
-//! Signal flow per sample: each oscillator generates a sample,
-//! scaled by its level and split L/R by an equal-power pan; the
-//! per-channel sums are scaled by the slot headroom factor and fed
-//! through the filter, then gated by the amp envelope. The filter
-//! sits *after* the per-osc mix so that LP cutoff sweeps act on the
-//! whole slot (the analog norm) rather than per oscillator.
+//! Signal flow per sample: each main oscillator bank produces a
+//! stereo pair (its unison voices already mixed with the per-osc pan
+//! as the spread centre); the sub contributes one mono sample
+//! equal-power panned; the per-channel sums get the slot headroom
+//! scale and feed the per-channel filter, then the envelope. The
+//! filter sits *after* the per-osc mix so LP cutoff sweeps act on
+//! the whole slot.
 //!
 //! [`ParameterTree`]: crate::params::ParameterTree
 //! [`SampleParams`]: crate::params::SampleParams
+//! [`UnisonOscillator`]: crate::oscillator::UnisonOscillator
 
 use crate::MAIN_OSCILLATOR_COUNT;
 use crate::envelope::Adsr;
 use crate::filter::{FilterMode, StateVariableFilter};
-use crate::oscillator::{Oscillator, Waveform};
+use crate::oscillator::{Oscillator, UnisonOscillator, Waveform};
+use crate::panning::equal_power_pan;
 use crate::params::SampleParams;
 
 /// Headroom scale applied to each channel's slot sum. Sized so the
-/// worst-case in-phase sum of four unit-level oscillators (3 mains +
-/// sub) cannot exceed unity per channel even before the equal-power
-/// pan attenuation. `1 / (MAIN_OSCILLATOR_COUNT + 1)`.
+/// worst-case in-phase sum of four unit-level oscillators (3 main
+/// banks + sub, each summing to ≤ 1 internally) cannot exceed unity
+/// per channel even before the equal-power pan attenuation.
+/// `1 / (MAIN_OSCILLATOR_COUNT + 1)`.
 const SLOT_MIX_SCALE: f32 = 1.0 / 4.0;
 
-/// One synth voice: three main oscillators + a sub oscillator, mixed
-/// through per-osc level/pan into a stereo slot sum, fed through one
-/// filter (per channel), gated by one amp envelope.
+/// One synth voice: three unison main oscillator banks + a sub
+/// oscillator, mixed through per-osc level/pan into a stereo slot
+/// sum, fed through one filter (per channel), gated by one amp
+/// envelope.
 pub struct Voice {
-    main_oscillators: [Oscillator; MAIN_OSCILLATOR_COUNT],
+    main_oscillators: [UnisonOscillator; MAIN_OSCILLATOR_COUNT],
     sub_oscillator: Oscillator,
     filter_l: StateVariableFilter,
     filter_r: StateVariableFilter,
@@ -49,13 +54,14 @@ pub struct Voice {
 
 impl Voice {
     /// Creates a silent, idle voice at the given sample rate. All
-    /// three main oscillators default to [`Waveform::Sine`]; the sub
-    /// oscillator is fixed as a sine and is never changed. The filter
-    /// defaults to a wide-open low-pass.
+    /// three main oscillator banks default to one voice each
+    /// ([`Waveform::Sine`]); the sub oscillator is fixed as a sine
+    /// and never changes shape. The filter defaults to a wide-open
+    /// low-pass.
     #[must_use]
     pub fn new(sample_rate_hz: f32) -> Self {
         Self {
-            main_oscillators: [(); MAIN_OSCILLATOR_COUNT].map(|()| Oscillator::new(sample_rate_hz)),
+            main_oscillators: [(); MAIN_OSCILLATOR_COUNT].map(|()| UnisonOscillator::new(sample_rate_hz)),
             sub_oscillator: Oscillator::new(sample_rate_hz),
             filter_l: StateVariableFilter::new(sample_rate_hz),
             filter_r: StateVariableFilter::new(sample_rate_hz),
@@ -64,20 +70,22 @@ impl Voice {
         }
     }
 
-    /// Triggers a note. The oscillator phase is only reset when the
+    /// Triggers a note. The oscillator phases are only reset when the
     /// envelope was idle (first note from silence); on retrigger the
-    /// phase continues uninterrupted so there is no discontinuity in
-    /// the waveform output while the envelope level is non-zero. Both
-    /// channel filter states reset on the same idle condition so a
-    /// fresh note never inherits a ringing tail. The caller (the
-    /// engine) is responsible for snapping any per-voice smoothed
-    /// parameters before calling this so the first sample plays
-    /// exactly at the target value.
+    /// phases continue uninterrupted so there is no discontinuity in
+    /// the waveform output while the envelope level is non-zero. The
+    /// unison banks have their internal phases pseudo-randomised on
+    /// the same idle condition so multiple held notes (M3) don't
+    /// comb-filter at attack. Both channel filter states reset on the
+    /// same idle condition so a fresh note never inherits a ringing
+    /// tail. The caller (the engine) is responsible for snapping any
+    /// per-voice smoothed parameters before calling this so the first
+    /// sample plays exactly at the target value.
     pub fn note_on(&mut self, note_midi: u8) {
         self.held_note_midi = Some(note_midi);
         if self.amp_envelope.is_idle() {
-            for osc in &mut self.main_oscillators {
-                osc.reset_phase();
+            for bank in &mut self.main_oscillators {
+                bank.randomize_phases();
             }
             self.sub_oscillator.reset_phase();
             self.filter_l.reset();
@@ -102,14 +110,14 @@ impl Voice {
         self.amp_envelope.set_release_secs(release_secs);
     }
 
-    /// Sets the waveform on all three main oscillators. The sub
-    /// oscillator is unaffected — it is always a sine per
-    /// `docs/planning/05-design/dsp-and-sound.md`. The discrete-
+    /// Sets the waveform on every voice of all three main oscillator
+    /// banks. The sub oscillator is unaffected — it is always a sine
+    /// per `docs/planning/05-design/dsp-and-sound.md`. The discrete-
     /// parameter-at-block-boundary rule is enforced by the engine
     /// draining events before processing.
     pub fn set_main_waveform(&mut self, waveform: Waveform) {
-        for osc in &mut self.main_oscillators {
-            osc.set_waveform(waveform);
+        for bank in &mut self.main_oscillators {
+            bank.set_waveform(waveform);
         }
     }
 
@@ -129,21 +137,19 @@ impl Voice {
     }
 
     /// Produces one stereo frame as `(left, right)`. Reads every
-    /// per-sample smoothed parameter from `params` so the engine has
-    /// a single point of fan-out; the voice itself is stateless with
-    /// respect to parameter sources.
+    /// per-sample smoothed parameter from `params`; the voice itself
+    /// is stateless with respect to parameter sources.
     pub fn next_sample(&mut self, params: &SampleParams) -> (f32, f32) {
-        self.update_frequencies(params);
+        self.update_voice_counts_and_frequencies(params);
         let env = self.amp_envelope.next_sample();
 
         let mut sum_l = 0.0_f32;
         let mut sum_r = 0.0_f32;
-        for (i, osc) in self.main_oscillators.iter_mut().enumerate() {
-            let s = osc.next_sample();
-            let (pl, pr) = equal_power_pan(params.osc_main_pans[i]);
+        for (i, bank) in self.main_oscillators.iter_mut().enumerate() {
             let level = params.osc_main_levels[i];
-            sum_l += s * level * pl;
-            sum_r += s * level * pr;
+            let (l, r) = bank.next_sample_stereo(params.osc_main_unison_spreads[i], params.osc_main_pans[i]);
+            sum_l += l * level;
+            sum_r += r * level;
         }
         let sub = self.sub_oscillator.next_sample();
         let (sub_pl, sub_pr) = equal_power_pan(params.sub_pan);
@@ -153,12 +159,6 @@ impl Voice {
         let mixed_l = sum_l * SLOT_MIX_SCALE;
         let mixed_r = sum_r * SLOT_MIX_SCALE;
 
-        // The same filter parameters drive both channels — independent
-        // L/R filters would let cutoff modulation differ across the
-        // stereo field, which is not what we want for v1. Sharing the
-        // params means the per-channel filters track each other; the
-        // integrator state still has to be per-channel because the
-        // inputs differ.
         self.filter_l
             .set_params(params.filter_cutoff_hz, params.filter_resonance);
         self.filter_r
@@ -169,22 +169,24 @@ impl Voice {
         (filtered_l * env, filtered_r * env)
     }
 
-    /// Re-derives oscillator frequencies from the held note plus the
-    /// current pitch offset and per-oscillator detune. The three main
-    /// oscillators each track the held pitch shifted by their own
-    /// detune; the sub oscillator runs an octave below the base
-    /// (un-detuned) pitch. When no note is held (release tail)
-    /// frequencies are left unchanged so each oscillator keeps cycling
-    /// at its last correct pitch — stopping mid-cycle causes a timbral
-    /// discontinuity that sounds like a click at note end.
-    fn update_frequencies(&mut self, params: &SampleParams) {
+    /// Per sample: clamp unison voice counts to `1..=MAX_UNISON_VOICES`,
+    /// then re-derive each oscillator's frequencies. Voice-count
+    /// changes are detected inside the unison bank so newly active
+    /// voices get fresh phases.
+    fn update_voice_counts_and_frequencies(&mut self, params: &SampleParams) {
+        // Voice count is meaningful even when no note is held — the
+        // bank caches the count for the next frequency update.
+        for (i, bank) in self.main_oscillators.iter_mut().enumerate() {
+            let count = round_voice_count(params.osc_main_unison_voices[i]);
+            bank.set_voice_count(count);
+        }
         if let Some(note) = self.held_note_midi {
             let base_semis = f32::from(note) + params.pitch_offset_semis;
-            for (i, osc) in self.main_oscillators.iter_mut().enumerate() {
+            for (i, bank) in self.main_oscillators.iter_mut().enumerate() {
                 let detune_semis = params.osc_main_detune_cents[i] * (1.0 / 100.0);
                 let semis = base_semis + detune_semis;
-                let hz = 440.0 * 2.0_f32.powf((semis - 69.0) / 12.0);
-                osc.set_frequency_hz(hz);
+                let osc_base_hz = 440.0 * 2.0_f32.powf((semis - 69.0) / 12.0);
+                bank.set_base_frequency(osc_base_hz, params.osc_main_unison_detune_cents[i]);
             }
             // Sub: one octave below the base, no detune.
             let sub_hz = 440.0 * 2.0_f32.powf((base_semis - 81.0) / 12.0);
@@ -193,15 +195,14 @@ impl Voice {
     }
 }
 
-/// Equal-power pan. `pan` is in [-1, 1]: -1 is full left, +1 is full
-/// right, 0 is centred (each channel at `1 / sqrt(2)`). Two sqrts per
-/// call, no transcendentals. Out-of-range inputs are clamped.
-#[inline]
-fn equal_power_pan(pan: f32) -> (f32, f32) {
-    let p = pan.clamp(-1.0, 1.0);
-    let l = ((1.0 - p) * 0.5).sqrt();
-    let r = ((1.0 + p) * 0.5).sqrt();
-    (l, r)
+/// Rounds an `f32` voice-count parameter to the nearest valid `u8` in
+/// `1..=MAX_UNISON_VOICES`. The unison bank clamps internally too, but
+/// rounding here keeps `SampleParams`-side and bank-side semantics
+/// aligned.
+fn round_voice_count(v: f32) -> u8 {
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let rounded = v.round().max(1.0) as u32;
+    rounded.min(u8::MAX as u32) as u8
 }
 
 #[cfg(test)]
@@ -225,6 +226,9 @@ mod tests {
             osc_main_detune_cents: snap.osc_main_detune_cents,
             osc_main_pans: snap.osc_main_pans,
             sub_pan: snap.sub_pan,
+            osc_main_unison_voices: snap.osc_main_unison_voices,
+            osc_main_unison_detune_cents: snap.osc_main_unison_detune_cents,
+            osc_main_unison_spreads: snap.osc_main_unison_spreads,
         }
     }
 
@@ -274,10 +278,9 @@ mod tests {
 
     #[test]
     fn four_in_phase_sines_stay_within_per_channel_unity() {
-        // With equal-power center pans and unit levels, four in-phase
-        // sines on each channel peak at 4 * 0.707 = 2.83 before the
-        // slot scale of 0.25 brings them to ~0.707 per channel. The
-        // assert just checks the headroom safety bound.
+        // Default voice count = 1, so each main bank is a single
+        // sine; with center pans and unit levels the per-channel peak
+        // sits around 0.707 thanks to the equal-power center pan.
         let mut voice = Voice::new(48_000.0);
         voice.note_on(69);
         let params = default_sample_params();
@@ -294,8 +297,6 @@ mod tests {
 
     #[test]
     fn hard_pan_routes_signal_to_one_channel() {
-        // Mute every oscillator except osc1, pan it hard left. The R
-        // channel must be silent.
         let mut voice = Voice::new(48_000.0);
         voice.note_on(69);
         let mut params = default_sample_params();
@@ -303,7 +304,6 @@ mod tests {
         params.sub_level = 0.0;
         params.osc_main_pans = [-1.0, 0.0, 0.0];
 
-        // Let the envelope leave attack.
         for _ in 0..4_800 {
             voice.next_sample(&params);
         }
@@ -321,8 +321,6 @@ mod tests {
 
     #[test]
     fn mutes_all_silence_the_voice() {
-        // With every oscillator at level 0 the voice's output must be
-        // silent regardless of the held note or the filter setting.
         let mut voice = Voice::new(48_000.0);
         voice.set_main_waveform(Waveform::Saw);
         voice.note_on(60);
@@ -339,9 +337,6 @@ mod tests {
 
     #[test]
     fn detune_shifts_oscillator_pitch() {
-        // Solo osc1 (mute the others), detune it +1200 cents = 1
-        // octave up. The output sine should be at 880 Hz when note=69
-        // (440 Hz base). Count zero crossings to verify.
         let mut voice = Voice::new(48_000.0);
         voice.note_on(69);
         let mut params = default_sample_params();
@@ -350,7 +345,6 @@ mod tests {
         params.osc_main_pans = [0.0, 0.0, 0.0];
         params.osc_main_detune_cents = [1200.0, 0.0, 0.0];
 
-        // Settle envelope.
         for _ in 0..4_800 {
             voice.next_sample(&params);
         }
@@ -364,8 +358,6 @@ mod tests {
             }
             prev = s;
         }
-        // 880 Hz sine has ~1760 zero crossings per second; tolerate a
-        // ±20 margin for envelope drift and float jitter.
         assert!(
             (1700..=1820).contains(&crossings),
             "expected ~1760 zero crossings at 880 Hz, got {crossings}"
@@ -392,14 +384,49 @@ mod tests {
     }
 
     #[test]
-    fn equal_power_pan_lookup_is_unit_power() {
-        // L² + R² = 1 for all pan positions in [-1, 1].
-        for i in -100..=100 {
-            #[allow(clippy::cast_precision_loss)]
-            let p = (i as f32) / 100.0;
-            let (l, r) = equal_power_pan(p);
-            let power = l * l + r * r;
-            assert!((power - 1.0).abs() < 1e-6, "pan {p}: L²+R² = {power}");
+    fn unison_widens_stereo_field_compared_to_single_voice() {
+        // Solo osc1, full spread, 5 unison voices vs 1 unison voice.
+        // The 5-voice case should produce a meaningfully larger L vs R
+        // difference (= wider stereo) than the 1-voice case.
+        fn measure_stereo_diff(voice_count: f32) -> f32 {
+            let mut voice = Voice::new(48_000.0);
+            voice.note_on(69);
+            let mut params = default_sample_params();
+            params.osc_main_levels = [1.0, 0.0, 0.0];
+            params.sub_level = 0.0;
+            params.osc_main_unison_voices = [voice_count, 1.0, 1.0];
+            params.osc_main_unison_detune_cents = [25.0, 10.0, 10.0];
+            params.osc_main_unison_spreads = [1.0, 0.5, 0.5];
+
+            // Settle.
+            for _ in 0..4_800 {
+                voice.next_sample(&params);
+            }
+            let mut diff = 0.0_f32;
+            for _ in 0..4_800 {
+                let (l, r) = voice.next_sample(&params);
+                diff += (l - r).abs();
+            }
+            diff
+        }
+        let one = measure_stereo_diff(1.0);
+        let five = measure_stereo_diff(5.0);
+        assert!(one < 1.0, "1 voice should be near-mono: {one}");
+        assert!(five > 5.0, "5 voices should be clearly stereo: {five}");
+    }
+
+    #[test]
+    fn unison_voice_count_param_clamps_to_valid_range() {
+        // Passing a wildly out-of-range voice count should not crash
+        // or produce non-finite output.
+        let mut voice = Voice::new(48_000.0);
+        voice.note_on(69);
+        let mut params = default_sample_params();
+        params.osc_main_unison_voices = [-3.0, 99.0, 3.6];
+
+        for _ in 0..4_800 {
+            let (l, r) = voice.next_sample(&params);
+            assert!(l.is_finite() && r.is_finite(), "non-finite output");
         }
     }
 }

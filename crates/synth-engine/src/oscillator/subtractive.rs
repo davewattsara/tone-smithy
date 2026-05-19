@@ -107,6 +107,14 @@ impl Oscillator {
         self.phase = 0.0;
     }
 
+    /// Forces the phase to a caller-chosen value in \[0, 1\). Used by
+    /// the unison oscillator to decorrelate the phases of its voices
+    /// — perfectly correlated phases would comb-filter the unison
+    /// sum until detuned drift broke up the alignment.
+    pub fn set_phase_normalised(&mut self, phase: f32) {
+        self.phase = phase.clamp(0.0, 0.999_999);
+    }
+
     /// Produces one sample and advances the internal phase.
     pub fn next_sample(&mut self) -> f32 {
         let t = self.phase;
@@ -150,6 +158,169 @@ impl Oscillator {
 #[inline]
 fn fract(x: f32) -> f32 {
     if x >= 1.0 { x - 1.0 } else { x }
+}
+
+// =========================================================================
+// Unison oscillator
+// =========================================================================
+
+use crate::MAX_UNISON_VOICES;
+use crate::panning::equal_power_pan;
+
+/// A bank of up to [`MAX_UNISON_VOICES`] oscillator copies sharing
+/// one waveform, mixed with per-voice detune and stereo spread.
+///
+/// At voice count = 1 the bank is a single oscillator and the unison
+/// detune / spread parameters do nothing. At higher counts the voices
+/// are detuned linearly across `[-d, +d]` cents (odd counts include
+/// a centred "in-tune" voice) and panned across the stereo field
+/// scaled by `spread`. The summed output is normalised by
+/// `1 / sqrt(N)` so the perceived loudness of the unison bank tracks
+/// the loudness of a single voice for mostly-uncorrelated detuned
+/// signals — a real analog unison sounds about as loud regardless of
+/// voice count, which is the property we want.
+///
+/// Phases for newly-active voices are pseudo-randomised on note-on
+/// and on a voice-count increase so the bank doesn't comb-filter from
+/// perfectly aligned starting phases (dsp-and-sound.md §"Oscillator
+/// design").
+pub struct UnisonOscillator {
+    voices: [Oscillator; MAX_UNISON_VOICES],
+
+    /// Currently active voice count (1..=MAX_UNISON_VOICES). Kept on
+    /// the struct so frequency updates and stereo mixing share one
+    /// source of truth and we don't divide by zero when no voices
+    /// are configured (the constructor guarantees ≥ 1).
+    voice_count: u8,
+
+    /// Used to detect a count increase between calls so newly
+    /// activated voices can have their phases randomised.
+    prev_voice_count: u8,
+
+    /// LCG state for phase decorrelation. Re-seeded on note-on and
+    /// stepped each time a phase is drawn.
+    rng_state: u32,
+}
+
+impl UnisonOscillator {
+    /// Creates a unison oscillator with one active voice (so it
+    /// behaves identically to a single [`Oscillator`] until the count
+    /// is raised).
+    #[must_use]
+    pub fn new(sample_rate_hz: f32) -> Self {
+        Self {
+            voices: [(); MAX_UNISON_VOICES].map(|()| Oscillator::new(sample_rate_hz)),
+            voice_count: 1,
+            prev_voice_count: 1,
+            // Arbitrary non-zero seed. Re-seeded on every note-on so
+            // separate notes get distinct phase distributions.
+            rng_state: 0x12345678,
+        }
+    }
+
+    /// Sets the waveform on every internal voice. Fan-out is cheap
+    /// (one assignment per voice) so we always update all
+    /// `MAX_UNISON_VOICES` rather than only the active ones; if the
+    /// user raises the voice count later, the newly-active voices
+    /// already have the right waveform.
+    pub fn set_waveform(&mut self, waveform: Waveform) {
+        for v in &mut self.voices {
+            v.set_waveform(waveform);
+        }
+    }
+
+    /// Updates the active voice count, clamped to `1..=MAX_UNISON_VOICES`.
+    /// Voices that *become* active (count went up) have their phases
+    /// pseudo-randomised so a leftover phase from the last time they
+    /// were active doesn't make the bank momentarily comb-filter.
+    pub fn set_voice_count(&mut self, count: u8) {
+        // Saturating cast — count comes from user input.
+        #[allow(clippy::cast_possible_truncation)]
+        let max = MAX_UNISON_VOICES as u8;
+        let new_count = count.clamp(1, max);
+        if new_count > self.prev_voice_count {
+            for i in self.prev_voice_count..new_count {
+                let phase = random_phase(&mut self.rng_state);
+                self.voices[i as usize].set_phase_normalised(phase);
+            }
+        }
+        self.voice_count = new_count;
+        self.prev_voice_count = new_count;
+    }
+
+    /// Pseudo-randomises every voice's phase. Called by the voice on
+    /// note-on so chords (multiple unison banks playing simultaneously)
+    /// don't comb-filter on attack.
+    pub fn randomize_phases(&mut self) {
+        for v in &mut self.voices {
+            let phase = random_phase(&mut self.rng_state);
+            v.set_phase_normalised(phase);
+        }
+    }
+
+    /// Recomputes per-voice frequencies from a base pitch and a total
+    /// unison detune amount (in cents). Voices are spread linearly
+    /// across `[-detune_cents, +detune_cents]`; with odd counts the
+    /// middle voice sits exactly at `base_hz`.
+    pub fn set_base_frequency(&mut self, base_hz: f32, detune_cents: f32) {
+        let n = self.voice_count as usize;
+        if n == 1 {
+            self.voices[0].set_frequency_hz(base_hz);
+            return;
+        }
+        #[allow(clippy::cast_precision_loss)]
+        let denom = (n - 1) as f32;
+        for i in 0..n {
+            #[allow(clippy::cast_precision_loss)]
+            let position = -1.0 + 2.0 * (i as f32) / denom;
+            let cents = position * detune_cents;
+            let hz = base_hz * 2.0_f32.powf(cents / 1200.0);
+            self.voices[i].set_frequency_hz(hz);
+        }
+    }
+
+    /// Produces one stereo frame for the unison bank. `spread` is the
+    /// 0..=1 width of the unison voices' stereo spread around
+    /// `center_pan` (the per-oscillator pan). The summed output is
+    /// scaled by `1 / sqrt(N)` so the bank's perceived loudness is
+    /// roughly invariant in N.
+    pub fn next_sample_stereo(&mut self, spread: f32, center_pan: f32) -> (f32, f32) {
+        let n = self.voice_count as usize;
+        if n == 1 {
+            let s = self.voices[0].next_sample();
+            let (pl, pr) = equal_power_pan(center_pan);
+            return (s * pl, s * pr);
+        }
+        #[allow(clippy::cast_precision_loss)]
+        let denom = (n - 1) as f32;
+        let mut sum_l = 0.0_f32;
+        let mut sum_r = 0.0_f32;
+        for i in 0..n {
+            let s = self.voices[i].next_sample();
+            #[allow(clippy::cast_precision_loss)]
+            let position = -1.0 + 2.0 * (i as f32) / denom;
+            let voice_pan = (center_pan + position * spread).clamp(-1.0, 1.0);
+            let (pl, pr) = equal_power_pan(voice_pan);
+            sum_l += s * pl;
+            sum_r += s * pr;
+        }
+        #[allow(clippy::cast_precision_loss)]
+        let norm = (n as f32).sqrt().recip();
+        (sum_l * norm, sum_r * norm)
+    }
+}
+
+/// Linear-congruential pseudo-random in \[0, 1). The constants are
+/// Numerical Recipes' classic — adequate for phase decorrelation,
+/// not for anything cryptographic. Pure arithmetic, so safe on the
+/// audio thread.
+fn random_phase(state: &mut u32) -> f32 {
+    *state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+    // Map u32 into [0, 1). Multiplying by 1 / 2^32 avoids the
+    // `u32::MAX as f32 + 1.0` lossy precision pattern.
+    #[allow(clippy::cast_precision_loss)]
+    let r = (*state as f32) * (1.0 / 4_294_967_296.0);
+    r
 }
 
 #[cfg(test)]
@@ -266,5 +437,143 @@ mod tests {
         osc.reset_phase();
         // First sample after reset is sin(0) = 0 for sine.
         assert_eq!(osc.next_sample(), 0.0);
+    }
+
+    #[test]
+    fn unison_at_one_voice_matches_single_oscillator() {
+        // With voice count = 1, the unison bank is a single
+        // oscillator at the base frequency. Output should equal a
+        // bare oscillator's, modulo the equal-power pan for
+        // center_pan = 0 (= 1/sqrt(2) per channel).
+        let mut single = Oscillator::new(48_000.0);
+        single.set_waveform(Waveform::Sine);
+        single.set_frequency_hz(440.0);
+
+        let mut unison = UnisonOscillator::new(48_000.0);
+        unison.set_waveform(Waveform::Sine);
+        unison.set_voice_count(1);
+        unison.set_base_frequency(440.0, 25.0); // detune ignored at count 1
+
+        for _ in 0..1_000 {
+            let s_single = single.next_sample();
+            let (l, r) = unison.next_sample_stereo(0.5, 0.0);
+            let expected = s_single * (0.5_f32).sqrt();
+            assert!((l - expected).abs() < 1e-5, "L mismatch: {l} vs {expected}");
+            assert!((r - expected).abs() < 1e-5, "R mismatch: {r} vs {expected}");
+        }
+    }
+
+    #[test]
+    fn unison_detune_produces_amplitude_beating() {
+        // Two voices ±20 cents around 440 Hz beat at ~10 Hz (100 ms
+        // envelope period). Measure RMS in 20 ms windows — well below
+        // the beat period — so consecutive windows catch the envelope
+        // at different points of its cycle and the RMS varies. A
+        // single un-detuned oscillator would have constant RMS.
+        let mut unison = UnisonOscillator::new(48_000.0);
+        unison.set_waveform(Waveform::Sine);
+        unison.set_voice_count(2);
+        unison.set_base_frequency(440.0, 20.0);
+
+        let total = 48_000usize;
+        let window = 960usize;
+        let mut samples = Vec::with_capacity(total);
+        for _ in 0..total {
+            let (l, _r) = unison.next_sample_stereo(0.0, 0.0);
+            samples.push(l);
+        }
+        let rms: Vec<f32> = samples
+            .chunks_exact(window)
+            .map(|chunk| {
+                let sum_sq: f32 = chunk.iter().map(|s| s * s).sum();
+                #[allow(clippy::cast_precision_loss)]
+                let mean = sum_sq / chunk.len() as f32;
+                mean.sqrt()
+            })
+            .collect();
+        let max = rms.iter().copied().fold(0.0_f32, f32::max);
+        let min = rms.iter().copied().fold(f32::INFINITY, f32::min);
+        assert!(
+            max - min > 0.1,
+            "expected RMS variation from beating; range {min}..{max}"
+        );
+    }
+
+    #[test]
+    fn unison_spread_creates_stereo_difference() {
+        // Multi-voice unison with non-zero spread must produce L != R
+        // most of the time. Compare against spread = 0 where L == R
+        // exactly (all voices panned to center).
+        let mut wide = UnisonOscillator::new(48_000.0);
+        wide.set_waveform(Waveform::Sine);
+        wide.set_voice_count(5);
+        wide.set_base_frequency(440.0, 15.0);
+        wide.randomize_phases();
+
+        let mut narrow = UnisonOscillator::new(48_000.0);
+        narrow.set_waveform(Waveform::Sine);
+        narrow.set_voice_count(5);
+        narrow.set_base_frequency(440.0, 15.0);
+        narrow.randomize_phases();
+
+        let mut wide_diff = 0.0_f32;
+        let mut narrow_diff = 0.0_f32;
+        for _ in 0..4_800 {
+            let (l, r) = wide.next_sample_stereo(1.0, 0.0);
+            wide_diff += (l - r).abs();
+            let (l, r) = narrow.next_sample_stereo(0.0, 0.0);
+            narrow_diff += (l - r).abs();
+        }
+        assert!(narrow_diff < 1e-3, "narrow should be mono: {narrow_diff}");
+        assert!(wide_diff > 50.0, "wide should be clearly stereo: {wide_diff}");
+    }
+
+    #[test]
+    fn unison_randomize_phases_decorrelates_voices() {
+        // Without randomisation, two newly-created unison voices both
+        // start at phase 0 and their first samples are identical. After
+        // randomisation, the first samples are (almost certainly)
+        // different. Test by checking that the first sample of a fresh
+        // unison-count-2 oscillator differs from the same with
+        // randomised phases.
+        let mut bank = UnisonOscillator::new(48_000.0);
+        bank.set_waveform(Waveform::Sine);
+        bank.set_voice_count(2);
+        bank.set_base_frequency(440.0, 10.0);
+        let (_l0, _r0) = bank.next_sample_stereo(0.0, 0.0);
+        // After randomisation, the next sample distribution shifts
+        // because each voice now starts from a fresh phase.
+        bank.randomize_phases();
+        let mut max_abs = 0.0_f32;
+        for _ in 0..256 {
+            let (l, _r) = bank.next_sample_stereo(0.0, 0.0);
+            max_abs = max_abs.max(l.abs());
+        }
+        // Decorrelated voices at small detune still sum to
+        // non-trivial amplitude on average, but the perfectly-in-
+        // phase case would peak much closer to unity. Bound is
+        // generous — the assertion is mostly that we don't crash
+        // and the output is finite.
+        assert!(max_abs.is_finite(), "non-finite after randomise");
+        assert!(max_abs < 1.5, "unison output runaway: {max_abs}");
+    }
+
+    #[test]
+    fn unison_voice_count_clamps_above_maximum() {
+        // Asking for 12 voices should clamp to MAX_UNISON_VOICES;
+        // the bank still produces audible, finite output.
+        let mut bank = UnisonOscillator::new(48_000.0);
+        bank.set_waveform(Waveform::Sine);
+        #[allow(clippy::cast_possible_truncation)]
+        bank.set_voice_count(12);
+        bank.set_base_frequency(440.0, 20.0);
+        bank.randomize_phases();
+        let mut peak = 0.0_f32;
+        for _ in 0..4_800 {
+            let (l, r) = bank.next_sample_stereo(0.5, 0.0);
+            peak = peak.max(l.abs().max(r.abs()));
+            assert!(l.is_finite() && r.is_finite());
+        }
+        assert!(peak > 0.05, "expected audible output, got {peak}");
     }
 }

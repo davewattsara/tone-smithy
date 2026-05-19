@@ -10,7 +10,7 @@
 //! FM operator generators will land in `oscillator/fm.rs` at M7 per
 //! [`project-structure.md`](../../../../docs/planning/06-implementation/project-structure.md).
 
-pub use subtractive::{Oscillator, Waveform};
+pub use subtractive::{Oscillator, UnisonOscillator, Waveform};
 
 mod polyblep;
 mod subtractive;

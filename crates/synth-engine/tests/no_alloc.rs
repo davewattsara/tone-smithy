@@ -126,6 +126,26 @@ fn process_stereo_and_handle_do_not_allocate() {
                     value: 1.0 - phase * 2.0,
                 });
             }
+            if block_index.is_multiple_of(160) {
+                // Per-osc unison voice-count / detune / spread sweeps.
+                // Voice-count changes exercise the LCG phase-init path
+                // inside the unison oscillator inside the no-alloc
+                // scope.
+                #[allow(clippy::cast_precision_loss)]
+                let phase = (block_index % 7) as f32;
+                engine.handle(EngineEvent::ParameterChange {
+                    id: ParamId::Osc1UnisonVoices,
+                    value: 1.0 + phase,
+                });
+                engine.handle(EngineEvent::ParameterChange {
+                    id: ParamId::Osc2UnisonDetuneCents,
+                    value: 5.0 + phase * 3.0,
+                });
+                engine.handle(EngineEvent::ParameterChange {
+                    id: ParamId::Osc3UnisonSpread,
+                    value: phase / 7.0,
+                });
+            }
             // Re-trigger every second to drive the envelope state
             // machine through all phases.
             if block_index.is_multiple_of(blocks_per_second) && block_index > 0 {

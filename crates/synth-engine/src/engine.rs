@@ -261,6 +261,58 @@ mod tests {
     }
 
     #[test]
+    fn unison_voices_change_stereo_width_end_to_end() {
+        // Solo osc1 wide, render a note with 1 unison voice then with
+        // 5. The second case should produce a meaningfully wider
+        // L vs R difference summed across the buffer.
+        fn render_diff(voice_count: f32) -> f32 {
+            let mut engine = Engine::new(48_000.0);
+            engine.handle(EngineEvent::ParameterChange {
+                id: ParamId::Osc2Level,
+                value: 0.0,
+            });
+            engine.handle(EngineEvent::ParameterChange {
+                id: ParamId::Osc3Level,
+                value: 0.0,
+            });
+            engine.handle(EngineEvent::ParameterChange {
+                id: ParamId::SubLevel,
+                value: 0.0,
+            });
+            engine.handle(EngineEvent::ParameterChange {
+                id: ParamId::Osc1UnisonVoices,
+                value: voice_count,
+            });
+            engine.handle(EngineEvent::ParameterChange {
+                id: ParamId::Osc1UnisonDetuneCents,
+                value: 25.0,
+            });
+            engine.handle(EngineEvent::ParameterChange {
+                id: ParamId::Osc1UnisonSpread,
+                value: 1.0,
+            });
+            engine.handle(EngineEvent::NoteOn {
+                note_midi: 69,
+                velocity: 100,
+            });
+            let mut buffer = vec![0.0f32; 4096 * 2];
+            for _ in 0..6 {
+                engine.process_stereo(&mut buffer, 4096);
+            }
+            buffer
+                .chunks_exact(2)
+                .map(|frame| (frame[0] - frame[1]).abs())
+                .sum::<f32>()
+        }
+        let one = render_diff(1.0);
+        let five = render_diff(5.0);
+        assert!(
+            five > one * 3.0,
+            "expected unison to widen stereo: 1-voice diff {one}, 5-voice diff {five}"
+        );
+    }
+
+    #[test]
     fn closing_filter_silences_a_held_saw() {
         // End-to-end: a held saw note through the engine, then close
         // the LP filter — the steady-state output should drop near
