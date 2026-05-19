@@ -199,8 +199,10 @@ impl eframe::App for ToneSmithyApp {
             ));
             ui.add_space(6.0);
 
-            // Virtual keyboard — pass computer-keyboard held notes so
-            // keys light up blue regardless of which input triggered them.
+            // Keep the virtual keyboard's visible range in sync with the
+            // computer keyboard's current octave so highlighted keys are
+            // always visible.
+            self.keyboard.set_start_note(self.computer_keyboard.octave_base());
             let kb_notes = self.computer_keyboard.held_notes();
             ui.vertical_centered(|ui| {
                 self.keyboard.show(ui, &self.events, kb_notes);

@@ -63,6 +63,20 @@ impl Default for VirtualKeyboard {
 }
 
 impl VirtualKeyboard {
+    /// Sets the MIDI note of the leftmost white key. Call before [`show`]
+    /// each frame to keep the visible range in sync with the computer
+    /// keyboard's octave base.
+    ///
+    /// [`show`]: Self::show
+    pub fn set_start_note(&mut self, note_midi: u8) {
+        if self.start_note_midi != note_midi {
+            // Release any mouse-held note so it doesn't get stuck when
+            // the keyboard scrolls away from it.
+            self.held_note = None;
+            self.start_note_midi = note_midi;
+        }
+    }
+
     /// Renders the keyboard and pumps mouse interaction through `sender`.
     ///
     /// `keyboard_lit` is a slice of MIDI notes currently held by the
