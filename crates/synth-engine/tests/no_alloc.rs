@@ -14,7 +14,7 @@
 //! recycled-pool optimisation lands in a later milestone).
 
 use assert_no_alloc::{AllocDisabler, assert_no_alloc};
-use synth_engine::{Engine, EngineEvent, ParamId, Waveform};
+use synth_engine::{Engine, EngineEvent, FilterMode, ParamId, Waveform};
 
 #[global_allocator]
 static A: AllocDisabler = AllocDisabler;
@@ -59,6 +59,17 @@ fn process_stereo_and_handle_do_not_allocate() {
             id: ParamId::AmpReleaseSecs,
             value: 0.5,
         });
+        engine.handle(EngineEvent::ParameterChange {
+            id: ParamId::FilterCutoffHz,
+            value: 4_000.0,
+        });
+        engine.handle(EngineEvent::ParameterChange {
+            id: ParamId::FilterResonance,
+            value: 0.6,
+        });
+        engine.handle(EngineEvent::SetFilterMode {
+            mode: FilterMode::LowPass,
+        });
 
         for block_index in 0..total_blocks {
             // Periodically poke an event so the handle() path is
@@ -68,6 +79,29 @@ fn process_stereo_and_handle_do_not_allocate() {
                     id: ParamId::PitchOffsetSemis,
                     #[allow(clippy::cast_precision_loss)]
                     value: ((block_index % 24) as f32) - 12.0,
+                });
+                // Sweep the filter while we're at it — covers cutoff
+                // and resonance smoothers + tan() recompute path.
+                engine.handle(EngineEvent::ParameterChange {
+                    id: ParamId::FilterCutoffHz,
+                    #[allow(clippy::cast_precision_loss)]
+                    value: 200.0 + ((block_index % 32) as f32) * 250.0,
+                });
+                engine.handle(EngineEvent::ParameterChange {
+                    id: ParamId::FilterResonance,
+                    #[allow(clippy::cast_precision_loss)]
+                    value: ((block_index % 8) as f32) / 8.0,
+                });
+            }
+            if block_index.is_multiple_of(128) {
+                let modes = [
+                    FilterMode::LowPass,
+                    FilterMode::HighPass,
+                    FilterMode::BandPass,
+                    FilterMode::Notch,
+                ];
+                engine.handle(EngineEvent::SetFilterMode {
+                    mode: modes[(block_index / 128) % modes.len()],
                 });
             }
             // Re-trigger every second to drive the envelope state

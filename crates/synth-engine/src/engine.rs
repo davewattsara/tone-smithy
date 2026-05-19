@@ -17,7 +17,7 @@ use crate::voice::Voice;
 ///
 /// `process_stereo` is given the actual block size each call; this
 /// constant is a soft upper bound used by future internal scratch
-/// buffers. M2.0 has none yet, so the value is informative until later
+/// buffers. M2.2 has none yet, so the value is informative until later
 /// M2 work needs it.
 pub const MAX_BLOCK_SIZE: usize = 4096;
 
@@ -51,6 +51,7 @@ impl Engine {
         // first snapshot.
         voice.set_release_secs(params.amp_release_secs());
         voice.set_main_waveform(params.waveform());
+        voice.set_filter_mode(params.filter_mode());
         Self {
             sample_rate_hz,
             params,
@@ -81,6 +82,10 @@ impl Engine {
                 self.params.set_waveform(waveform);
                 self.voice.set_main_waveform(waveform);
             }
+            EngineEvent::SetFilterMode { mode } => {
+                self.params.set_filter_mode(mode);
+                self.voice.set_filter_mode(mode);
+            }
             EngineEvent::ParameterChange { id, value } => {
                 self.params.set_continuous(id, value);
                 // Stepped params are read by DSP only on edge
@@ -105,7 +110,7 @@ impl Engine {
 
         for frame_index in 0..frames {
             let smoothed = self.params.next_sample();
-            let sample = self.voice.next_sample(smoothed.pitch_offset_semis);
+            let sample = self.voice.next_sample(&smoothed);
             // Mono signal duplicated to both channels. Real stereo
             // (per-oscillator pan via the slot mixer) arrives in M2.3.
             output[frame_index * 2] = sample;
@@ -130,6 +135,7 @@ impl Engine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::filter::FilterMode;
     use crate::oscillator::Waveform;
 
     #[test]
@@ -167,6 +173,9 @@ mod tests {
         engine.handle(EngineEvent::SetOscillatorWaveform {
             waveform: Waveform::Saw,
         });
+        engine.handle(EngineEvent::SetFilterMode {
+            mode: FilterMode::BandPass,
+        });
 
         let snap = engine.snapshot();
         // Smoothed param: snapshot reads `current`, which has not yet
@@ -176,6 +185,7 @@ mod tests {
         // Stepped param latches immediately.
         assert_eq!(snap.amp_release_secs, 1.5);
         assert_eq!(snap.waveform, Waveform::Saw);
+        assert_eq!(snap.filter_mode, FilterMode::BandPass);
         assert!(!snap.voice_active);
     }
 
@@ -195,8 +205,6 @@ mod tests {
 
     #[test]
     fn smoothed_param_snapshot_advances_with_processing() {
-        // After enough samples the smoothed param reaches its target
-        // and the snapshot reflects it.
         let mut engine = Engine::new(48_000.0);
         engine.handle(EngineEvent::ParameterChange {
             id: ParamId::PitchOffsetSemis,
@@ -209,6 +217,45 @@ mod tests {
             (snap.pitch_offset_semis - 5.0).abs() < 0.05,
             "expected ~5.0 after smoothing, got {}",
             snap.pitch_offset_semis
+        );
+    }
+
+    #[test]
+    fn closing_filter_silences_a_held_saw() {
+        // End-to-end: a held saw note through the engine, then close
+        // the LP filter — the steady-state output should drop near
+        // silence. Smoothing on cutoff means we have to render long
+        // enough for the new target to take effect.
+        let mut engine = Engine::new(48_000.0);
+        engine.handle(EngineEvent::SetOscillatorWaveform {
+            waveform: Waveform::Saw,
+        });
+        engine.handle(EngineEvent::NoteOn {
+            note_midi: 69,
+            velocity: 100,
+        });
+        let mut buffer = vec![0.0f32; 4096 * 2];
+        // Let the envelope reach sustain with the filter wide open.
+        engine.process_stereo(&mut buffer, 4096);
+        let open_peak = buffer.iter().fold(0.0f32, |a, s| a.max(s.abs()));
+        assert!(
+            open_peak > 0.1,
+            "expected audible saw before closing filter, got {open_peak}"
+        );
+
+        // Now close the filter.
+        engine.handle(EngineEvent::ParameterChange {
+            id: ParamId::FilterCutoffHz,
+            value: 30.0,
+        });
+        // Let smoothing reach the new target and the filter settle.
+        for _ in 0..4 {
+            engine.process_stereo(&mut buffer, 4096);
+        }
+        let closed_peak = buffer.iter().fold(0.0f32, |a, s| a.max(s.abs()));
+        assert!(
+            closed_peak < open_peak * 0.1,
+            "filter did not close the voice: open {open_peak}, closed {closed_peak}"
         );
     }
 }

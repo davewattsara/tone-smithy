@@ -2,21 +2,29 @@
 //!
 //! A voice owns the subtractive slot's four oscillators (three main
 //! oscillators sharing a waveform, plus a dedicated sub that is always
-//! a sine an octave below the held pitch) and one amp envelope.
-//! Smoothed parameters (pitch offset, eventually cutoff, etc.) live in
-//! the engine's [`ParameterTree`] — the voice is a pure consumer that
-//! takes the current per-sample values as inputs to
-//! [`Voice::next_sample`]. The engine owns a single voice for M2; a
-//! polyphonic voice manager joins at M3.
+//! a sine an octave below the held pitch), one filter, and one amp
+//! envelope. Smoothed parameters (pitch offset, filter cutoff,
+//! resonance, …) live in the engine's [`ParameterTree`] — the voice
+//! is a pure consumer that takes the current per-sample values as a
+//! [`SampleParams`] reference passed to [`Voice::next_sample`]. The
+//! engine owns a single voice for M2; a polyphonic voice manager
+//! joins at M3.
+//!
+//! Signal flow per sample: each oscillator generates a sample, the
+//! four are summed and scaled, the slot mix goes into the filter, and
+//! the filter output is gated by the amp envelope.
 //!
 //! All four oscillators sum equally (× 0.25) at this stage. Per-osc
 //! level / pan / detune land in M2.3 along with the real stereo slot
-//! mixer; per-osc waveform routing lands when M4 grows the UI.
+//! mixer.
 //!
 //! [`ParameterTree`]: crate::params::ParameterTree
+//! [`SampleParams`]: crate::params::SampleParams
 
 use crate::envelope::Adsr;
+use crate::filter::{FilterMode, StateVariableFilter};
 use crate::oscillator::{Oscillator, Waveform};
+use crate::params::SampleParams;
 
 /// How many main oscillators (excluding the sub) each subtractive
 /// voice carries.
@@ -28,11 +36,12 @@ pub const MAIN_OSCILLATOR_COUNT: usize = 3;
 /// 4× gain headroom before per-osc levels arrive in M2.3.
 const SLOT_MIX_SCALE: f32 = 1.0 / 4.0;
 
-/// One synth voice: three main oscillators + a sub oscillator gated
-/// by one amp envelope.
+/// One synth voice: three main oscillators + a sub oscillator, fed
+/// through one filter, gated by one amp envelope.
 pub struct Voice {
     main_oscillators: [Oscillator; MAIN_OSCILLATOR_COUNT],
     sub_oscillator: Oscillator,
+    filter: StateVariableFilter,
     amp_envelope: Adsr,
 
     /// MIDI note currently being held by the voice, if any. Used so
@@ -43,12 +52,14 @@ pub struct Voice {
 impl Voice {
     /// Creates a silent, idle voice at the given sample rate. All
     /// three main oscillators default to [`Waveform::Sine`]; the sub
-    /// oscillator is fixed as a sine and is never changed.
+    /// oscillator is fixed as a sine and is never changed. The filter
+    /// defaults to a wide-open low-pass.
     #[must_use]
     pub fn new(sample_rate_hz: f32) -> Self {
         Self {
             main_oscillators: [(); MAIN_OSCILLATOR_COUNT].map(|()| Oscillator::new(sample_rate_hz)),
             sub_oscillator: Oscillator::new(sample_rate_hz),
+            filter: StateVariableFilter::new(sample_rate_hz),
             amp_envelope: Adsr::new(sample_rate_hz),
             held_note_midi: None,
         }
@@ -58,7 +69,9 @@ impl Voice {
     /// envelope was idle (first note from silence); on retrigger the
     /// phase continues uninterrupted so there is no discontinuity in
     /// the waveform output while the envelope level is non-zero. The
-    /// caller (the engine) is responsible for snapping any per-voice
+    /// filter's integrator state is reset on the same idle condition
+    /// so the new note does not inherit a ringing tail. The caller
+    /// (the engine) is responsible for snapping any per-voice
     /// smoothed parameters before calling this so the first sample
     /// plays exactly at the target value.
     pub fn note_on(&mut self, note_midi: u8) {
@@ -68,6 +81,7 @@ impl Voice {
                 osc.reset_phase();
             }
             self.sub_oscillator.reset_phase();
+            self.filter.reset();
         }
         self.amp_envelope.note_on();
     }
@@ -99,6 +113,12 @@ impl Voice {
         }
     }
 
+    /// Sets the filter output mode. Discrete; the integrator state is
+    /// preserved so the change is click-free.
+    pub fn set_filter_mode(&mut self, mode: FilterMode) {
+        self.filter.set_mode(mode);
+    }
+
     /// Returns true if the voice is fully idle (amp envelope at zero
     /// and no note held).
     #[must_use]
@@ -106,21 +126,21 @@ impl Voice {
         self.amp_envelope.is_idle()
     }
 
-    /// Produces one mono sample. `pitch_offset_semis` is the current
-    /// smoothed pitch offset supplied by the engine for this frame;
-    /// the voice re-derives oscillator frequencies each sample so
-    /// glide is sample-accurate. All four oscillators are summed and
-    /// scaled by [`SLOT_MIX_SCALE`] so a worst-case in-phase sum lands
-    /// at unity — the real per-osc mixer (level / pan / detune)
-    /// arrives in M2.3.
-    pub fn next_sample(&mut self, pitch_offset_semis: f32) -> f32 {
-        self.update_frequencies(pitch_offset_semis);
+    /// Produces one mono sample. Reads every per-sample smoothed
+    /// parameter from `params` so the engine has a single point of
+    /// fan-out; the voice itself is stateless with respect to
+    /// parameter sources.
+    pub fn next_sample(&mut self, params: &SampleParams) -> f32 {
+        self.update_frequencies(params.pitch_offset_semis);
         let env = self.amp_envelope.next_sample();
         let mut sum = self.sub_oscillator.next_sample();
         for osc in &mut self.main_oscillators {
             sum += osc.next_sample();
         }
-        sum * SLOT_MIX_SCALE * env
+        let mixed = sum * SLOT_MIX_SCALE;
+        self.filter.set_params(params.filter_cutoff_hz, params.filter_resonance);
+        let filtered = self.filter.next_sample(mixed);
+        filtered * env
     }
 
     /// Re-derives oscillator frequencies from the held note plus the
@@ -149,12 +169,25 @@ impl Voice {
 mod tests {
     use super::*;
 
+    /// Open-filter sample params: filter at near-Nyquist and zero
+    /// resonance, so the filter passes input untouched. Used by the
+    /// oscillator-only voice tests to keep them focused on the
+    /// generators.
+    fn open_filter_params(pitch_offset_semis: f32) -> SampleParams {
+        SampleParams {
+            pitch_offset_semis,
+            filter_cutoff_hz: 22_000.0,
+            filter_resonance: 0.0,
+        }
+    }
+
     #[test]
     fn fresh_voice_is_idle_and_silent() {
         let mut voice = Voice::new(48_000.0);
         assert!(voice.is_idle());
+        let params = open_filter_params(0.0);
         for _ in 0..256 {
-            assert_eq!(voice.next_sample(0.0), 0.0);
+            assert_eq!(voice.next_sample(&params), 0.0);
         }
     }
 
@@ -168,33 +201,23 @@ mod tests {
 
     #[test]
     fn retrigger_during_release_produces_no_output_discontinuity() {
-        // If a new note-on arrives while the envelope is still in
-        // release the output must not jump — the amplitude step
-        // between the last release sample and the first attack
-        // sample should be small.
         let sample_rate = 48_000.0;
         let mut voice = Voice::new(sample_rate);
+        let params = open_filter_params(0.0);
 
-        // Play note long enough to reach sustain.
         voice.note_on(60);
         for _ in 0..4_800 {
-            voice.next_sample(0.0);
+            voice.next_sample(&params);
         }
-
-        // Begin release.
         voice.note_off(60);
 
-        // Let a short portion of the release run so level is well
-        // above zero.
         let mut last_sample = 0.0;
         for _ in 0..480 {
-            last_sample = voice.next_sample(0.0);
+            last_sample = voice.next_sample(&params);
         }
 
-        // Retrigger. The output must not jump by more than one attack
-        // step.
         voice.note_on(62);
-        let first_retrigger_sample = voice.next_sample(0.0);
+        let first_retrigger_sample = voice.next_sample(&params);
 
         let jump = (first_retrigger_sample - last_sample).abs();
         assert!(
@@ -205,16 +228,12 @@ mod tests {
 
     #[test]
     fn four_in_phase_sines_stay_at_unit_amplitude() {
-        // All three main oscillators plus the sub are sine by default.
-        // Mains run at the held pitch; sub at half. Their sum, scaled
-        // by 0.25, must stay within ±1 — proving the slot-mix scale
-        // controls the worst-case constructive headroom.
         let mut voice = Voice::new(48_000.0);
-        voice.note_on(69); // A4 = 440 Hz mains, 220 Hz sub
+        voice.note_on(69);
+        let params = open_filter_params(0.0);
         let mut peak = 0.0_f32;
         for _ in 0..48_000 {
-            // One full second — well past the envelope reaching peak.
-            let s = voice.next_sample(0.0);
+            let s = voice.next_sample(&params);
             peak = peak.max(s.abs());
         }
         assert!(peak <= 1.0 + 1e-3, "voice output exceeded unity: peak {peak}");
@@ -222,39 +241,46 @@ mod tests {
 
     #[test]
     fn sub_oscillator_runs_one_octave_below_main() {
-        // With main oscillators silenced (set to a shape and then
-        // forced to zero by setting frequency to 0 is awkward) we
-        // instead detect the sub by counting zero-crossings: the sub
-        // sine at 220 Hz over 1 second has ~440 crossings, while the
-        // mains at 440 Hz contribute ~880 each. The total expected
-        // crossings of the summed signal is the dominant component's
-        // zero crossings when the others are in phase — but since all
-        // four are pure sines at integer ratios, summing them gives a
-        // periodic signal at the sub's 220 Hz, which has 440
-        // zero-crossings per second. Tolerate ±4 for envelope rise /
-        // float drift.
         let mut voice = Voice::new(48_000.0);
         voice.set_main_waveform(Waveform::Sine);
         voice.note_on(69);
-        let mut prev = voice.next_sample(0.0);
+        let params = open_filter_params(0.0);
+        let mut prev = voice.next_sample(&params);
         let mut crossings = 0;
         for _ in 0..48_000 {
-            let s = voice.next_sample(0.0);
+            let s = voice.next_sample(&params);
             if (prev <= 0.0 && s > 0.0) || (prev >= 0.0 && s < 0.0) {
                 crossings += 1;
             }
             prev = s;
         }
-        // 440 Hz mains → ~880 crossings, but they're in phase with the
-        // 220 Hz sub at integer ratio so the sum's period is the sub's
-        // (the mains complete two full cycles inside each sub cycle
-        // and contribute their own crossings). What we really care
-        // about: more crossings than the sub alone (which would be
-        // ~440) — proving the mains are present — and that the count
-        // is consistent with a 440-Hz-dominated mix.
         assert!(
             (700..=1000).contains(&crossings),
             "expected ~880 zero crossings (440 Hz dominant), got {crossings}"
         );
+    }
+
+    #[test]
+    fn closed_low_pass_silences_the_voice() {
+        // A saw at full mix, with LP cutoff well below the
+        // fundamental, must come out essentially silent.
+        let mut voice = Voice::new(48_000.0);
+        voice.set_main_waveform(Waveform::Saw);
+        voice.set_filter_mode(FilterMode::LowPass);
+        voice.note_on(69); // 440 Hz
+        let closed = SampleParams {
+            pitch_offset_semis: 0.0,
+            filter_cutoff_hz: 30.0,
+            filter_resonance: 0.0,
+        };
+        // Let the envelope reach sustain.
+        for _ in 0..4_800 {
+            voice.next_sample(&closed);
+        }
+        let mut peak = 0.0_f32;
+        for _ in 0..4_800 {
+            peak = peak.max(voice.next_sample(&closed).abs());
+        }
+        assert!(peak < 0.05, "expected LP to silence saw, peak {peak}");
     }
 }

@@ -22,20 +22,31 @@
 //!
 //! [`EngineEvent`]: crate::EngineEvent
 
+use crate::filter::FilterMode;
 use crate::oscillator::Waveform;
 use crate::smoothing::SmoothedParam;
 
 /// Default amp envelope release time, in seconds.
 const DEFAULT_AMP_RELEASE_SECS: f32 = 0.200;
 
+/// Default filter cutoff frequency, in Hz. Sits well above the
+/// fundamental of every playable MIDI note, so a fresh patch is
+/// effectively wide open until the user turns the knob down.
+const DEFAULT_FILTER_CUTOFF_HZ: f32 = 8_000.0;
+
+/// Default filter resonance, on the 0..=1 user-facing scale. Zero is
+/// the maximally damped end of the range — no peak at all.
+const DEFAULT_FILTER_RESONANCE: f32 = 0.0;
+
 /// Identifies a continuous parameter for [`EngineEvent::ParameterChange`].
 ///
-/// Discrete parameters (e.g. waveform) have their own typed
-/// `EngineEvent` variants so the value type is checked at compile time
-/// rather than reinterpreted from `f32`.
+/// Discrete parameters (e.g. waveform, filter mode) have their own
+/// typed `EngineEvent` variants so the value type is checked at
+/// compile time rather than reinterpreted from `f32`.
 ///
 /// Ids are stable: once shipped in a preset, a variant's discriminant
-/// and meaning do not change. New parameters get new variants appended.
+/// and meaning do not change. New parameters get new variants
+/// appended.
 ///
 /// [`EngineEvent::ParameterChange`]: crate::EngineEvent::ParameterChange
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -47,6 +58,14 @@ pub enum ParamId {
     /// Amp envelope release time, in seconds. Range 0.001..=10.0 by
     /// convention; the envelope clamps below one sample period.
     AmpReleaseSecs,
+
+    /// Filter cutoff frequency, in Hz. Range 20..=~Nyquist; the SVF
+    /// clamps internally.
+    FilterCutoffHz,
+
+    /// Filter resonance on a 0..=1 scale, mapped internally to a
+    /// musically useful Q range. Values outside 0..=1 are clamped.
+    FilterResonance,
 }
 
 /// An immutable snapshot of the engine's outward-facing parameter
@@ -65,8 +84,18 @@ pub struct ParamSnapshot {
     /// Current amp release time, in seconds.
     pub amp_release_secs: f32,
 
-    /// Current oscillator waveform.
+    /// Current oscillator waveform (applied to all three main
+    /// oscillators; the sub is always sine).
     pub waveform: Waveform,
+
+    /// Current filter cutoff frequency, in Hz.
+    pub filter_cutoff_hz: f32,
+
+    /// Current filter resonance on the 0..=1 user scale.
+    pub filter_resonance: f32,
+
+    /// Current filter output mode.
+    pub filter_mode: FilterMode,
 
     /// True if a voice is currently producing audio (not idle).
     pub voice_active: bool,
@@ -78,6 +107,9 @@ impl Default for ParamSnapshot {
             pitch_offset_semis: 0.0,
             amp_release_secs: DEFAULT_AMP_RELEASE_SECS,
             waveform: Waveform::Sine,
+            filter_cutoff_hz: DEFAULT_FILTER_CUTOFF_HZ,
+            filter_resonance: DEFAULT_FILTER_RESONANCE,
+            filter_mode: FilterMode::LowPass,
             voice_active: false,
         }
     }
@@ -97,8 +129,14 @@ impl Default for ParamSnapshot {
 /// engine field.
 pub struct ParameterTree {
     pitch_offset_semis: SmoothedParam,
+    filter_cutoff_hz: SmoothedParam,
+    filter_resonance: SmoothedParam,
+
     amp_release_secs: f32,
+
     waveform: Waveform,
+    filter_mode: FilterMode,
+
     voice_active: bool,
 }
 
@@ -111,8 +149,11 @@ impl ParameterTree {
         let defaults = ParamSnapshot::default();
         Self {
             pitch_offset_semis: SmoothedParam::new(defaults.pitch_offset_semis, sample_rate_hz),
+            filter_cutoff_hz: SmoothedParam::new(defaults.filter_cutoff_hz, sample_rate_hz),
+            filter_resonance: SmoothedParam::new(defaults.filter_resonance, sample_rate_hz),
             amp_release_secs: defaults.amp_release_secs,
             waveform: defaults.waveform,
+            filter_mode: defaults.filter_mode,
             voice_active: defaults.voice_active,
         }
     }
@@ -125,6 +166,8 @@ impl ParameterTree {
         match id {
             ParamId::PitchOffsetSemis => self.pitch_offset_semis.set_target(value),
             ParamId::AmpReleaseSecs => self.amp_release_secs = value,
+            ParamId::FilterCutoffHz => self.filter_cutoff_hz.set_target(value),
+            ParamId::FilterResonance => self.filter_resonance.set_target(value),
         }
     }
 
@@ -132,6 +175,11 @@ impl ParameterTree {
     /// block boundary per design-patterns.md §2.7.
     pub fn set_waveform(&mut self, waveform: Waveform) {
         self.waveform = waveform;
+    }
+
+    /// Sets the filter output mode. Discrete.
+    pub fn set_filter_mode(&mut self, mode: FilterMode) {
+        self.filter_mode = mode;
     }
 
     /// Mirrors the engine's voice activity into the next snapshot. Not
@@ -143,7 +191,9 @@ impl ParameterTree {
 
     /// Snaps smoothed params that should jump to their target on
     /// note-on so the first sample of a new note plays exactly at the
-    /// current target value rather than mid-glide.
+    /// current target value rather than mid-glide. Filter params
+    /// deliberately keep smoothing so a note hit does not click the
+    /// cutoff.
     pub fn snap_for_note_on(&mut self) {
         self.pitch_offset_semis.snap_to_target();
     }
@@ -154,6 +204,12 @@ impl ParameterTree {
         self.waveform
     }
 
+    /// Returns the current filter mode.
+    #[must_use]
+    pub fn filter_mode(&self) -> FilterMode {
+        self.filter_mode
+    }
+
     /// Returns the current amp release time, in seconds.
     #[must_use]
     pub fn amp_release_secs(&self) -> f32 {
@@ -161,23 +217,28 @@ impl ParameterTree {
     }
 
     /// Advances all smoothed parameters by one sample and returns the
-    /// values the audio path consumes per sample. Called once per frame
-    /// inside `Engine::process_stereo`.
+    /// values the audio path consumes per sample. Called once per
+    /// frame inside `Engine::process_stereo`.
     pub fn next_sample(&mut self) -> SampleParams {
         SampleParams {
             pitch_offset_semis: self.pitch_offset_semis.next_sample(),
+            filter_cutoff_hz: self.filter_cutoff_hz.next_sample(),
+            filter_resonance: self.filter_resonance.next_sample(),
         }
     }
 
-    /// Builds an outward-facing snapshot without allocating. Each field
-    /// reads the current (smoothed) value, so the UI sees what the
-    /// audio path is hearing right now.
+    /// Builds an outward-facing snapshot without allocating. Each
+    /// field reads the current (smoothed) value, so the UI sees what
+    /// the audio path is hearing right now.
     #[must_use]
     pub fn snapshot(&self) -> ParamSnapshot {
         ParamSnapshot {
             pitch_offset_semis: self.pitch_offset_semis.current(),
             amp_release_secs: self.amp_release_secs,
             waveform: self.waveform,
+            filter_cutoff_hz: self.filter_cutoff_hz.current(),
+            filter_resonance: self.filter_resonance.current(),
+            filter_mode: self.filter_mode,
             voice_active: self.voice_active,
         }
     }
@@ -194,6 +255,12 @@ pub struct SampleParams {
     /// Pitch offset to apply on top of any held MIDI note, in
     /// semitones.
     pub pitch_offset_semis: f32,
+
+    /// Filter cutoff frequency for this sample, in Hz.
+    pub filter_cutoff_hz: f32,
+
+    /// Filter resonance for this sample, on the 0..=1 user scale.
+    pub filter_resonance: f32,
 }
 
 #[cfg(test)]
@@ -232,6 +299,34 @@ mod tests {
         // Stepped — the value is visible without advancing any sample.
         assert_eq!(tree.amp_release_secs(), 1.5);
         assert_eq!(tree.snapshot().amp_release_secs, 1.5);
+    }
+
+    #[test]
+    fn set_continuous_filter_params_smooth_toward_target() {
+        let mut tree = ParameterTree::new(48_000.0);
+        tree.set_continuous(ParamId::FilterCutoffHz, 2_000.0);
+        tree.set_continuous(ParamId::FilterResonance, 0.8);
+        let first = tree.next_sample();
+        // Starting from defaults (8000 Hz, 0.0), the first sample must
+        // not jump to the targets.
+        assert!(
+            first.filter_cutoff_hz > 4_000.0,
+            "cutoff jumped: {}",
+            first.filter_cutoff_hz
+        );
+        assert!(
+            first.filter_resonance < 0.5,
+            "resonance jumped: {}",
+            first.filter_resonance
+        );
+    }
+
+    #[test]
+    fn filter_mode_is_visible_in_snapshot() {
+        let mut tree = ParameterTree::new(48_000.0);
+        tree.set_filter_mode(FilterMode::BandPass);
+        assert_eq!(tree.filter_mode(), FilterMode::BandPass);
+        assert_eq!(tree.snapshot().filter_mode, FilterMode::BandPass);
     }
 
     #[test]
