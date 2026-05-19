@@ -688,7 +688,10 @@ impl ToneSmithyApp {
                     )
                     .changed()
             {
-                events.send(EngineEvent::ParameterChange { id: rate_id, value: rate_hz });
+                events.send(EngineEvent::ParameterChange {
+                    id: rate_id,
+                    value: rate_hz,
+                });
             }
 
             if ui.selectable_label(reset_on_note_on, "Reset").clicked() {

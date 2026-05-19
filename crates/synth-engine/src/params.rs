@@ -1102,4 +1102,29 @@ mod tests {
         tree.set_active_voice_count(3);
         assert_eq!(tree.snapshot().active_voice_count, 3);
     }
+
+    #[test]
+    fn bpm_sync_one_bar_at_120_bpm_is_2_hz() {
+        // At 120 BPM, one bar lasts 2 s → rate = 0.5 Hz.
+        // sync_rate_hz = bpm / 60 / (4 × 1.0) = 120 / 60 / 4 = 0.5 Hz.
+        let rate = sync_rate_hz(120.0, SyncDivision::One);
+        assert!((rate - 0.5).abs() < 1e-6, "expected 0.5 Hz, got {rate}");
+    }
+
+    #[test]
+    fn lfo1_effective_rate_switches_on_sync_enable() {
+        let mut tree = ParameterTree::new(48_000.0);
+        // Free-running at 3 Hz.
+        tree.set_continuous(ParamId::Lfo1RateHz, 3.0);
+        assert!((tree.lfo1_effective_rate_hz() - 3.0).abs() < 1e-6);
+        // Enable sync at 120 BPM / One bar → 0.5 Hz.
+        tree.set_continuous(ParamId::Lfo1SyncEnabled, 1.0);
+        tree.set_continuous(ParamId::Bpm, 120.0);
+        tree.set_continuous(ParamId::Lfo1SyncDivision, 5.0); // index 5 = One bar
+        assert!(
+            (tree.lfo1_effective_rate_hz() - 0.5).abs() < 1e-6,
+            "expected 0.5 Hz, got {}",
+            tree.lfo1_effective_rate_hz()
+        );
+    }
 }
