@@ -1,17 +1,17 @@
 //! The top-level DSP engine.
 //!
-//! Holds the (currently single) voice and the [`ParameterTree`] that
-//! owns all sound-affecting state. [`Engine::prepare`] is the
-//! once-per-stream setup point where all buffer sizing and pool
-//! allocation must happen — see
-//! `docs/planning/03-architecture/design-patterns.md` §2.5.
+//! Holds the [`VoiceManager`] and the [`ParameterTree`] that owns all
+//! sound-affecting state. [`Engine::prepare`] is the once-per-stream
+//! setup point where all buffer sizing and pool allocation must happen
+//! — see `docs/planning/03-architecture/design-patterns.md` §2.5.
 //! [`Engine::process_stereo`] is allowed zero heap allocations.
 //!
 //! [`ParameterTree`]: crate::params::ParameterTree
+//! [`VoiceManager`]: crate::voice_manager::VoiceManager
 
 use crate::events::EngineEvent;
 use crate::params::{ParamId, ParamSnapshot, ParameterTree};
-use crate::voice::Voice;
+use crate::voice_manager::VoiceManager;
 
 /// Maximum block size the engine promises to handle, in frames.
 ///
@@ -21,7 +21,8 @@ use crate::voice::Voice;
 /// M2 work needs it.
 pub const MAX_BLOCK_SIZE: usize = 4096;
 
-/// The DSP engine. Owns the parameter tree and the voice.
+/// The DSP engine. Owns the parameter tree and the polyphonic voice
+/// pool.
 ///
 /// Construct with [`Engine::new`], wire to the audio thread, and call
 /// [`Engine::handle`] for each input event before each block.
@@ -33,8 +34,8 @@ pub struct Engine {
     /// design-patterns.md §1.3.
     params: ParameterTree,
 
-    /// The single M2 voice. Replaced by a voice manager at M3.
-    voice: Voice,
+    /// Polyphonic voice pool sized to [`crate::POLYPHONY`].
+    voices: VoiceManager,
 }
 
 impl Engine {
@@ -45,17 +46,17 @@ impl Engine {
     #[must_use]
     pub fn new(sample_rate_hz: f32) -> Self {
         let params = ParameterTree::new(sample_rate_hz);
-        let mut voice = Voice::new(sample_rate_hz);
-        // Seed the voice with the parameter defaults so its DSP
-        // components see the same values the tree publishes in the
+        let mut voices = VoiceManager::new(sample_rate_hz);
+        // Seed every voice with the parameter defaults so the first
+        // note played sees the same values the tree publishes in the
         // first snapshot.
-        voice.set_release_secs(params.amp_release_secs());
-        voice.set_main_waveform(params.waveform());
-        voice.set_filter_mode(params.filter_mode());
+        voices.set_release_secs(params.amp_release_secs());
+        voices.set_main_waveform(params.waveform());
+        voices.set_filter_mode(params.filter_mode());
         Self {
             sample_rate_hz,
             params,
-            voice,
+            voices,
         }
     }
 
@@ -69,23 +70,23 @@ impl Engine {
     /// of each block, draining whatever the adapters have queued.
     pub fn handle(&mut self, event: EngineEvent) {
         match event {
-            // TODO: M3 — scale envelope peak by velocity (0..=127 → 0.0..=1.0).
+            // TODO: M3.3 — scale envelope peak by velocity (0..=127 → 0.0..=1.0).
             EngineEvent::NoteOn { note_midi, velocity: _ } => {
                 // Snap smoothed per-voice params so the first sample of
                 // the new note plays exactly at the current target.
                 self.params.snap_for_note_on();
-                self.voice.note_on(note_midi);
+                self.voices.note_on(note_midi);
             }
             EngineEvent::NoteOff { note_midi } => {
-                self.voice.note_off(note_midi);
+                self.voices.note_off(note_midi);
             }
             EngineEvent::SetOscillatorWaveform { waveform } => {
                 self.params.set_waveform(waveform);
-                self.voice.set_main_waveform(waveform);
+                self.voices.set_main_waveform(waveform);
             }
             EngineEvent::SetFilterMode { mode } => {
                 self.params.set_filter_mode(mode);
-                self.voice.set_filter_mode(mode);
+                self.voices.set_filter_mode(mode);
             }
             EngineEvent::ParameterChange { id, value } => {
                 self.params.set_continuous(id, value);
@@ -94,7 +95,7 @@ impl Engine {
                 // immediately; smoothed params are sampled per frame
                 // from the tree and need no fan-out here.
                 if matches!(id, ParamId::AmpReleaseSecs) {
-                    self.voice.set_release_secs(value);
+                    self.voices.set_release_secs(value);
                 }
             }
         }
@@ -111,15 +112,17 @@ impl Engine {
 
         for frame_index in 0..frames {
             let smoothed = self.params.next_sample();
-            let (left, right) = self.voice.next_sample(&smoothed);
+            let (left, right) = self.voices.next_sample(&smoothed);
             output[frame_index * 2] = left;
             output[frame_index * 2 + 1] = right;
         }
 
-        // Mirror the post-block voice state into the tree so the next
-        // snapshot reflects what just played. At M3 the voice manager
-        // will supply the real count; for now it's 0 or 1.
-        self.params.set_active_voice_count(u8::from(!self.voice.is_idle()));
+        // Mirror the post-block voice count into the tree so the next
+        // snapshot reflects what just played. POLYPHONY is 32, which
+        // fits in u8 without truncation.
+        #[allow(clippy::cast_possible_truncation)]
+        let count = self.voices.active_count() as u8;
+        self.params.set_active_voice_count(count);
     }
 
     /// Returns the current parameter snapshot by value, without

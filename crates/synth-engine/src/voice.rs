@@ -136,6 +136,29 @@ impl Voice {
         self.amp_envelope.is_idle()
     }
 
+    /// Returns the MIDI note the voice is currently holding (i.e.
+    /// the most recent `note_on` not yet matched by a `note_off`).
+    /// Used by the voice manager to route incoming note-offs.
+    #[must_use]
+    pub fn held_note(&self) -> Option<u8> {
+        self.held_note_midi
+    }
+
+    /// Returns true while the amp envelope is in its release phase.
+    /// Voice-stealing prefers releasing voices over still-attacking
+    /// ones.
+    #[must_use]
+    pub fn is_releasing(&self) -> bool {
+        self.amp_envelope.is_releasing()
+    }
+
+    /// Returns the current amp-envelope level, 0..=1. Voice-stealing
+    /// uses this as the tiebreaker when no voice is in release.
+    #[must_use]
+    pub fn envelope_level(&self) -> f32 {
+        self.amp_envelope.current_level()
+    }
+
     /// Produces one stereo frame as `(left, right)`. Reads every
     /// per-sample smoothed parameter from `params`; the voice itself
     /// is stateless with respect to parameter sources.
