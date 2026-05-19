@@ -60,7 +60,7 @@ Get the project's own engine producing sound.
 
 ---
 
-## M2 — Subtractive voice (4–5 weeks)
+## M2 — Subtractive voice ✓ (tag `m02`)
 
 Build out the full single subtractive voice.
 
