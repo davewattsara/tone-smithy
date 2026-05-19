@@ -70,10 +70,11 @@ fn main() -> Result<()> {
         ..Default::default()
     };
 
+    let cpu_load = audio.cpu_load.clone();
     let shell = AppShell {
         _audio: audio,
         _midi: midi,
-        ui: ToneSmithyApp::new(status, events_tx, snapshot_slot),
+        ui: ToneSmithyApp::new(status, events_tx, snapshot_slot, cpu_load),
     };
 
     eframe::run_native("Tone Smithy", native_options, Box::new(move |_cc| Ok(Box::new(shell))))

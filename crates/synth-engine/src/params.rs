@@ -27,8 +27,21 @@ use crate::filter::FilterMode;
 use crate::oscillator::Waveform;
 use crate::smoothing::SmoothedParam;
 
+/// Default amp envelope attack time, in seconds.
+const DEFAULT_AMP_ATTACK_SECS: f32 = 0.010;
+
+/// Default amp envelope decay time, in seconds.
+const DEFAULT_AMP_DECAY_SECS: f32 = 0.200;
+
+/// Default amp envelope sustain level, on the 0..=1 scale.
+const DEFAULT_AMP_SUSTAIN_LEVEL: f32 = 0.8;
+
 /// Default amp envelope release time, in seconds.
 const DEFAULT_AMP_RELEASE_SECS: f32 = 0.200;
+
+/// Default master output volume, on the 0..=1 scale. Leaves headroom
+/// for the polyphony summing that accumulates before M8's limiter.
+const DEFAULT_MASTER_VOLUME: f32 = 0.8;
 
 /// Default filter cutoff frequency, in Hz. Sits well above the
 /// fundamental of every playable MIDI note, so a fresh patch is
@@ -145,6 +158,20 @@ pub enum ParamId {
     /// Main oscillator 3 unison stereo spread (0..=1).
     Osc3UnisonSpread,
 
+    /// Amp envelope attack time, in seconds. Range 0.001..=10.0 by
+    /// convention; the envelope clamps below one sample period.
+    AmpAttackSecs,
+
+    /// Amp envelope decay time, in seconds. Same range as attack.
+    AmpDecaySecs,
+
+    /// Amp envelope sustain level, 0..=1.
+    AmpSustainLevel,
+
+    /// Master output volume, 0..=1. Smoothed to prevent clicks when
+    /// the user moves the knob. Applied after polyphony summing.
+    MasterVolume,
+
     /// Pitch-bend wheel position converted to semitones. The engine
     /// scales the normalised -1..1 wheel value by
     /// [`crate::engine::PITCH_BEND_RANGE_SEMIS`] before writing here.
@@ -172,8 +199,20 @@ pub struct ParamSnapshot {
     /// Current pitch offset, in semitones.
     pub pitch_offset_semis: f32,
 
+    /// Current amp attack time, in seconds.
+    pub amp_attack_secs: f32,
+
+    /// Current amp decay time, in seconds.
+    pub amp_decay_secs: f32,
+
+    /// Current amp sustain level, 0..=1.
+    pub amp_sustain_level: f32,
+
     /// Current amp release time, in seconds.
     pub amp_release_secs: f32,
+
+    /// Current master output volume, 0..=1.
+    pub master_volume: f32,
 
     /// Current oscillator waveform (applied to all three main
     /// oscillators; the sub is always sine).
@@ -237,7 +276,11 @@ impl Default for ParamSnapshot {
     fn default() -> Self {
         Self {
             pitch_offset_semis: 0.0,
+            amp_attack_secs: DEFAULT_AMP_ATTACK_SECS,
+            amp_decay_secs: DEFAULT_AMP_DECAY_SECS,
+            amp_sustain_level: DEFAULT_AMP_SUSTAIN_LEVEL,
             amp_release_secs: DEFAULT_AMP_RELEASE_SECS,
+            master_volume: DEFAULT_MASTER_VOLUME,
             waveform: Waveform::Sine,
             filter_cutoff_hz: DEFAULT_FILTER_CUTOFF_HZ,
             filter_resonance: DEFAULT_FILTER_RESONANCE,
@@ -293,7 +336,15 @@ pub struct ParameterTree {
     /// glide through 3.4 voices.
     osc_main_unison_voices: [f32; MAIN_OSCILLATOR_COUNT],
 
+    /// Stepped (not smoothed): sampled by the voice at the next
+    /// envelope phase transition, not per-sample.
+    amp_attack_secs: f32,
+    amp_decay_secs: f32,
+    amp_sustain_level: f32,
     amp_release_secs: f32,
+
+    /// Smoothed so moving the volume knob is click-free.
+    master_volume: SmoothedParam,
 
     waveform: Waveform,
     filter_mode: FilterMode,
@@ -335,7 +386,11 @@ impl ParameterTree {
                 .osc_main_unison_spreads
                 .map(|v| SmoothedParam::new(v, sample_rate_hz)),
             osc_main_unison_voices: defaults.osc_main_unison_voices,
+            amp_attack_secs: defaults.amp_attack_secs,
+            amp_decay_secs: defaults.amp_decay_secs,
+            amp_sustain_level: defaults.amp_sustain_level,
             amp_release_secs: defaults.amp_release_secs,
+            master_volume: SmoothedParam::new(defaults.master_volume, sample_rate_hz),
             waveform: defaults.waveform,
             filter_mode: defaults.filter_mode,
             active_voice_count: defaults.active_voice_count,
@@ -353,7 +408,11 @@ impl ParameterTree {
     pub fn set_continuous(&mut self, id: ParamId, value: f32) {
         match id {
             ParamId::PitchOffsetSemis => self.pitch_offset_semis.set_target(value),
+            ParamId::AmpAttackSecs => self.amp_attack_secs = value,
+            ParamId::AmpDecaySecs => self.amp_decay_secs = value,
+            ParamId::AmpSustainLevel => self.amp_sustain_level = value,
             ParamId::AmpReleaseSecs => self.amp_release_secs = value,
+            ParamId::MasterVolume => self.master_volume.set_target(value),
             ParamId::FilterCutoffHz => self.filter_cutoff_hz.set_target(value),
             ParamId::FilterResonance => self.filter_resonance.set_target(value),
             ParamId::Osc1Level => self.osc_main_levels[0].set_target(value),
@@ -431,6 +490,24 @@ impl ParameterTree {
         self.filter_mode
     }
 
+    /// Returns the current amp attack time, in seconds.
+    #[must_use]
+    pub fn amp_attack_secs(&self) -> f32 {
+        self.amp_attack_secs
+    }
+
+    /// Returns the current amp decay time, in seconds.
+    #[must_use]
+    pub fn amp_decay_secs(&self) -> f32 {
+        self.amp_decay_secs
+    }
+
+    /// Returns the current amp sustain level, 0..=1.
+    #[must_use]
+    pub fn amp_sustain_level(&self) -> f32 {
+        self.amp_sustain_level
+    }
+
     /// Returns the current amp release time, in seconds.
     #[must_use]
     pub fn amp_release_secs(&self) -> f32 {
@@ -474,6 +551,7 @@ impl ParameterTree {
                 self.osc_main_unison_spreads[2].next_sample(),
             ],
             pitch_bend_semis: self.pitch_bend_semis.next_sample(),
+            master_volume: self.master_volume.next_sample(),
         }
     }
 
@@ -484,7 +562,11 @@ impl ParameterTree {
     pub fn snapshot(&self) -> ParamSnapshot {
         ParamSnapshot {
             pitch_offset_semis: self.pitch_offset_semis.current(),
+            amp_attack_secs: self.amp_attack_secs,
+            amp_decay_secs: self.amp_decay_secs,
+            amp_sustain_level: self.amp_sustain_level,
             amp_release_secs: self.amp_release_secs,
+            master_volume: self.master_volume.current(),
             waveform: self.waveform,
             filter_cutoff_hz: self.filter_cutoff_hz.current(),
             filter_resonance: self.filter_resonance.current(),
@@ -575,6 +657,10 @@ pub struct SampleParams {
     /// held MIDI note and any per-osc detune in the voice's frequency
     /// calculation.
     pub pitch_bend_semis: f32,
+
+    /// Master output volume for this sample, 0..=1. Applied after
+    /// polyphony summing in the engine — the voice does not see it.
+    pub master_volume: f32,
 }
 
 #[cfg(test)]

@@ -11,3 +11,4 @@
 pub mod app;
 pub mod computer_keyboard;
 pub mod keyboard;
+pub mod knob;
