@@ -24,6 +24,7 @@
 use std::f32::consts::TAU;
 
 use crate::envelope::Adsr;
+use crate::halfband::HalfBand;
 
 /// Number of operators per FM bank. DX7-family standard.
 pub const OPERATOR_COUNT: usize = 4;
@@ -162,9 +163,10 @@ impl Operator {
         base * 2.0_f32.powf(self.ratio_fine_cents / 1200.0)
     }
 
-    /// Computes one sample given `mod_in` (sum of modulator outputs in
-    /// phase units) and the base note frequency in Hz. Advances phase
-    /// and envelope.
+    /// Computes one sample at the base rate. Used in operator-level unit
+    /// tests; production code uses [`next_sample_os`][Self::next_sample_os]
+    /// via [`FmBank::next_sample`].
+    #[allow(dead_code)]
     fn next_sample(&mut self, mod_in: f32, base_note_hz: f32) -> f32 {
         let freq_hz = base_note_hz * self.ratio();
         let phase_increment = freq_hz / self.sample_rate_hz;
@@ -173,6 +175,27 @@ impl Operator {
         // by way of `rem_euclid` so the sin argument is always positive
         // and the high-amplitude feedback case doesn't drift outside
         // the unit interval.
+        let phase_modulated = (self.phase + mod_in).rem_euclid(1.0);
+        let output = (TAU * phase_modulated).sin() * env * self.level;
+        self.phase = (self.phase + phase_increment).rem_euclid(1.0);
+        self.feedback_prev_output = output;
+        output
+    }
+
+    /// Computes one sample at the 2× oversampled rate.
+    ///
+    /// Phase advances at `2 × sample_rate_hz`. When `advance_env` is true
+    /// the envelope ticks once (base-rate pace); when false the envelope
+    /// level from the previous call is reused, so envelopes run at base
+    /// rate even though the oscillator runs at 2× rate.
+    fn next_sample_os(&mut self, mod_in: f32, base_note_hz: f32, advance_env: bool) -> f32 {
+        let freq_hz = base_note_hz * self.ratio();
+        let phase_increment = freq_hz / (self.sample_rate_hz * 2.0);
+        let env = if advance_env {
+            self.envelope.next_sample()
+        } else {
+            self.envelope.current_level()
+        };
         let phase_modulated = (self.phase + mod_in).rem_euclid(1.0);
         let output = (TAU * phase_modulated).sin() * env * self.level;
         self.phase = (self.phase + phase_increment).rem_euclid(1.0);
@@ -244,13 +267,17 @@ pub const ALGORITHMS: [Algorithm; ALGORITHM_COUNT] = [
 ];
 
 /// 4-operator FM synthesis bank. Wraps four [`Operator`]s and the
-/// currently selected algorithm.
+/// currently selected algorithm. Operators run at 2× the base sample rate
+/// and are decimated to base rate via a 31-tap half-band FIR filter.
 pub struct FmBank {
     operators: [Operator; OPERATOR_COUNT],
     algorithm_index: u8,
     /// Scratch buffer holding each operator's same-sample output so a
     /// lower-indexed operator can read its modulators' fresh outputs.
     op_outputs: [f32; OPERATOR_COUNT],
+    /// Half-band FIR decimation filter — converts the 2× oversampled FM
+    /// output to the base sample rate, attenuating aliasing above Nyquist.
+    decim: HalfBand,
 }
 
 impl FmBank {
@@ -268,6 +295,7 @@ impl FmBank {
             ],
             algorithm_index: 0,
             op_outputs: [0.0; OPERATOR_COUNT],
+            decim: HalfBand::new(),
         }
     }
 
@@ -310,17 +338,31 @@ impl FmBank {
         self.operators.get_mut(index)
     }
 
-    /// Produces one mono sample at the given note frequency. The
-    /// slot caller is responsible for stereo panning and slot-level
-    /// scaling. The return range is up to ±`OPERATOR_COUNT as f32`
-    /// in the worst case (all-carrier algorithm with all ops at unit
-    /// level and aligned phases); the voice's slot-mix headroom scale
-    /// brings that into ±1.
+    /// Produces one mono sample at the given note frequency, using 2×
+    /// oversampling to suppress FM aliasing.
+    ///
+    /// Two FM sub-samples are computed internally at twice the base rate
+    /// and decimated to one output via the half-band FIR filter. Operator
+    /// envelopes advance only once per call (base-rate pacing); only the
+    /// oscillator phases run at 2× rate. The slot caller is responsible for
+    /// stereo panning and slot-level scaling.
     pub fn next_sample(&mut self, base_note_hz: f32) -> f32 {
+        // First sub-sample: advance envelopes at base rate.
+        let s0 = self.eval_operators(base_note_hz, true);
+        // Second sub-sample: hold envelopes at current level.
+        let s1 = self.eval_operators(base_note_hz, false);
+        self.decim.push(s0);
+        self.decim.push(s1);
+        self.decim.compute()
+    }
+
+    /// Evaluates one 2× sub-sample. `advance_env` controls whether operator
+    /// envelopes tick this sub-sample; only the first of each pair should.
+    fn eval_operators(&mut self, base_note_hz: f32, advance_env: bool) -> f32 {
         let alg = &ALGORITHMS[self.algorithm_index as usize];
 
         // Evaluate operators in order 3 → 2 → 1 → 0 so a lower-indexed
-        // op reads its modulators' fresh outputs from this sample.
+        // op reads its modulators' fresh outputs from this sub-sample.
         for op_idx in (0..OPERATOR_COUNT).rev() {
             let mod_mask = alg.mod_sources[op_idx];
             let mut mod_in = 0.0_f32;
@@ -329,14 +371,14 @@ impl FmBank {
                     continue;
                 }
                 if src_idx == op_idx {
-                    // Self-feedback: previous-sample output × feedback_amount.
+                    // Self-feedback: previous sub-sample output × feedback_amount.
                     let op = &self.operators[op_idx];
                     mod_in += op.feedback_amount * op.feedback_prev_output;
                 } else {
                     mod_in += self.op_outputs[src_idx];
                 }
             }
-            self.op_outputs[op_idx] = self.operators[op_idx].next_sample(mod_in, base_note_hz);
+            self.op_outputs[op_idx] = self.operators[op_idx].next_sample_os(mod_in, base_note_hz, advance_env);
         }
 
         let mut sum = 0.0_f32;
@@ -487,12 +529,13 @@ mod tests {
             peak = peak.max(s.abs());
             assert!(s.is_finite(), "FM output went non-finite at unit feedback: {s}");
         }
-        // Op 0 is the only carrier; its output is bounded by env × level
-        // = 1.0. The exact peak depends on accumulated modulation but
-        // mathematically can't exceed ±1.
+        // Op 0 is the only carrier; raw samples are bounded to ±1. After
+        // the half-band FIR (L1 norm ≈ 1.50), the decimated output can
+        // momentarily exceed ±1 due to the weighted sum of past samples,
+        // but must stay below the filter's L1 norm bound.
         assert!(
-            peak <= 1.01,
-            "single-carrier FM output exceeded unit amplitude, peak={peak}"
+            peak <= 1.51,
+            "single-carrier FM output exceeded filter L1 bound, peak={peak}"
         );
     }
 

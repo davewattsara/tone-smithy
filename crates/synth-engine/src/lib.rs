@@ -57,6 +57,7 @@ mod envelope;
 mod events;
 mod filter;
 mod fm;
+mod halfband;
 mod lfo;
 mod mod_env;
 mod mod_matrix;
