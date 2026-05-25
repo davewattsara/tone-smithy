@@ -8,6 +8,8 @@
 //! BPM knob in the master volume row. Live readouts show current modulator
 //! output from the first active voice.
 //!
+//! M6: Mod matrix table with 8 rows (source / dest / amount / via).
+//!
 //! [`Knob`]: crate::knob::Knob
 
 use std::sync::Arc;
@@ -58,6 +60,22 @@ const ENV2_CURVE_RANGE: f32 = 1.0;
 const BPM_MIN: f32 = 20.0;
 const BPM_MAX: f32 = 300.0;
 
+// ── Mod matrix constants ──────────────────────────────────────────────────────
+
+const MOD_SOURCE_LABELS: &[&str] = &[
+    "Off", "LFO1", "LFO2", "Env2", "AmpEnv", "Vel", "Key", "ModWhl", "AfterT", "Bend",
+];
+const MOD_DEST_LABELS: &[&str] = &["Cutoff", "Reso", "Pitch", "Vol", "Osc1Det", "Osc1Pan"];
+/// Amount knob range per destination index (max absolute value).
+const MOD_AMOUNT_RANGES: &[f32] = &[
+    10_000.0, // FilterCutoffHz
+    1.0,      // FilterResonance
+    24.0,     // PitchSemis
+    1.0,      // Volume
+    2400.0,   // Osc1DetuneCents
+    1.0,      // Osc1Pan
+];
+
 /// The Tone Smithy application UI.
 pub struct ToneSmithyApp {
     audio_status: String,
@@ -106,6 +124,13 @@ pub struct ToneSmithyApp {
     env2_attack_curve: f32,
     env2_decay_curve: f32,
     env2_release_curve: f32,
+
+    // ── Mod matrix mirrors ───────────────────────────────────────────────────
+    mod_slot_enabled: [bool; 8],
+    mod_slot_source: [usize; 8],
+    mod_slot_dest: [usize; 8],
+    mod_slot_amount: [f32; 8],
+    mod_slot_via: [usize; 8],
 
     // ── Global ───────────────────────────────────────────────────────────────
     pitch_offset_semis: f32,
@@ -171,6 +196,11 @@ impl ToneSmithyApp {
             env2_attack_curve: snap.env2_attack_curve,
             env2_decay_curve: snap.env2_decay_curve,
             env2_release_curve: snap.env2_release_curve,
+            mod_slot_enabled: snap.mod_slot_enabled,
+            mod_slot_source: snap.mod_slot_source.map(|v| v as usize),
+            mod_slot_dest: snap.mod_slot_dest.map(|v| v as usize),
+            mod_slot_amount: snap.mod_slot_amount,
+            mod_slot_via: snap.mod_slot_via.map(|v| v as usize),
             pitch_offset_semis: snap.pitch_offset_semis,
             master_volume: snap.master_volume,
             bpm: snap.bpm,
@@ -222,6 +252,13 @@ impl eframe::App for ToneSmithyApp {
                 self.lfo_panel(&mut cols[1], 2, &snapshot);
                 self.env2_panel(&mut cols[2], &snapshot);
             });
+
+            ui.add_space(8.0);
+            ui.separator();
+            ui.add_space(6.0);
+
+            // Mod matrix
+            self.mod_matrix_panel(ui);
 
             ui.add_space(8.0);
             ui.separator();
@@ -852,6 +889,101 @@ impl ToneSmithyApp {
 
         ui.add_space(4.0);
         ui.label(format!("Out: {:.3}", snapshot.env2_out));
+    }
+
+    fn mod_matrix_panel(&mut self, ui: &mut egui::Ui) {
+        ui.heading("Mod Matrix");
+        ui.add_space(4.0);
+
+        // Column headers
+        egui::Grid::new("mod_matrix_header").min_col_width(70.0).show(ui, |ui| {
+            ui.label("");
+            ui.label("Source");
+            ui.label("Dest");
+            ui.label("Amount");
+            ui.label("Via");
+            ui.end_row();
+        });
+
+        for i in 0..8usize {
+            egui::Grid::new(format!("mod_row_{i}"))
+                .min_col_width(70.0)
+                .show(ui, |ui| {
+                    // Enable toggle
+                    let was_enabled = self.mod_slot_enabled[i];
+                    let mut enabled = was_enabled;
+                    if ui.checkbox(&mut enabled, format!("Slot {}", i + 1)).changed() {
+                        self.mod_slot_enabled[i] = enabled;
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::ModSlotEnabled(i as u8),
+                            value: if enabled { 1.0 } else { 0.0 },
+                        });
+                    }
+
+                    // Source combo
+                    let src_label = MOD_SOURCE_LABELS.get(self.mod_slot_source[i]).copied().unwrap_or("?");
+                    egui::ComboBox::from_id_salt(format!("mod_src_{i}"))
+                        .selected_text(src_label)
+                        .show_ui(ui, |ui| {
+                            for (idx, &label) in MOD_SOURCE_LABELS.iter().enumerate() {
+                                if ui.selectable_value(&mut self.mod_slot_source[i], idx, label).changed() {
+                                    self.events.send(EngineEvent::ParameterChange {
+                                        id: ParamId::ModSlotSource(i as u8),
+                                        value: idx as f32,
+                                    });
+                                }
+                            }
+                        });
+
+                    // Dest combo
+                    let dest_label = MOD_DEST_LABELS.get(self.mod_slot_dest[i]).copied().unwrap_or("?");
+                    egui::ComboBox::from_id_salt(format!("mod_dst_{i}"))
+                        .selected_text(dest_label)
+                        .show_ui(ui, |ui| {
+                            for (idx, &label) in MOD_DEST_LABELS.iter().enumerate() {
+                                if ui.selectable_value(&mut self.mod_slot_dest[i], idx, label).changed() {
+                                    self.events.send(EngineEvent::ParameterChange {
+                                        id: ParamId::ModSlotDest(i as u8),
+                                        value: idx as f32,
+                                    });
+                                }
+                            }
+                        });
+
+                    // Amount knob — range depends on currently selected dest
+                    let range = MOD_AMOUNT_RANGES.get(self.mod_slot_dest[i]).copied().unwrap_or(1.0);
+                    if ui
+                        .add(
+                            Knob::new(&mut self.mod_slot_amount[i], -range..=range, "Amt")
+                                .default_value(0.0)
+                                .format(move |v| format!("{v:+.0}")),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::ModSlotAmount(i as u8),
+                            value: self.mod_slot_amount[i],
+                        });
+                    }
+
+                    // Via combo
+                    let via_label = MOD_SOURCE_LABELS.get(self.mod_slot_via[i]).copied().unwrap_or("?");
+                    egui::ComboBox::from_id_salt(format!("mod_via_{i}"))
+                        .selected_text(via_label)
+                        .show_ui(ui, |ui| {
+                            for (idx, &label) in MOD_SOURCE_LABELS.iter().enumerate() {
+                                if ui.selectable_value(&mut self.mod_slot_via[i], idx, label).changed() {
+                                    self.events.send(EngineEvent::ParameterChange {
+                                        id: ParamId::ModSlotVia(i as u8),
+                                        value: idx as f32,
+                                    });
+                                }
+                            }
+                        });
+
+                    ui.end_row();
+                });
+        }
     }
 
     fn footer_bar(&self, ui: &mut egui::Ui, snapshot: &synth_engine::ParamSnapshot) {
