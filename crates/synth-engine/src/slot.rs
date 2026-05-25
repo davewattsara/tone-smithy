@@ -5,17 +5,17 @@
 //! subtractive (3 unison main oscillators + 1 sub) or FM (4 operators).
 //! Slot outputs are mixed before the per-voice filter.
 //!
-//! M7.0 introduces the two-slot architecture in subtractive-only form:
-//! a [`Slot`] owns a [`SubtractiveBank`] and a [`SlotMode`] flag. The
-//! FM bank arrives in M7.1/M7.2. The mode dispatch is a single match
-//! per sample — no trait objects, no heap, all stack-allocated.
+//! M7.0 introduced the two-slot architecture in subtractive-only form;
+//! M7.2 wires the FM bank into [`Slot`] so a slot in [`SlotMode::Fm`]
+//! actually emits the FM bank's output. The mode dispatch is a single
+//! match per sample — no trait objects, no heap, all stack-allocated.
 //!
-//! For M7.0, slot 0 carries the existing subtractive behaviour at
-//! mix level 1.0 and slot 1 is present at mix level 0.0 (silent).
-//! Per-slot parameters (mode, level, pan, slot-1 oscillator settings)
-//! land on the parameter bus in M7.3.
+//! Slot 0 defaults to subtractive mix level 1.0; slot 1 starts silent
+//! (mix level 0.0). Per-slot parameters (mode, level, pan, slot-1
+//! oscillator settings) reach the parameter bus in M7.3.
 
 use crate::MAIN_OSCILLATOR_COUNT;
+use crate::fm::FmBank;
 use crate::oscillator::{Oscillator, UnisonOscillator, Waveform};
 use crate::panning::equal_power_pan;
 use crate::params::SampleParams;
@@ -115,8 +115,8 @@ impl SubtractiveBank {
     }
 }
 
-/// One voice slot. Owns the subtractive bank and (M7.1+) the FM bank;
-/// the `mode` flag selects which is active.
+/// One voice slot. Owns both the subtractive and the FM bank; the
+/// `mode` flag selects which is active.
 pub struct Slot {
     /// Selects which synthesis bank produces audio.
     pub mode: SlotMode,
@@ -124,29 +124,65 @@ pub struct Slot {
     /// uses static values (slot 0 = 1.0, slot 1 = 0.0); the parameter
     /// bus surface arrives in M7.3.
     pub level: f32,
-    /// Subtractive bank. Always allocated — the FM mode does not free
-    /// or replace it, so a mode switch is just a flag flip.
+    /// Per-slot pan applied to the bank's stereo output, -1..=1. A
+    /// center-unity law (`pan=0 → L=R=1`) keeps subtractive volume
+    /// identical to pre-M7. Surfaced on the bus in M7.3.
+    pub pan: f32,
+    /// Subtractive bank. Always allocated — a mode switch is a flag
+    /// flip, not a heap operation.
     pub subtractive: SubtractiveBank,
+    /// FM bank. Always allocated; advances only when `mode` is `Fm`.
+    pub fm: FmBank,
+    /// Cached base note frequency in Hz, used by the FM bank during the
+    /// release phase when the voice no longer holds a note but the
+    /// operator envelopes are still draining. The subtractive bank
+    /// caches frequencies inside each unison bank, so this field is
+    /// only consulted by the FM path.
+    last_base_note_hz: f32,
 }
 
 impl Slot {
     /// Creates a slot at the given sample rate in subtractive mode at
-    /// the given default mix level.
+    /// the given default mix level, centred pan.
     #[must_use]
     pub fn new(sample_rate_hz: f32, default_level: f32) -> Self {
         Self {
             mode: SlotMode::Subtractive,
             level: default_level,
+            pan: 0.0,
             subtractive: SubtractiveBank::new(sample_rate_hz),
+            fm: FmBank::new(sample_rate_hz),
+            // A4 as a benign default; only used by the FM bank in
+            // release mode if no note has ever been played.
+            last_base_note_hz: 440.0,
         }
     }
 
-    /// Forwards a phase reset to whichever bank is currently active.
-    /// Called by the voice on the idle-to-attack transition.
-    pub fn reset_phases(&mut self) {
+    /// Called by the voice on every note-on. `is_first_note` is `true`
+    /// when the voice's amp envelope was idle (the slot resets its
+    /// subtractive phases in that case); the FM bank retriggers its
+    /// operator envelopes on every note-on regardless, per DX7
+    /// convention.
+    pub fn note_on(&mut self, is_first_note: bool) {
         match self.mode {
-            SlotMode::Subtractive => self.subtractive.reset_phases(),
-            SlotMode::Fm => {} // M7.1
+            SlotMode::Subtractive => {
+                if is_first_note {
+                    self.subtractive.reset_phases();
+                }
+            }
+            SlotMode::Fm => {
+                self.fm.note_on();
+            }
+        }
+    }
+
+    /// Called by the voice on every note-off. Releases slot-internal
+    /// envelopes (FM operators); the voice's amp envelope and Env2 are
+    /// the primary release gates.
+    pub fn note_off(&mut self) {
+        match self.mode {
+            SlotMode::Subtractive => {}
+            SlotMode::Fm => self.fm.note_off(),
         }
     }
 
@@ -156,11 +192,9 @@ impl Slot {
         self.subtractive.set_main_waveform(waveform);
     }
 
-    /// Produces one stereo sample, pre-scaled by `level`. Returns
-    /// `(0.0, 0.0)` immediately when `level` is exactly zero so a
-    /// silent slot costs no per-oscillator work. The phase accumulators
-    /// of a level-0 slot do not advance; if the level later rises from
-    /// zero the next note-on will re-randomise them.
+    /// Produces one stereo sample, pre-scaled by `level` and panned by
+    /// `pan`. Returns `(0.0, 0.0)` immediately when `level` is exactly
+    /// zero so a silent slot costs no per-bank work.
     pub fn next_sample(&mut self, params: &SampleParams, held_note_midi: Option<u8>) -> (f32, f32) {
         if self.level == 0.0 {
             return (0.0, 0.0);
@@ -171,10 +205,29 @@ impl Slot {
                     .update_voice_counts_and_frequencies(params, held_note_midi);
                 self.subtractive.next_sample(params)
             }
-            SlotMode::Fm => (0.0, 0.0), // M7.1
+            SlotMode::Fm => {
+                if let Some(note) = held_note_midi {
+                    let semis = f32::from(note) + params.pitch_offset_semis + params.pitch_bend_semis;
+                    self.last_base_note_hz = 440.0 * 2.0_f32.powf((semis - 69.0) / 12.0);
+                }
+                let mono = self.fm.next_sample(self.last_base_note_hz);
+                (mono, mono)
+            }
         };
-        (l * self.level, r * self.level)
+        let (lp, rp) = center_unity_pan(self.pan);
+        (l * lp * self.level, r * rp * self.level)
     }
+}
+
+/// Center-unity linear pan: `pan == 0` leaves both channels at unit
+/// gain. `pan == -1` silences the right channel; `pan == +1` silences
+/// the left. Chosen over equal-power so the pre-M7 subtractive volume
+/// at the default `pan == 0` is preserved sample-for-sample.
+fn center_unity_pan(pan: f32) -> (f32, f32) {
+    let p = pan.clamp(-1.0, 1.0);
+    let l = if p > 0.0 { 1.0 - p } else { 1.0 };
+    let r = if p < 0.0 { 1.0 + p } else { 1.0 };
+    (l, r)
 }
 
 /// Rounds an `f32` voice-count parameter to the nearest valid `u8` in
@@ -221,17 +274,9 @@ mod tests {
     }
 
     #[test]
-    fn slot_in_fm_mode_is_silent_until_m7_2() {
-        let mut slot = Slot::new(48_000.0, 1.0);
-        slot.mode = SlotMode::Fm;
-        let params = default_params();
-        assert_eq!(slot.next_sample(&params, Some(60)), (0.0, 0.0));
-    }
-
-    #[test]
     fn subtractive_slot_with_unit_level_produces_audio() {
         let mut slot = Slot::new(48_000.0, 1.0);
-        slot.reset_phases();
+        slot.note_on(true);
         let params = default_params();
         let mut peak = 0.0_f32;
         for _ in 0..2048 {
@@ -241,6 +286,73 @@ mod tests {
         assert!(
             peak > 0.01,
             "subtractive slot should produce audible output, peak={peak}"
+        );
+    }
+
+    #[test]
+    fn fm_slot_produces_audio_after_note_on() {
+        let mut slot = Slot::new(48_000.0, 1.0);
+        slot.mode = SlotMode::Fm;
+        // Snap op envelopes so the slot is audible within the test window.
+        for i in 0..crate::fm::OPERATOR_COUNT {
+            let op = slot.fm.operator_mut(i).unwrap();
+            op.set_attack_secs(0.001);
+            op.set_decay_secs(0.001);
+            op.set_sustain_level(1.0);
+        }
+        slot.note_on(true);
+        let params = default_params();
+        let mut peak = 0.0_f32;
+        for _ in 0..2048 {
+            let (l, r) = slot.next_sample(&params, Some(60));
+            assert!(l.is_finite() && r.is_finite());
+            peak = peak.max(l.abs()).max(r.abs());
+        }
+        assert!(peak > 0.001, "FM slot should produce audio after note_on, peak={peak}");
+    }
+
+    #[test]
+    fn slot_pan_at_minus_one_silences_right_channel() {
+        let mut slot = Slot::new(48_000.0, 1.0);
+        slot.pan = -1.0;
+        slot.note_on(true);
+        let params = default_params();
+        let mut peak_r = 0.0_f32;
+        for _ in 0..1024 {
+            let (_, r) = slot.next_sample(&params, Some(60));
+            peak_r = peak_r.max(r.abs());
+        }
+        assert_eq!(peak_r, 0.0, "hard-left pan should silence right channel");
+    }
+
+    #[test]
+    fn fm_slot_keeps_frequency_through_release() {
+        // After note_off, held_note becomes None — the slot must keep
+        // generating audio at the same pitch as the operator envelopes
+        // drain, rather than stalling on a DC component.
+        let mut slot = Slot::new(48_000.0, 1.0);
+        slot.mode = SlotMode::Fm;
+        for i in 0..crate::fm::OPERATOR_COUNT {
+            let op = slot.fm.operator_mut(i).unwrap();
+            op.set_attack_secs(0.001);
+            op.set_decay_secs(0.001);
+            op.set_sustain_level(1.0);
+            op.set_release_secs(0.500);
+        }
+        slot.note_on(true);
+        let params = default_params();
+        for _ in 0..256 {
+            slot.next_sample(&params, Some(60));
+        }
+        slot.note_off();
+        let mut peak = 0.0_f32;
+        for _ in 0..256 {
+            let (l, _) = slot.next_sample(&params, None);
+            peak = peak.max(l.abs());
+        }
+        assert!(
+            peak > 0.001,
+            "FM slot should keep producing audio during release, peak={peak}"
         );
     }
 }

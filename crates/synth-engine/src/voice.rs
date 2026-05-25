@@ -125,10 +125,11 @@ impl Voice {
     pub fn note_on(&mut self, note_midi: u8, velocity: u8) {
         self.held_note_midi = Some(note_midi);
         self.velocity_scale = f32::from(velocity) / 127.0;
-        if self.amp_envelope.is_idle() {
-            for slot in &mut self.slots {
-                slot.reset_phases();
-            }
+        let is_first_note = self.amp_envelope.is_idle();
+        for slot in &mut self.slots {
+            slot.note_on(is_first_note);
+        }
+        if is_first_note {
             self.filter_l.reset();
             self.filter_r.reset();
         }
@@ -144,6 +145,9 @@ impl Voice {
     /// note-off events.
     pub fn note_off(&mut self, note_midi: u8) {
         if self.held_note_midi == Some(note_midi) {
+            for slot in &mut self.slots {
+                slot.note_off();
+            }
             self.amp_envelope.note_off();
             self.mod_env.note_off();
             self.held_note_midi = None;
@@ -597,5 +601,46 @@ mod tests {
             let (l, r) = voice.next_sample(&params);
             assert!(l.is_finite() && r.is_finite(), "non-finite output");
         }
+    }
+
+    #[test]
+    fn fm_slot_routes_audio_through_voice_filter_and_amp() {
+        // Smoke test: configure slot 1 in FM mode at unit level, snap
+        // the operator envelopes and the amp envelope so we are audible
+        // within a small window, play a note, confirm the voice produces
+        // bounded non-zero stereo audio.
+        use crate::slot::SlotMode;
+
+        let mut voice = Voice::new(48_000.0);
+        // Silence slot 0 so we measure only the FM contribution.
+        voice.slots[0].level = 0.0;
+        // Enable slot 1 in FM mode.
+        voice.slots[1].mode = SlotMode::Fm;
+        voice.slots[1].level = 1.0;
+        for i in 0..crate::fm::OPERATOR_COUNT {
+            let op = voice.slots[1].fm.operator_mut(i).unwrap();
+            op.set_attack_secs(0.001);
+            op.set_decay_secs(0.001);
+            op.set_sustain_level(1.0);
+        }
+        // Snap amp envelope so we don't wait for its attack.
+        voice.set_attack_secs(0.001);
+        voice.set_decay_secs(0.001);
+        voice.set_sustain_level(1.0);
+        voice.note_on(60, 100);
+
+        let params = default_sample_params();
+        // Settle envelopes.
+        for _ in 0..256 {
+            voice.next_sample(&params);
+        }
+        let mut peak = 0.0_f32;
+        for _ in 0..4096 {
+            let (l, r) = voice.next_sample(&params);
+            assert!(l.is_finite() && r.is_finite(), "non-finite FM output");
+            peak = peak.max(l.abs()).max(r.abs());
+        }
+        assert!(peak > 0.001, "FM-only voice should produce audio, peak={peak}");
+        assert!(peak < 2.0, "FM voice output should stay bounded, peak={peak}");
     }
 }
