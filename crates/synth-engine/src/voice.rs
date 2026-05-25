@@ -31,6 +31,7 @@ use crate::envelope::Adsr;
 use crate::filter::{FilterMode, StateVariableFilter};
 use crate::lfo::{Lfo, LfoShape};
 use crate::mod_env::ModEnv;
+use crate::mod_matrix::DestOffsets;
 use crate::oscillator::{Oscillator, UnisonOscillator, Waveform};
 use crate::panning::equal_power_pan;
 use crate::params::SampleParams;
@@ -71,12 +72,16 @@ pub struct Voice {
     velocity_scale: f32,
 
     /// Most recent output of LFO1, set by `advance_modulators`. Consumed
-    /// by the mod matrix (M6) and exposed to the UI via the snapshot.
+    /// by the mod matrix and exposed to the UI via the snapshot.
     lfo1_out: f32,
     /// Most recent output of LFO2.
     lfo2_out: f32,
     /// Most recent output of Env2 (the modulation envelope).
     env2_out: f32,
+
+    /// Modulation offsets computed by the mod matrix once per block.
+    /// Applied inside [`Voice::next_sample`]; cleared to zero at init.
+    pub mod_offsets: DestOffsets,
 }
 
 impl Voice {
@@ -101,6 +106,7 @@ impl Voice {
             lfo1_out: 0.0,
             lfo2_out: 0.0,
             env2_out: 0.0,
+            mod_offsets: DestOffsets::default(),
         }
     }
 
@@ -314,12 +320,27 @@ impl Voice {
         self.amp_envelope.current_level()
     }
 
+    /// Returns the amp-envelope level sampled at the start of the current
+    /// block, before `next_sample` advances it. Used by the mod matrix to
+    /// build `ModSources::amp_env`.
+    #[must_use]
+    pub fn amp_env_level(&self) -> f32 {
+        self.amp_envelope.current_level()
+    }
+
+    /// Returns the velocity scale captured at the last `note_on`, 0..=1.
+    #[must_use]
+    pub fn velocity_scale(&self) -> f32 {
+        self.velocity_scale
+    }
+
     /// Produces one stereo frame as `(left, right)`. Reads every
     /// per-sample smoothed parameter from `params`; the voice itself
     /// is stateless with respect to parameter sources.
     pub fn next_sample(&mut self, params: &SampleParams) -> (f32, f32) {
         self.update_voice_counts_and_frequencies(params);
-        let env = self.amp_envelope.next_sample() * self.velocity_scale;
+        let env =
+            (self.amp_envelope.next_sample() * self.velocity_scale * (1.0 + self.mod_offsets.volume)).clamp(0.0, 1.0);
 
         let mut sum_l = 0.0_f32;
         let mut sum_r = 0.0_f32;

@@ -25,6 +25,7 @@
 use crate::MAIN_OSCILLATOR_COUNT;
 use crate::filter::FilterMode;
 use crate::lfo::SyncDivision;
+use crate::mod_matrix::{ModDest, ModSource};
 use crate::oscillator::Waveform;
 use crate::smoothing::SmoothedParam;
 
@@ -231,6 +232,21 @@ pub enum ParamId {
     /// Global tempo in BPM. Used for BPM-sync LFO rate computation.
     /// Range 20..=300. Stepped.
     Bpm,
+
+    // ── Mod matrix (8 slots, indexed 0..=7) ────────────────────────────
+    /// Enable flag for slot `i`. 0.0 = off, 1.0 = on.
+    ModSlotEnabled(u8),
+    /// Source index for slot `i`. Cast to [`ModSource`] via
+    /// [`ModSource::from_index`].
+    ModSlotSource(u8),
+    /// Destination index for slot `i`. Cast to [`ModDest`] via
+    /// [`ModDest::from_index`].
+    ModSlotDest(u8),
+    /// Signed amount for slot `i`, in destination-natural units.
+    ModSlotAmount(u8),
+    /// Via-source index for slot `i`. `ModSource::Off` (index 0) means
+    /// no via scaling.
+    ModSlotVia(u8),
 }
 
 /// An immutable snapshot of the engine's outward-facing parameter
@@ -369,6 +385,18 @@ pub struct ParamSnapshot {
     pub lfo2_out: f32,
     /// Most recent Env2 output from the first active voice, or 0.0.
     pub env2_out: f32,
+
+    // ── Mod matrix mirrors ─────────────────────────────────────────────
+    /// Enable flag for each of the 8 mod slots.
+    pub mod_slot_enabled: [bool; 8],
+    /// Source index for each slot (matches `ModSource::to_index`).
+    pub mod_slot_source: [u8; 8],
+    /// Destination index for each slot (matches `ModDest::to_index`).
+    pub mod_slot_dest: [u8; 8],
+    /// Amount for each slot, in destination-natural units.
+    pub mod_slot_amount: [f32; 8],
+    /// Via-source index for each slot (0 = Off = no scaling).
+    pub mod_slot_via: [u8; 8],
 }
 
 impl Default for ParamSnapshot {
@@ -418,6 +446,11 @@ impl Default for ParamSnapshot {
             lfo1_out: 0.0,
             lfo2_out: 0.0,
             env2_out: 0.0,
+            mod_slot_enabled: [false; 8],
+            mod_slot_source: [0; 8],
+            mod_slot_dest: [0; 8],
+            mod_slot_amount: [0.0; 8],
+            mod_slot_via: [0; 8],
         }
     }
 }
@@ -510,6 +543,13 @@ pub struct ParameterTree {
     lfo1_out: f32,
     lfo2_out: f32,
     env2_out: f32,
+
+    // ── Mod matrix mirrors ─────────────────────────────────────────────
+    mod_slot_enabled: [bool; 8],
+    mod_slot_source: [u8; 8],
+    mod_slot_dest: [u8; 8],
+    mod_slot_amount: [f32; 8],
+    mod_slot_via: [u8; 8],
 }
 
 impl ParameterTree {
@@ -570,6 +610,11 @@ impl ParameterTree {
             lfo1_out: 0.0,
             lfo2_out: 0.0,
             env2_out: 0.0,
+            mod_slot_enabled: [false; 8],
+            mod_slot_source: [0; 8],
+            mod_slot_dest: [0; 8],
+            mod_slot_amount: [0.0; 8],
+            mod_slot_via: [0; 8],
         }
     }
 
@@ -632,6 +677,32 @@ impl ParameterTree {
             ParamId::Env2DecayCurve => self.env2_decay_curve = value,
             ParamId::Env2ReleaseCurve => self.env2_release_curve = value,
             ParamId::Bpm => self.bpm = value,
+            ParamId::ModSlotEnabled(i) => {
+                if (i as usize) < 8 {
+                    self.mod_slot_enabled[i as usize] = value >= 0.5;
+                }
+            }
+            ParamId::ModSlotSource(i) => {
+                if (i as usize) < 8 {
+                    self.mod_slot_source[i as usize] =
+                        ModSource::from_index(value as u8).unwrap_or_default().to_index();
+                }
+            }
+            ParamId::ModSlotDest(i) => {
+                if (i as usize) < 8 {
+                    self.mod_slot_dest[i as usize] = ModDest::from_index(value as u8).unwrap_or_default().to_index();
+                }
+            }
+            ParamId::ModSlotAmount(i) => {
+                if (i as usize) < 8 {
+                    self.mod_slot_amount[i as usize] = value;
+                }
+            }
+            ParamId::ModSlotVia(i) => {
+                if (i as usize) < 8 {
+                    self.mod_slot_via[i as usize] = ModSource::from_index(value as u8).unwrap_or_default().to_index();
+                }
+            }
         }
     }
 
@@ -916,6 +987,11 @@ impl ParameterTree {
             lfo1_out: self.lfo1_out,
             lfo2_out: self.lfo2_out,
             env2_out: self.env2_out,
+            mod_slot_enabled: self.mod_slot_enabled,
+            mod_slot_source: self.mod_slot_source,
+            mod_slot_dest: self.mod_slot_dest,
+            mod_slot_amount: self.mod_slot_amount,
+            mod_slot_via: self.mod_slot_via,
         }
     }
 }

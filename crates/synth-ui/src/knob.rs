@@ -11,8 +11,11 @@ use eframe::egui;
 /// Diameter of the knob circle in logical pixels.
 const KNOB_DIAMETER: f32 = 40.0;
 
-/// Height reserved below the knob circle for the label text.
-const LABEL_HEIGHT: f32 = 18.0;
+/// Height reserved for the parameter name label below the circle.
+const LABEL_HEIGHT: f32 = 14.0;
+
+/// Height reserved for the formatted value line below the label.
+const VALUE_HEIGHT: f32 = 14.0;
 
 /// Total vertical drag distance (px) that covers the full parameter range.
 const DRAG_PIXELS_FULL_RANGE: f32 = 200.0;
@@ -67,7 +70,7 @@ impl<'a> Knob<'a> {
 
 impl egui::Widget for Knob<'_> {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
-        let desired_size = egui::vec2(KNOB_DIAMETER, KNOB_DIAMETER + LABEL_HEIGHT);
+        let desired_size = egui::vec2(KNOB_DIAMETER, KNOB_DIAMETER + LABEL_HEIGHT + VALUE_HEIGHT);
         let (rect, mut response) = ui.allocate_exact_size(desired_size, egui::Sense::click_and_drag());
 
         // Right-click: reset to default.
@@ -86,30 +89,27 @@ impl egui::Widget for Knob<'_> {
             response.mark_changed();
         }
 
-        // Tooltip shown while hovered or dragging.
-        if response.hovered() || response.dragged() {
-            let text = match &self.format {
-                Some(f) => f(*self.value),
-                None => format!("{:.3}", *self.value),
-            };
-            response = response.on_hover_text(text);
-        }
+        let value_text = match &self.format {
+            Some(f) => f(*self.value),
+            None => format!("{:.3}", *self.value),
+        };
 
         if ui.is_rect_visible(rect) {
-            paint_knob(ui, rect, self.value, &self.range, self.label, &response);
+            paint_knob(ui, rect, self.value, &self.range, self.label, &value_text, &response);
         }
 
         response
     }
 }
 
-/// Paints the knob circle, value indicator line, and label.
+/// Paints the knob circle, value indicator line, label, and current value text.
 fn paint_knob(
     ui: &egui::Ui,
     rect: egui::Rect,
     value: &f32,
     range: &RangeInclusive<f32>,
     label: &str,
+    value_text: &str,
     response: &egui::Response,
 ) {
     let painter = ui.painter();
@@ -156,7 +156,7 @@ fn paint_knob(
     let indicator = center + egui::vec2(angle.cos(), angle.sin()) * (radius - 5.0);
     painter.line_segment([center, indicator], egui::Stroke::new(2.0, egui::Color32::WHITE));
 
-    // Label below the circle
+    // Parameter name below the circle.
     let label_center = egui::pos2(rect.center().x, rect.top() + KNOB_DIAMETER + LABEL_HEIGHT * 0.5);
     painter.text(
         label_center,
@@ -164,6 +164,18 @@ fn paint_knob(
         label,
         egui::FontId::proportional(11.0),
         visuals.text_color(),
+    );
+    // Formatted value below the label.
+    let value_center = egui::pos2(
+        rect.center().x,
+        rect.top() + KNOB_DIAMETER + LABEL_HEIGHT + VALUE_HEIGHT * 0.5,
+    );
+    painter.text(
+        value_center,
+        egui::Align2::CENTER_CENTER,
+        value_text,
+        egui::FontId::proportional(10.0),
+        visuals.weak_text_color(),
     );
 }
 

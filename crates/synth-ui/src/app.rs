@@ -8,6 +8,8 @@
 //! BPM knob in the master volume row. Live readouts show current modulator
 //! output from the first active voice.
 //!
+//! M6: Mod matrix table with 8 rows (source / dest / amount / via).
+//!
 //! [`Knob`]: crate::knob::Knob
 
 use std::sync::Arc;
@@ -58,6 +60,22 @@ const ENV2_CURVE_RANGE: f32 = 1.0;
 const BPM_MIN: f32 = 20.0;
 const BPM_MAX: f32 = 300.0;
 
+// ── Mod matrix constants ──────────────────────────────────────────────────────
+
+const MOD_SOURCE_LABELS: &[&str] = &[
+    "Off", "LFO1", "LFO2", "Env2", "AmpEnv", "Vel", "Key", "ModWhl", "AfterT", "Bend",
+];
+const MOD_DEST_LABELS: &[&str] = &["Cutoff", "Reso", "Pitch", "Vol", "Osc1Det", "Osc1Pan"];
+/// Amount knob range per destination index (max absolute value).
+const MOD_AMOUNT_RANGES: &[f32] = &[
+    10_000.0, // FilterCutoffHz
+    1.0,      // FilterResonance
+    24.0,     // PitchSemis
+    1.0,      // Volume
+    2400.0,   // Osc1DetuneCents
+    1.0,      // Osc1Pan
+];
+
 /// The Tone Smithy application UI.
 pub struct ToneSmithyApp {
     audio_status: String,
@@ -107,6 +125,13 @@ pub struct ToneSmithyApp {
     env2_decay_curve: f32,
     env2_release_curve: f32,
 
+    // ── Mod matrix mirrors ───────────────────────────────────────────────────
+    mod_slot_enabled: [bool; 8],
+    mod_slot_source: [usize; 8],
+    mod_slot_dest: [usize; 8],
+    mod_slot_amount: [f32; 8],
+    mod_slot_via: [usize; 8],
+
     // ── Global ───────────────────────────────────────────────────────────────
     pitch_offset_semis: f32,
     master_volume: f32,
@@ -119,6 +144,8 @@ pub struct ToneSmithyApp {
     /// Pitch-bend wheel position, -1.0..=1.0. Snaps back to 0.0 when
     /// the user releases the slider.
     pitch_bend: f32,
+    /// Mod wheel position, 0.0..=1.0. Stays where left (no spring-back).
+    mod_wheel: f32,
     /// True while the on-screen sustain pedal button is toggled on.
     sustain_held: bool,
 
@@ -171,12 +198,18 @@ impl ToneSmithyApp {
             env2_attack_curve: snap.env2_attack_curve,
             env2_decay_curve: snap.env2_decay_curve,
             env2_release_curve: snap.env2_release_curve,
+            mod_slot_enabled: snap.mod_slot_enabled,
+            mod_slot_source: snap.mod_slot_source.map(|v| v as usize),
+            mod_slot_dest: snap.mod_slot_dest.map(|v| v as usize),
+            mod_slot_amount: snap.mod_slot_amount,
+            mod_slot_via: snap.mod_slot_via.map(|v| v as usize),
             pitch_offset_semis: snap.pitch_offset_semis,
             master_volume: snap.master_volume,
             bpm: snap.bpm,
             keyboard: VirtualKeyboard::default(),
             computer_keyboard: ComputerKeyboard::default(),
             pitch_bend: 0.0,
+            mod_wheel: snap.mod_wheel,
             sustain_held: false,
             cpu_load,
         }
@@ -194,153 +227,178 @@ impl eframe::App for ToneSmithyApp {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            // Title row
-            ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                ui.heading("Tone Smithy");
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                // Title row
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    ui.heading("Tone Smithy");
+                    ui.separator();
+                    ui.label(&self.audio_status);
+                });
+                ui.add_space(4.0);
                 ui.separator();
-                ui.label(&self.audio_status);
-            });
-            ui.add_space(4.0);
-            ui.separator();
-            ui.add_space(8.0);
+                ui.add_space(8.0);
 
-            // Three synthesis panels side by side
-            ui.columns(3, |cols| {
-                self.osc1_panel(&mut cols[0]);
-                self.filter_panel(&mut cols[1]);
-                self.amp_env_panel(&mut cols[2]);
-            });
-
-            ui.add_space(8.0);
-            ui.separator();
-            ui.add_space(8.0);
-
-            // LFO and Env2 panels
-            ui.columns(3, |cols| {
-                self.lfo_panel(&mut cols[0], 1, &snapshot);
-                self.lfo_panel(&mut cols[1], 2, &snapshot);
-                self.env2_panel(&mut cols[2], &snapshot);
-            });
-
-            ui.add_space(8.0);
-            ui.separator();
-            ui.add_space(6.0);
-
-            // Master volume + pitch offset + BPM row
-            ui.horizontal(|ui| {
-                ui.label("Master");
-                if ui
-                    .add(
-                        Knob::new(&mut self.master_volume, 0.0..=1.0, "Volume")
-                            .default_value(0.8)
-                            .format(|v| format!("{:.0}%", v * 100.0)),
-                    )
-                    .changed()
-                {
-                    self.events.send(EngineEvent::ParameterChange {
-                        id: ParamId::MasterVolume,
-                        value: self.master_volume,
-                    });
-                }
-
-                ui.add_space(16.0);
-                ui.label("Pitch");
-                if ui
-                    .add(
-                        Knob::new(
-                            &mut self.pitch_offset_semis,
-                            -PITCH_OFFSET_RANGE..=PITCH_OFFSET_RANGE,
-                            "Offset",
-                        )
-                        .default_value(0.0)
-                        .format(|v| format!("{:+.2} st", v)),
-                    )
-                    .changed()
-                {
-                    self.events.send(EngineEvent::ParameterChange {
-                        id: ParamId::PitchOffsetSemis,
-                        value: self.pitch_offset_semis,
-                    });
-                }
-
-                ui.add_space(16.0);
-                ui.label("BPM");
-                if ui
-                    .add(
-                        Knob::new(&mut self.bpm, BPM_MIN..=BPM_MAX, "BPM")
-                            .default_value(120.0)
-                            .format(|v| format!("{:.1}", v)),
-                    )
-                    .changed()
-                {
-                    self.events.send(EngineEvent::ParameterChange {
-                        id: ParamId::Bpm,
-                        value: self.bpm,
-                    });
-                }
-            });
-
-            ui.add_space(8.0);
-            ui.separator();
-            ui.add_space(6.0);
-
-            // Computer keyboard hint
-            ui.label(format!(
-                "Keyboard: A S D F G H J (white) / W E T Y U (black). Z/X shift octave. Octave base: MIDI {} ({}).",
-                self.computer_keyboard.octave_base(),
-                midi_note_label(self.computer_keyboard.octave_base()),
-            ));
-            ui.add_space(6.0);
-
-            // Keep the virtual keyboard's visible range in sync with the
-            // computer keyboard's current octave so highlighted keys are
-            // always visible. If a mouse-held note was active when the
-            // range shifted, send NoteOff so the engine releases it.
-            if let Some(stuck) = self.keyboard.set_start_note(self.computer_keyboard.octave_base()) {
-                self.events.send(EngineEvent::NoteOff { note_midi: stuck });
-            }
-            let kb_notes = self.computer_keyboard.held_notes();
-
-            ui.horizontal(|ui| {
-                // Pitch-bend strip: vertical slider that springs to 0 on release.
-                ui.vertical(|ui| {
-                    ui.label("PB");
-                    let pb_r = ui.add(
-                        egui::Slider::new(&mut self.pitch_bend, -1.0..=1.0)
-                            .vertical()
-                            .show_value(false),
-                    );
-                    if pb_r.changed() {
-                        self.events.send(EngineEvent::PitchBend {
-                            value_normalised: self.pitch_bend,
-                        });
-                    }
-                    // Spring back to centre the moment the mouse button is released,
-                    // whether the interaction was a drag or a click.
-                    if !pb_r.is_pointer_button_down_on() && self.pitch_bend != 0.0 {
-                        self.pitch_bend = 0.0;
-                        self.events.send(EngineEvent::PitchBend { value_normalised: 0.0 });
-                    }
+                // Three synthesis panels side by side
+                ui.columns(3, |cols| {
+                    self.osc1_panel(&mut cols[0]);
+                    self.filter_panel(&mut cols[1]);
+                    self.amp_env_panel(&mut cols[2]);
                 });
 
-                // Virtual keyboard.
-                self.keyboard.show(ui, &self.events, kb_notes);
+                ui.add_space(8.0);
+                ui.separator();
+                ui.add_space(8.0);
 
-                // Sustain pedal toggle.
-                ui.vertical(|ui| {
-                    ui.label("Sustain");
+                // LFO and Env2 panels
+                ui.columns(3, |cols| {
+                    self.lfo_panel(&mut cols[0], 1, &snapshot);
+                    self.lfo_panel(&mut cols[1], 2, &snapshot);
+                    self.env2_panel(&mut cols[2], &snapshot);
+                });
+
+                ui.add_space(8.0);
+                ui.separator();
+                ui.add_space(6.0);
+
+                // Mod matrix
+                self.mod_matrix_panel(ui);
+
+                ui.add_space(8.0);
+                ui.separator();
+                ui.add_space(6.0);
+
+                // Master volume + pitch offset + BPM row
+                ui.horizontal(|ui| {
+                    ui.label("Master");
                     if ui
-                        .selectable_label(self.sustain_held, if self.sustain_held { "ON " } else { "OFF" })
-                        .clicked()
+                        .add(
+                            Knob::new(&mut self.master_volume, 0.0..=1.0, "Volume")
+                                .default_value(0.8)
+                                .format(|v| format!("{:.0}%", v * 100.0)),
+                        )
+                        .changed()
                     {
-                        self.sustain_held = !self.sustain_held;
-                        self.events.send(EngineEvent::Sustain {
-                            held: self.sustain_held,
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::MasterVolume,
+                            value: self.master_volume,
+                        });
+                    }
+
+                    ui.add_space(16.0);
+                    ui.label("Pitch");
+                    if ui
+                        .add(
+                            Knob::new(
+                                &mut self.pitch_offset_semis,
+                                -PITCH_OFFSET_RANGE..=PITCH_OFFSET_RANGE,
+                                "Offset",
+                            )
+                            .default_value(0.0)
+                            .format(|v| format!("{:+.2} st", v)),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::PitchOffsetSemis,
+                            value: self.pitch_offset_semis,
+                        });
+                    }
+
+                    ui.add_space(16.0);
+                    ui.label("BPM");
+                    if ui
+                        .add(
+                            Knob::new(&mut self.bpm, BPM_MIN..=BPM_MAX, "BPM")
+                                .default_value(120.0)
+                                .format(|v| format!("{:.1}", v)),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::Bpm,
+                            value: self.bpm,
                         });
                     }
                 });
-            });
+
+                ui.add_space(8.0);
+                ui.separator();
+                ui.add_space(6.0);
+
+                // Computer keyboard hint
+                ui.label(format!(
+                    "Keyboard: A S D F G H J (white) / W E T Y U (black). Z/X shift octave. Octave base: MIDI {} ({}).",
+                    self.computer_keyboard.octave_base(),
+                    midi_note_label(self.computer_keyboard.octave_base()),
+                ));
+                ui.add_space(6.0);
+
+                // Keep the virtual keyboard's visible range in sync with the
+                // computer keyboard's current octave so highlighted keys are
+                // always visible. If a mouse-held note was active when the
+                // range shifted, send NoteOff so the engine releases it.
+                if let Some(stuck) = self.keyboard.set_start_note(self.computer_keyboard.octave_base()) {
+                    self.events.send(EngineEvent::NoteOff { note_midi: stuck });
+                }
+                let kb_notes = self.computer_keyboard.held_notes();
+
+                ui.horizontal(|ui| {
+                    // Pitch-bend strip: vertical slider that springs to 0 on release.
+                    ui.vertical(|ui| {
+                        ui.label("PB");
+                        let pb_r = ui.add(
+                            egui::Slider::new(&mut self.pitch_bend, -1.0..=1.0)
+                                .vertical()
+                                .show_value(false),
+                        );
+                        if pb_r.changed() {
+                            self.events.send(EngineEvent::PitchBend {
+                                value_normalised: self.pitch_bend,
+                            });
+                        }
+                        // Spring back to centre the moment the mouse button is released,
+                        // whether the interaction was a drag or a click.
+                        if !pb_r.is_pointer_button_down_on() && self.pitch_bend != 0.0 {
+                            self.pitch_bend = 0.0;
+                            self.events.send(EngineEvent::PitchBend { value_normalised: 0.0 });
+                        }
+                    });
+
+                    // Mod wheel strip: vertical slider, stays where left.
+                    ui.vertical(|ui| {
+                        ui.label("MW");
+                        let mw_r = ui.add(
+                            egui::Slider::new(&mut self.mod_wheel, 0.0..=1.0)
+                                .vertical()
+                                .show_value(false),
+                        );
+                        if mw_r.changed() {
+                            self.events.send(EngineEvent::ControlChange {
+                                cc: 1,
+                                value_normalised: self.mod_wheel,
+                            });
+                        }
+                    });
+
+                    // Virtual keyboard.
+                    self.keyboard.show(ui, &self.events, kb_notes);
+
+                    // Sustain pedal toggle.
+                    ui.vertical(|ui| {
+                        ui.label("Sustain");
+                        if ui
+                            .selectable_label(self.sustain_held, if self.sustain_held { "ON " } else { "OFF" })
+                            .clicked()
+                        {
+                            self.sustain_held = !self.sustain_held;
+                            self.events.send(EngineEvent::Sustain {
+                                held: self.sustain_held,
+                            });
+                        }
+                    });
+                });
+            }); // ScrollArea
         });
 
         ctx.request_repaint_after(std::time::Duration::from_millis(33));
@@ -852,6 +910,104 @@ impl ToneSmithyApp {
 
         ui.add_space(4.0);
         ui.label(format!("Out: {:.3}", snapshot.env2_out));
+    }
+
+    fn mod_matrix_panel(&mut self, ui: &mut egui::Ui) {
+        ui.heading("Mod Matrix");
+        ui.add_space(4.0);
+
+        egui::Grid::new("mod_matrix").min_col_width(70.0).show(ui, |ui| {
+            // Header row — same grid as data rows so columns align.
+            ui.label("");
+            ui.label("Source");
+            ui.label("Dest");
+            ui.label("Amount");
+            ui.label("Via");
+            ui.end_row();
+
+            for i in 0..8usize {
+                // Enable toggle
+                let mut enabled = self.mod_slot_enabled[i];
+                if ui.checkbox(&mut enabled, format!("Slot {}", i + 1)).changed() {
+                    self.mod_slot_enabled[i] = enabled;
+                    self.events.send(EngineEvent::ParameterChange {
+                        id: ParamId::ModSlotEnabled(i as u8),
+                        value: if enabled { 1.0 } else { 0.0 },
+                    });
+                }
+
+                // Source combo
+                let src_label = MOD_SOURCE_LABELS.get(self.mod_slot_source[i]).copied().unwrap_or("?");
+                egui::ComboBox::from_id_salt(format!("mod_src_{i}"))
+                    .selected_text(src_label)
+                    .show_ui(ui, |ui| {
+                        for (idx, &label) in MOD_SOURCE_LABELS.iter().enumerate() {
+                            if ui.selectable_value(&mut self.mod_slot_source[i], idx, label).changed() {
+                                self.events.send(EngineEvent::ParameterChange {
+                                    id: ParamId::ModSlotSource(i as u8),
+                                    value: idx as f32,
+                                });
+                            }
+                        }
+                    });
+
+                // Dest combo — changing dest resets amount to 0 so the new
+                // destination's range is clean (stale amounts from a different
+                // dest would be out-of-range and lock the knob at its maximum).
+                let dest_label = MOD_DEST_LABELS.get(self.mod_slot_dest[i]).copied().unwrap_or("?");
+                egui::ComboBox::from_id_salt(format!("mod_dst_{i}"))
+                    .selected_text(dest_label)
+                    .show_ui(ui, |ui| {
+                        for (idx, &label) in MOD_DEST_LABELS.iter().enumerate() {
+                            if ui.selectable_value(&mut self.mod_slot_dest[i], idx, label).changed() {
+                                self.events.send(EngineEvent::ParameterChange {
+                                    id: ParamId::ModSlotDest(i as u8),
+                                    value: idx as f32,
+                                });
+                                self.mod_slot_amount[i] = 0.0;
+                                self.events.send(EngineEvent::ParameterChange {
+                                    id: ParamId::ModSlotAmount(i as u8),
+                                    value: 0.0,
+                                });
+                            }
+                        }
+                    });
+
+                // Amount — DragValue so the number is always visible.
+                // Drag speed is range/100 so a 100 px drag covers the full range.
+                let range = MOD_AMOUNT_RANGES.get(self.mod_slot_dest[i]).copied().unwrap_or(1.0);
+                if ui
+                    .add(
+                        egui::DragValue::new(&mut self.mod_slot_amount[i])
+                            .range(-range..=range)
+                            .speed(range / 100.0),
+                    )
+                    .changed()
+                {
+                    self.events.send(EngineEvent::ParameterChange {
+                        id: ParamId::ModSlotAmount(i as u8),
+                        value: self.mod_slot_amount[i],
+                    });
+                }
+
+                // Via combo
+                let via_label = MOD_SOURCE_LABELS.get(self.mod_slot_via[i]).copied().unwrap_or("?");
+                egui::ComboBox::from_id_salt(format!("mod_via_{i}"))
+                    .selected_text(via_label)
+                    .show_ui(ui, |ui| {
+                        for (idx, &label) in MOD_SOURCE_LABELS.iter().enumerate() {
+                            if ui.selectable_value(&mut self.mod_slot_via[i], idx, label).changed() {
+                                self.events.send(EngineEvent::ParameterChange {
+                                    id: ParamId::ModSlotVia(i as u8),
+                                    value: idx as f32,
+                                });
+                            }
+                        }
+                    });
+
+                ui.end_row();
+            }
+        });
     }
 
     fn footer_bar(&self, ui: &mut egui::Ui, snapshot: &synth_engine::ParamSnapshot) {

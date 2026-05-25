@@ -11,6 +11,7 @@
 
 use crate::events::EngineEvent;
 use crate::lfo::LfoShape;
+use crate::mod_matrix::{ModDest, ModSource};
 use crate::params::{ParamId, ParamSnapshot, ParameterTree};
 use crate::voice_manager::VoiceManager;
 
@@ -150,22 +151,44 @@ impl Engine {
                     ParamId::Env2AttackCurve => self.voices.set_env2_attack_curve(value),
                     ParamId::Env2DecayCurve => self.voices.set_env2_decay_curve(value),
                     ParamId::Env2ReleaseCurve => self.voices.set_env2_release_curve(value),
+                    ParamId::ModSlotEnabled(i) => {
+                        self.voices.set_mod_slot_enabled(i as usize, value >= 0.5);
+                    }
+                    ParamId::ModSlotSource(i) => {
+                        let src = ModSource::from_index(value as u8).unwrap_or_default();
+                        self.voices.set_mod_slot_source(i as usize, src);
+                    }
+                    ParamId::ModSlotDest(i) => {
+                        if let Some(dest) = ModDest::from_index(value as u8) {
+                            self.voices.set_mod_slot_dest(i as usize, dest);
+                        }
+                    }
+                    ParamId::ModSlotAmount(i) => {
+                        self.voices.set_mod_slot_amount(i as usize, value);
+                    }
+                    ParamId::ModSlotVia(i) => {
+                        let via = ModSource::from_index(value as u8).unwrap_or_default();
+                        self.voices.set_mod_slot_via(i as usize, via);
+                    }
                     _ => {}
                 }
             }
             EngineEvent::PitchBend { value_normalised } => {
                 let semis = value_normalised * PITCH_BEND_RANGE_SEMIS;
                 self.params.set_continuous(ParamId::PitchBendSemis, semis);
+                self.voices.set_global_pitch_bend(value_normalised);
             }
             EngineEvent::Sustain { held } => {
                 self.voices.set_sustain(held);
             }
             EngineEvent::ChannelAftertouch { value_normalised } => {
                 self.params.set_continuous(ParamId::ChannelAftertouch, value_normalised);
+                self.voices.set_global_aftertouch(value_normalised);
             }
             EngineEvent::ControlChange { cc, value_normalised } => {
                 if cc == 1 {
                     self.params.set_continuous(ParamId::ModWheel, value_normalised);
+                    self.voices.set_global_mod_wheel(value_normalised);
                 }
                 // Store all CCs in the snapshot regardless of routing so
                 // M6's mod matrix can address any controller.
@@ -546,6 +569,67 @@ mod tests {
             (snap.cc_values[74] - 0.8).abs() < 1e-4,
             "CC 74 not stored in snapshot: {}",
             snap.cc_values[74]
+        );
+    }
+
+    #[test]
+    fn env2_to_filter_cutoff_modulation_changes_audio() {
+        // Measures RMS with mod slot enabled or disabled.
+        // The smoother must settle to the low cutoff before the note plays,
+        // otherwise both branches see an almost-open filter from the default
+        // 8000 Hz start value.
+        let measure_rms = |mod_enabled: bool| -> f32 {
+            let mut engine = Engine::new(44_100.0);
+            // Close the filter almost fully so modulation has maximum effect.
+            engine.handle(EngineEvent::ParameterChange {
+                id: ParamId::FilterCutoffHz,
+                value: 80.0,
+            });
+            // Some resonance to make the filter boundary sharper and easier
+            // to detect in RMS.
+            engine.handle(EngineEvent::ParameterChange {
+                id: ParamId::FilterResonance,
+                value: 0.5,
+            });
+            // Instant Env2 attack so it's at full level by the first block.
+            engine.handle(EngineEvent::ParameterChange {
+                id: ParamId::Env2AttackSecs,
+                value: 0.001,
+            });
+            engine.handle(EngineEvent::ParameterChange {
+                id: ParamId::ModSlotEnabled(0),
+                value: if mod_enabled { 1.0 } else { 0.0 },
+            });
+            engine.handle(EngineEvent::ParameterChange {
+                id: ParamId::ModSlotSource(0),
+                value: 3.0, // ModSource::Env2
+            });
+            engine.handle(EngineEvent::ParameterChange {
+                id: ParamId::ModSlotAmount(0),
+                value: 10_000.0,
+            });
+            // Let the cutoff smoother settle to ~80 Hz before playing. The
+            // smoother has a 10ms time constant at 44100 Hz (coeff ≈ 1/441).
+            // After 5 time constants (2205 samples) it's >99% settled.
+            let mut settle = vec![0.0f32; 4096 * 2];
+            engine.process_stereo(&mut settle, 4096);
+
+            engine.handle(EngineEvent::NoteOn {
+                note_midi: 60,
+                velocity: 100,
+            });
+            let mut buf = vec![0.0f32; 2048 * 2];
+            engine.process_stereo(&mut buf, 2048);
+            let sum_sq: f32 = buf.iter().map(|s| s * s).sum();
+            (sum_sq / buf.len() as f32).sqrt()
+        };
+
+        let rms_off = measure_rms(false);
+        let rms_on = measure_rms(true);
+        assert!(
+            rms_on > rms_off * 2.0,
+            "Env2→Cutoff modulation should open the filter significantly \
+             (rms_off={rms_off:.6}, rms_on={rms_on:.6})"
         );
     }
 }
