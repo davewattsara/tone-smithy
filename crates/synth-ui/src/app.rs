@@ -1054,11 +1054,12 @@ impl ToneSmithyApp {
         ui.add_space(4.0);
 
         for slot_idx in 0..2usize {
-            let slot_label = if slot_idx == 0 {
-                "Slot 0 (Subtractive)"
+            let mode_tag = if self.slot_mode[slot_idx] == 0 {
+                "Subtractive"
             } else {
-                "Slot 1 (FM)"
+                "FM"
             };
+            let slot_label = format!("Slot {} ({})", slot_idx, mode_tag);
             ui.collapsing(slot_label, |ui| {
                 // Mode toggle
                 ui.horizontal(|ui| {
