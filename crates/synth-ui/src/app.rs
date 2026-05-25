@@ -144,6 +144,8 @@ pub struct ToneSmithyApp {
     /// Pitch-bend wheel position, -1.0..=1.0. Snaps back to 0.0 when
     /// the user releases the slider.
     pitch_bend: f32,
+    /// Mod wheel position, 0.0..=1.0. Stays where left (no spring-back).
+    mod_wheel: f32,
     /// True while the on-screen sustain pedal button is toggled on.
     sustain_held: bool,
 
@@ -207,6 +209,7 @@ impl ToneSmithyApp {
             keyboard: VirtualKeyboard::default(),
             computer_keyboard: ComputerKeyboard::default(),
             pitch_bend: 0.0,
+            mod_wheel: snap.mod_wheel,
             sustain_held: false,
             cpu_load,
         }
@@ -359,6 +362,22 @@ impl eframe::App for ToneSmithyApp {
                         if !pb_r.is_pointer_button_down_on() && self.pitch_bend != 0.0 {
                             self.pitch_bend = 0.0;
                             self.events.send(EngineEvent::PitchBend { value_normalised: 0.0 });
+                        }
+                    });
+
+                    // Mod wheel strip: vertical slider, stays where left.
+                    ui.vertical(|ui| {
+                        ui.label("MW");
+                        let mw_r = ui.add(
+                            egui::Slider::new(&mut self.mod_wheel, 0.0..=1.0)
+                                .vertical()
+                                .show_value(false),
+                        );
+                        if mw_r.changed() {
+                            self.events.send(EngineEvent::ControlChange {
+                                cc: 1,
+                                value_normalised: self.mod_wheel,
+                            });
                         }
                     });
 
