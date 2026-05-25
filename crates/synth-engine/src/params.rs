@@ -464,7 +464,7 @@ impl Default for ParamSnapshot {
             amp_sustain_level: DEFAULT_AMP_SUSTAIN_LEVEL,
             amp_release_secs: DEFAULT_AMP_RELEASE_SECS,
             master_volume: DEFAULT_MASTER_VOLUME,
-            waveform: Waveform::Sine,
+            waveform: Waveform::Saw,
             filter_cutoff_hz: DEFAULT_FILTER_CUTOFF_HZ,
             filter_resonance: DEFAULT_FILTER_RESONANCE,
             filter_mode: FilterMode::LowPass,
