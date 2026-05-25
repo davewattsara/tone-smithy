@@ -3,7 +3,10 @@
 //! M4: Three panels (Osc 1, Filter, Amp Envelope) plus master volume and a
 //! status footer. All continuous parameters use the custom [`Knob`] widget.
 //! Discrete parameters (waveform, filter mode) keep their button rows.
-//! The virtual keyboard and computer-keyboard layer are unchanged from M3.
+//!
+//! M5: LFO1, LFO2, and Env2 panels added below the original three, plus a
+//! BPM knob in the master volume row. Live readouts show current modulator
+//! output from the first active voice.
 //!
 //! [`Knob`]: crate::knob::Knob
 
@@ -41,6 +44,20 @@ const ENV_RELEASE_MAX_SECS: f32 = 10.0;
 
 const PITCH_OFFSET_RANGE: f32 = 24.0;
 
+// ── LFO range constants ───────────────────────────────────────────────────────
+
+const LFO_RATE_MIN_HZ: f32 = 0.01;
+const LFO_RATE_MAX_HZ: f32 = 20.0;
+
+// ── Env2 range constants ──────────────────────────────────────────────────────
+
+const ENV2_CURVE_RANGE: f32 = 1.0;
+
+// ── BPM range constants ───────────────────────────────────────────────────────
+
+const BPM_MIN: f32 = 20.0;
+const BPM_MAX: f32 = 300.0;
+
 /// The Tone Smithy application UI.
 pub struct ToneSmithyApp {
     audio_status: String,
@@ -67,9 +84,33 @@ pub struct ToneSmithyApp {
     amp_sustain_level: f32,
     amp_release_secs: f32,
 
+    // ── LFO 1 mirrors ────────────────────────────────────────────────────────
+    lfo1_rate_hz: f32,
+    lfo1_shape_index: usize,
+    lfo1_reset_on_note_on: bool,
+    lfo1_sync_enabled: bool,
+    lfo1_sync_division_index: usize,
+
+    // ── LFO 2 mirrors ────────────────────────────────────────────────────────
+    lfo2_rate_hz: f32,
+    lfo2_shape_index: usize,
+    lfo2_reset_on_note_on: bool,
+    lfo2_sync_enabled: bool,
+    lfo2_sync_division_index: usize,
+
+    // ── Env2 mirrors ─────────────────────────────────────────────────────────
+    env2_attack_secs: f32,
+    env2_decay_secs: f32,
+    env2_sustain_level: f32,
+    env2_release_secs: f32,
+    env2_attack_curve: f32,
+    env2_decay_curve: f32,
+    env2_release_curve: f32,
+
     // ── Global ───────────────────────────────────────────────────────────────
     pitch_offset_semis: f32,
     master_volume: f32,
+    bpm: f32,
 
     // ── Input ────────────────────────────────────────────────────────────────
     keyboard: VirtualKeyboard,
@@ -113,8 +154,26 @@ impl ToneSmithyApp {
             amp_decay_secs: snap.amp_decay_secs,
             amp_sustain_level: snap.amp_sustain_level,
             amp_release_secs: snap.amp_release_secs,
+            lfo1_rate_hz: snap.lfo1_rate_hz,
+            lfo1_shape_index: snap.lfo1_shape_index,
+            lfo1_reset_on_note_on: snap.lfo1_reset_on_note_on,
+            lfo1_sync_enabled: snap.lfo1_sync_enabled,
+            lfo1_sync_division_index: snap.lfo1_sync_division_index,
+            lfo2_rate_hz: snap.lfo2_rate_hz,
+            lfo2_shape_index: snap.lfo2_shape_index,
+            lfo2_reset_on_note_on: snap.lfo2_reset_on_note_on,
+            lfo2_sync_enabled: snap.lfo2_sync_enabled,
+            lfo2_sync_division_index: snap.lfo2_sync_division_index,
+            env2_attack_secs: snap.env2_attack_secs,
+            env2_decay_secs: snap.env2_decay_secs,
+            env2_sustain_level: snap.env2_sustain_level,
+            env2_release_secs: snap.env2_release_secs,
+            env2_attack_curve: snap.env2_attack_curve,
+            env2_decay_curve: snap.env2_decay_curve,
+            env2_release_curve: snap.env2_release_curve,
             pitch_offset_semis: snap.pitch_offset_semis,
             master_volume: snap.master_volume,
+            bpm: snap.bpm,
             keyboard: VirtualKeyboard::default(),
             computer_keyboard: ComputerKeyboard::default(),
             pitch_bend: 0.0,
@@ -146,7 +205,7 @@ impl eframe::App for ToneSmithyApp {
             ui.separator();
             ui.add_space(8.0);
 
-            // Three panels side by side
+            // Three synthesis panels side by side
             ui.columns(3, |cols| {
                 self.osc1_panel(&mut cols[0]);
                 self.filter_panel(&mut cols[1]);
@@ -155,9 +214,20 @@ impl eframe::App for ToneSmithyApp {
 
             ui.add_space(8.0);
             ui.separator();
+            ui.add_space(8.0);
+
+            // LFO and Env2 panels
+            ui.columns(3, |cols| {
+                self.lfo_panel(&mut cols[0], 1, &snapshot);
+                self.lfo_panel(&mut cols[1], 2, &snapshot);
+                self.env2_panel(&mut cols[2], &snapshot);
+            });
+
+            ui.add_space(8.0);
+            ui.separator();
             ui.add_space(6.0);
 
-            // Master volume + pitch offset row
+            // Master volume + pitch offset + BPM row
             ui.horizontal(|ui| {
                 ui.label("Master");
                 if ui
@@ -191,6 +261,22 @@ impl eframe::App for ToneSmithyApp {
                     self.events.send(EngineEvent::ParameterChange {
                         id: ParamId::PitchOffsetSemis,
                         value: self.pitch_offset_semis,
+                    });
+                }
+
+                ui.add_space(16.0);
+                ui.label("BPM");
+                if ui
+                    .add(
+                        Knob::new(&mut self.bpm, BPM_MIN..=BPM_MAX, "BPM")
+                            .default_value(120.0)
+                            .format(|v| format!("{:.1}", v)),
+                    )
+                    .changed()
+                {
+                    self.events.send(EngineEvent::ParameterChange {
+                        id: ParamId::Bpm,
+                        value: self.bpm,
                     });
                 }
             });
@@ -519,6 +605,253 @@ impl ToneSmithyApp {
                 });
             }
         });
+    }
+
+    fn lfo_panel(&mut self, ui: &mut egui::Ui, lfo_num: u8, snapshot: &synth_engine::ParamSnapshot) {
+        // Extract local copies so closures below don't conditionally borrow self.
+        let (rate_id, shape_id, reset_id, sync_id, div_id) = if lfo_num == 1 {
+            (
+                ParamId::Lfo1RateHz,
+                ParamId::Lfo1Shape,
+                ParamId::Lfo1ResetOnNoteOn,
+                ParamId::Lfo1SyncEnabled,
+                ParamId::Lfo1SyncDivision,
+            )
+        } else {
+            (
+                ParamId::Lfo2RateHz,
+                ParamId::Lfo2Shape,
+                ParamId::Lfo2ResetOnNoteOn,
+                ParamId::Lfo2SyncEnabled,
+                ParamId::Lfo2SyncDivision,
+            )
+        };
+        let mut rate_hz = if lfo_num == 1 {
+            self.lfo1_rate_hz
+        } else {
+            self.lfo2_rate_hz
+        };
+        let mut shape_index = if lfo_num == 1 {
+            self.lfo1_shape_index
+        } else {
+            self.lfo2_shape_index
+        };
+        let mut reset_on_note_on = if lfo_num == 1 {
+            self.lfo1_reset_on_note_on
+        } else {
+            self.lfo2_reset_on_note_on
+        };
+        let mut sync_enabled = if lfo_num == 1 {
+            self.lfo1_sync_enabled
+        } else {
+            self.lfo2_sync_enabled
+        };
+        let mut div_index = if lfo_num == 1 {
+            self.lfo1_sync_division_index
+        } else {
+            self.lfo2_sync_division_index
+        };
+        let live_out = if lfo_num == 1 {
+            snapshot.lfo1_out
+        } else {
+            snapshot.lfo2_out
+        };
+        let events = self.events.clone();
+
+        ui.heading(if lfo_num == 1 { "LFO 1" } else { "LFO 2" });
+        ui.add_space(6.0);
+
+        // Shape selector — 7 shapes, index matches LfoShape::index().
+        const SHAPE_LABELS: [&str; 7] = ["Sin", "Tri", "Saw+", "Saw-", "Sq", "S&H", "Rnd"];
+        ui.label("Shape");
+        ui.horizontal_wrapped(|ui| {
+            for (i, label) in SHAPE_LABELS.iter().enumerate() {
+                if ui.selectable_label(shape_index == i, *label).clicked() {
+                    shape_index = i;
+                    events.send(EngineEvent::ParameterChange {
+                        id: shape_id,
+                        value: i as f32,
+                    });
+                }
+            }
+        });
+
+        ui.add_space(4.0);
+
+        ui.horizontal(|ui| {
+            if !sync_enabled
+                && ui
+                    .add(
+                        Knob::new(&mut rate_hz, LFO_RATE_MIN_HZ..=LFO_RATE_MAX_HZ, "Rate")
+                            .default_value(1.0)
+                            .format(|v| format!("{:.2} Hz", v)),
+                    )
+                    .changed()
+            {
+                events.send(EngineEvent::ParameterChange {
+                    id: rate_id,
+                    value: rate_hz,
+                });
+            }
+
+            if ui.selectable_label(reset_on_note_on, "Reset").clicked() {
+                reset_on_note_on = !reset_on_note_on;
+                events.send(EngineEvent::ParameterChange {
+                    id: reset_id,
+                    value: if reset_on_note_on { 1.0 } else { 0.0 },
+                });
+            }
+        });
+
+        ui.add_space(4.0);
+
+        ui.horizontal(|ui| {
+            if ui.selectable_label(sync_enabled, "Sync").clicked() {
+                sync_enabled = !sync_enabled;
+                events.send(EngineEvent::ParameterChange {
+                    id: sync_id,
+                    value: if sync_enabled { 1.0 } else { 0.0 },
+                });
+            }
+
+            if sync_enabled {
+                const DIV_LABELS: [&str; 8] = ["1/32", "1/16", "1/8", "1/4", "1/2", "1", "2", "4"];
+                for (i, label) in DIV_LABELS.iter().enumerate() {
+                    if ui.selectable_label(div_index == i, *label).clicked() {
+                        div_index = i;
+                        events.send(EngineEvent::ParameterChange {
+                            id: div_id,
+                            value: i as f32,
+                        });
+                    }
+                }
+            }
+        });
+
+        ui.add_space(4.0);
+        ui.label(format!("Out: {:.3}", live_out));
+
+        // Write back modified locals.
+        if lfo_num == 1 {
+            self.lfo1_rate_hz = rate_hz;
+            self.lfo1_shape_index = shape_index;
+            self.lfo1_reset_on_note_on = reset_on_note_on;
+            self.lfo1_sync_enabled = sync_enabled;
+            self.lfo1_sync_division_index = div_index;
+        } else {
+            self.lfo2_rate_hz = rate_hz;
+            self.lfo2_shape_index = shape_index;
+            self.lfo2_reset_on_note_on = reset_on_note_on;
+            self.lfo2_sync_enabled = sync_enabled;
+            self.lfo2_sync_division_index = div_index;
+        }
+    }
+
+    fn env2_panel(&mut self, ui: &mut egui::Ui, snapshot: &synth_engine::ParamSnapshot) {
+        ui.heading("Env2");
+        ui.add_space(6.0);
+
+        ui.horizontal(|ui| {
+            if ui
+                .add(
+                    Knob::new(&mut self.env2_attack_secs, ENV_MIN_SECS..=ENV_ATTACK_MAX_SECS, "A")
+                        .default_value(0.010)
+                        .format(secs_format),
+                )
+                .changed()
+            {
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::Env2AttackSecs,
+                    value: self.env2_attack_secs,
+                });
+            }
+            if ui
+                .add(
+                    Knob::new(&mut self.env2_decay_secs, ENV_MIN_SECS..=ENV_DECAY_MAX_SECS, "D")
+                        .default_value(0.200)
+                        .format(secs_format),
+                )
+                .changed()
+            {
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::Env2DecaySecs,
+                    value: self.env2_decay_secs,
+                });
+            }
+            if ui
+                .add(
+                    Knob::new(&mut self.env2_sustain_level, 0.0..=1.0, "S")
+                        .default_value(0.8)
+                        .format(|v| format!("{:.2}", v)),
+                )
+                .changed()
+            {
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::Env2SustainLevel,
+                    value: self.env2_sustain_level,
+                });
+            }
+            if ui
+                .add(
+                    Knob::new(&mut self.env2_release_secs, ENV_MIN_SECS..=ENV_RELEASE_MAX_SECS, "R")
+                        .default_value(0.200)
+                        .format(secs_format),
+                )
+                .changed()
+            {
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::Env2ReleaseSecs,
+                    value: self.env2_release_secs,
+                });
+            }
+        });
+
+        ui.add_space(4.0);
+        ui.label("Curve");
+        ui.horizontal(|ui| {
+            if ui
+                .add(
+                    Knob::new(&mut self.env2_attack_curve, -ENV2_CURVE_RANGE..=ENV2_CURVE_RANGE, "A")
+                        .default_value(0.0)
+                        .format(|v| format!("{:+.2}", v)),
+                )
+                .changed()
+            {
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::Env2AttackCurve,
+                    value: self.env2_attack_curve,
+                });
+            }
+            if ui
+                .add(
+                    Knob::new(&mut self.env2_decay_curve, -ENV2_CURVE_RANGE..=ENV2_CURVE_RANGE, "D")
+                        .default_value(0.0)
+                        .format(|v| format!("{:+.2}", v)),
+                )
+                .changed()
+            {
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::Env2DecayCurve,
+                    value: self.env2_decay_curve,
+                });
+            }
+            if ui
+                .add(
+                    Knob::new(&mut self.env2_release_curve, -ENV2_CURVE_RANGE..=ENV2_CURVE_RANGE, "R")
+                        .default_value(0.0)
+                        .format(|v| format!("{:+.2}", v)),
+                )
+                .changed()
+            {
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::Env2ReleaseCurve,
+                    value: self.env2_release_curve,
+                });
+            }
+        });
+
+        ui.add_space(4.0);
+        ui.label(format!("Out: {:.3}", snapshot.env2_out));
     }
 
     fn footer_bar(&self, ui: &mut egui::Ui, snapshot: &synth_engine::ParamSnapshot) {
