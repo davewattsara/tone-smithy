@@ -52,38 +52,64 @@ parameters are at their defaults. Default state: slot 0 = Subtractive
 ## 3. All 8 FM algorithms on Slot 1
 
 Set: Slot 0 level = 0 (silent), Slot 1 = FM, level = 1.0.
-Set all operator levels to 1.0, ratio integer = 1 for all, fine = 0,
-Attack = 0.05 s, Decay = 0.5 s, Sustain = 0.8, Release = 0.3 s for
-all operators.
+All operator ADSR: Attack = 0.05 s, Decay = 0.5 s, Sustain = 0.8,
+Release = 0.3 s. All levels = 1.0 unless a specific ratio is given
+for that algorithm below.
+
+**Note:** with every operator at ratio 1, algorithms that combine
+multiple carriers modulated by the same source will sound identical
+in timbre (just different volume). Each test below uses operator
+ratios that reveal the algorithm's unique character.
 
 For each algorithm, hold a note for 1–2 seconds, then release.
 
 - [ ] **Algorithm 1** (Op 4→Op 3→Op 2→Op 1 stack, Op 1 is the carrier):
-  Classic FM stack. Should sound like a bright, bell-like or brass-like
-  tone. Only Op 1 contributes to the audio output.
-- [ ] **Algorithm 2** (same stack + Op 4 self-feedback): Same stack but
-  Op 4 feeds back on itself. Should sound richer and rougher than Alg 1
-  — more overtones, especially with feedback cranked up. Set the
-  **Op 4 Feedback** knob to +0.7 to hear the difference clearly.
-- [ ] **Algorithm 3** (two stacks: Op 4→Op 3 and Op 2→Op 1, mixed):
-  Op 1 and Op 3 are both carriers. Should sound like two separate FM
-  stacks layered, giving a fuller timbre.
-- [ ] **Algorithm 4** (Op 4 modulates Op 1, Op 2, Op 3 in parallel):
-  Three carriers (Op 1, Op 2, Op 3) all FM'd by the same modulator
-  (Op 4). Should sound dense and organ-like.
-- [ ] **Algorithm 5** (Op 4 modulates Op 2+Op 3; Op 3 modulates Op 1):
-  Branching modulator. Should produce a complex, evolving timbre.
-- [ ] **Algorithm 6** (Op 3+Op 2 modulate Op 1; Op 4 separate carrier):
-  Op 1 and Op 4 are both carriers. Should sound like a carrier with
-  frequency-modulated harmonic content plus Op 4's direct sine tone.
-- [ ] **Algorithm 7** (all four parallel, additive): All four operators
-  are carriers with no modulation. Should sound like four sine waves
-  added together — a clean, slightly rich tone.
-- [ ] **Algorithm 8** (Op 4→Op 1; Op 3→Op 2; Op 1 and Op 2 are carriers):
-  Two modulator–carrier pairs in parallel. Should sound similar to two
-  separate FM tones mixed.
+  Ratios: Op 1=1, Op 2=1, Op 3=1, Op 4=4.
+  Classic FM stack with a 4× modulator. Should sound bright and
+  bell-like. Only Op 1 contributes to the audio output.
 
-**Pass criterion**: every algorithm produces a recognisably different
+- [ ] **Algorithm 2** (same stack + Op 4 self-feedback):
+  Ratios: Op 1=1, Op 2=1, Op 3=1, Op 4=4. Op 4 Feedback = +0.7.
+  Should sound richer and rougher than Alg 1 — set the **Op 4
+  Feedback** knob to +0.7 and notice the extra harmonic content
+  compared to Alg 1 at the same feedback setting (which has none).
+
+- [ ] **Algorithm 3** (two stacks: Op 4→Op 3 and Op 2→Op 1, mixed):
+  Ratios: Op 1=1, Op 2=3, Op 3=1, Op 4=5.
+  The two stacks use different modulator ratios (3× and 5×), so
+  they produce two distinct FM timbres layered together. You should
+  hear a richer, more complex sound than either stack alone.
+
+- [ ] **Algorithm 4** (Op 4 modulates Op 1, Op 2, Op 3 in parallel):
+  Ratios: Op 1=1, Op 2=2, Op 3=3, Op 4=2.
+  Three carriers at different harmonics (1×, 2×, 3×), all driven
+  by the same modulator. Should sound organ-like or additive, with
+  three distinct pitch layers all responding to the same modulation.
+
+- [ ] **Algorithm 5** (Op 4 modulates Op 2+Op 3; Op 3 modulates Op 1):
+  Ratios: Op 1=1, Op 2=1, Op 3=2, Op 4=3.
+  Branching modulator. Op 3 acts as both a carrier-modulator (shaping
+  Op 1) and is itself modulated by Op 4. Should produce a complex,
+  evolving timbre that changes markedly as Op 4's level varies.
+
+- [ ] **Algorithm 6** (Op 3+Op 2 modulate Op 1; Op 4 separate carrier):
+  Ratios: Op 1=1, Op 2=3, Op 3=5, Op 4=2.
+  Op 1 and Op 4 are both carriers at different pitches (1× and 2×).
+  Should sound like two layers: a harmonically rich FM tone (Op 1
+  modulated by Op 3 and Op 2) plus a cleaner tone from Op 4.
+
+- [ ] **Algorithm 7** (all four parallel, additive):
+  Ratios: Op 1=1, Op 2=2, Op 3=3, Op 4=4.
+  No modulation — pure additive synthesis of four sine harmonics.
+  Should sound clear and flute-like, noticeably cleaner than any
+  FM algorithm.
+
+- [ ] **Algorithm 8** (Op 4→Op 1; Op 3→Op 2; Op 1 and Op 2 are carriers):
+  Ratios: Op 1=1, Op 2=1, Op 3=2, Op 4=5.
+  Two independent modulator–carrier pairs at different modulator ratios
+  (5× and 2×). Should sound like two distinct FM tones mixed.
+
+**Pass criterion**: each algorithm produces a recognisably different
 timbre; none produce silence, DC offset, or distorted/broken audio.
 
 ---
