@@ -910,8 +910,7 @@ impl ToneSmithyApp {
                 .min_col_width(70.0)
                 .show(ui, |ui| {
                     // Enable toggle
-                    let was_enabled = self.mod_slot_enabled[i];
-                    let mut enabled = was_enabled;
+                    let mut enabled = self.mod_slot_enabled[i];
                     if ui.checkbox(&mut enabled, format!("Slot {}", i + 1)).changed() {
                         self.mod_slot_enabled[i] = enabled;
                         self.events.send(EngineEvent::ParameterChange {
@@ -935,7 +934,9 @@ impl ToneSmithyApp {
                             }
                         });
 
-                    // Dest combo
+                    // Dest combo — changing dest resets amount to 0 so the new
+                    // destination's range is clean (stale amounts from a different
+                    // dest would be out-of-range and lock the knob at its maximum).
                     let dest_label = MOD_DEST_LABELS.get(self.mod_slot_dest[i]).copied().unwrap_or("?");
                     egui::ComboBox::from_id_salt(format!("mod_dst_{i}"))
                         .selected_text(dest_label)
@@ -945,6 +946,11 @@ impl ToneSmithyApp {
                                     self.events.send(EngineEvent::ParameterChange {
                                         id: ParamId::ModSlotDest(i as u8),
                                         value: idx as f32,
+                                    });
+                                    self.mod_slot_amount[i] = 0.0;
+                                    self.events.send(EngineEvent::ParameterChange {
+                                        id: ParamId::ModSlotAmount(i as u8),
+                                        value: 0.0,
                                     });
                                 }
                             }

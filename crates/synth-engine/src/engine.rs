@@ -155,9 +155,8 @@ impl Engine {
                         self.voices.set_mod_slot_enabled(i as usize, value >= 0.5);
                     }
                     ParamId::ModSlotSource(i) => {
-                        if let Some(src) = ModSource::from_index(value as u8) {
-                            self.voices.set_mod_slot_source(i as usize, src);
-                        }
+                        let src = ModSource::from_index(value as u8).unwrap_or_default();
+                        self.voices.set_mod_slot_source(i as usize, src);
                     }
                     ParamId::ModSlotDest(i) => {
                         if let Some(dest) = ModDest::from_index(value as u8) {
@@ -168,9 +167,8 @@ impl Engine {
                         self.voices.set_mod_slot_amount(i as usize, value);
                     }
                     ParamId::ModSlotVia(i) => {
-                        if let Some(via) = ModSource::from_index(value as u8) {
-                            self.voices.set_mod_slot_via(i as usize, via);
-                        }
+                        let via = ModSource::from_index(value as u8).unwrap_or_default();
+                        self.voices.set_mod_slot_via(i as usize, via);
                     }
                     _ => {}
                 }
