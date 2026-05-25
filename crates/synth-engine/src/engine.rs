@@ -11,6 +11,7 @@
 
 use crate::events::EngineEvent;
 use crate::lfo::LfoShape;
+use crate::mod_matrix::{ModDest, ModSource};
 use crate::params::{ParamId, ParamSnapshot, ParameterTree};
 use crate::voice_manager::VoiceManager;
 
@@ -150,22 +151,46 @@ impl Engine {
                     ParamId::Env2AttackCurve => self.voices.set_env2_attack_curve(value),
                     ParamId::Env2DecayCurve => self.voices.set_env2_decay_curve(value),
                     ParamId::Env2ReleaseCurve => self.voices.set_env2_release_curve(value),
+                    ParamId::ModSlotEnabled(i) => {
+                        self.voices.set_mod_slot_enabled(i as usize, value >= 0.5);
+                    }
+                    ParamId::ModSlotSource(i) => {
+                        if let Some(src) = ModSource::from_index(value as u8) {
+                            self.voices.set_mod_slot_source(i as usize, src);
+                        }
+                    }
+                    ParamId::ModSlotDest(i) => {
+                        if let Some(dest) = ModDest::from_index(value as u8) {
+                            self.voices.set_mod_slot_dest(i as usize, dest);
+                        }
+                    }
+                    ParamId::ModSlotAmount(i) => {
+                        self.voices.set_mod_slot_amount(i as usize, value);
+                    }
+                    ParamId::ModSlotVia(i) => {
+                        if let Some(via) = ModSource::from_index(value as u8) {
+                            self.voices.set_mod_slot_via(i as usize, via);
+                        }
+                    }
                     _ => {}
                 }
             }
             EngineEvent::PitchBend { value_normalised } => {
                 let semis = value_normalised * PITCH_BEND_RANGE_SEMIS;
                 self.params.set_continuous(ParamId::PitchBendSemis, semis);
+                self.voices.set_global_pitch_bend(value_normalised);
             }
             EngineEvent::Sustain { held } => {
                 self.voices.set_sustain(held);
             }
             EngineEvent::ChannelAftertouch { value_normalised } => {
                 self.params.set_continuous(ParamId::ChannelAftertouch, value_normalised);
+                self.voices.set_global_aftertouch(value_normalised);
             }
             EngineEvent::ControlChange { cc, value_normalised } => {
                 if cc == 1 {
                     self.params.set_continuous(ParamId::ModWheel, value_normalised);
+                    self.voices.set_global_mod_wheel(value_normalised);
                 }
                 // Store all CCs in the snapshot regardless of routing so
                 // M6's mod matrix can address any controller.
