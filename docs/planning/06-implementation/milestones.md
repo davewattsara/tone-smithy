@@ -122,7 +122,7 @@ Add the modulation sources that the matrix will route in M6.
 
 ---
 
-## M6 — Modulation matrix (2 weeks)
+## M6 — Modulation matrix ✓ (tag `m06`)
 
 Wire the sources to anything.
 

@@ -1,7 +1,7 @@
 # M6 — Modulation matrix
 
 Branch: `milestone/m06-mod-matrix`
-Status: **In progress** (M6.0–M6.3 complete; M6.4 close-out pending user test)
+Status: **Complete** (tag `m06`)
 
 ## Done-when
 
