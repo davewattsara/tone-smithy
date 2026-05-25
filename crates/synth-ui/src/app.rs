@@ -224,160 +224,162 @@ impl eframe::App for ToneSmithyApp {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            // Title row
-            ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                ui.heading("Tone Smithy");
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                // Title row
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    ui.heading("Tone Smithy");
+                    ui.separator();
+                    ui.label(&self.audio_status);
+                });
+                ui.add_space(4.0);
                 ui.separator();
-                ui.label(&self.audio_status);
-            });
-            ui.add_space(4.0);
-            ui.separator();
-            ui.add_space(8.0);
+                ui.add_space(8.0);
 
-            // Three synthesis panels side by side
-            ui.columns(3, |cols| {
-                self.osc1_panel(&mut cols[0]);
-                self.filter_panel(&mut cols[1]);
-                self.amp_env_panel(&mut cols[2]);
-            });
-
-            ui.add_space(8.0);
-            ui.separator();
-            ui.add_space(8.0);
-
-            // LFO and Env2 panels
-            ui.columns(3, |cols| {
-                self.lfo_panel(&mut cols[0], 1, &snapshot);
-                self.lfo_panel(&mut cols[1], 2, &snapshot);
-                self.env2_panel(&mut cols[2], &snapshot);
-            });
-
-            ui.add_space(8.0);
-            ui.separator();
-            ui.add_space(6.0);
-
-            // Mod matrix
-            self.mod_matrix_panel(ui);
-
-            ui.add_space(8.0);
-            ui.separator();
-            ui.add_space(6.0);
-
-            // Master volume + pitch offset + BPM row
-            ui.horizontal(|ui| {
-                ui.label("Master");
-                if ui
-                    .add(
-                        Knob::new(&mut self.master_volume, 0.0..=1.0, "Volume")
-                            .default_value(0.8)
-                            .format(|v| format!("{:.0}%", v * 100.0)),
-                    )
-                    .changed()
-                {
-                    self.events.send(EngineEvent::ParameterChange {
-                        id: ParamId::MasterVolume,
-                        value: self.master_volume,
-                    });
-                }
-
-                ui.add_space(16.0);
-                ui.label("Pitch");
-                if ui
-                    .add(
-                        Knob::new(
-                            &mut self.pitch_offset_semis,
-                            -PITCH_OFFSET_RANGE..=PITCH_OFFSET_RANGE,
-                            "Offset",
-                        )
-                        .default_value(0.0)
-                        .format(|v| format!("{:+.2} st", v)),
-                    )
-                    .changed()
-                {
-                    self.events.send(EngineEvent::ParameterChange {
-                        id: ParamId::PitchOffsetSemis,
-                        value: self.pitch_offset_semis,
-                    });
-                }
-
-                ui.add_space(16.0);
-                ui.label("BPM");
-                if ui
-                    .add(
-                        Knob::new(&mut self.bpm, BPM_MIN..=BPM_MAX, "BPM")
-                            .default_value(120.0)
-                            .format(|v| format!("{:.1}", v)),
-                    )
-                    .changed()
-                {
-                    self.events.send(EngineEvent::ParameterChange {
-                        id: ParamId::Bpm,
-                        value: self.bpm,
-                    });
-                }
-            });
-
-            ui.add_space(8.0);
-            ui.separator();
-            ui.add_space(6.0);
-
-            // Computer keyboard hint
-            ui.label(format!(
-                "Keyboard: A S D F G H J (white) / W E T Y U (black). Z/X shift octave. Octave base: MIDI {} ({}).",
-                self.computer_keyboard.octave_base(),
-                midi_note_label(self.computer_keyboard.octave_base()),
-            ));
-            ui.add_space(6.0);
-
-            // Keep the virtual keyboard's visible range in sync with the
-            // computer keyboard's current octave so highlighted keys are
-            // always visible. If a mouse-held note was active when the
-            // range shifted, send NoteOff so the engine releases it.
-            if let Some(stuck) = self.keyboard.set_start_note(self.computer_keyboard.octave_base()) {
-                self.events.send(EngineEvent::NoteOff { note_midi: stuck });
-            }
-            let kb_notes = self.computer_keyboard.held_notes();
-
-            ui.horizontal(|ui| {
-                // Pitch-bend strip: vertical slider that springs to 0 on release.
-                ui.vertical(|ui| {
-                    ui.label("PB");
-                    let pb_r = ui.add(
-                        egui::Slider::new(&mut self.pitch_bend, -1.0..=1.0)
-                            .vertical()
-                            .show_value(false),
-                    );
-                    if pb_r.changed() {
-                        self.events.send(EngineEvent::PitchBend {
-                            value_normalised: self.pitch_bend,
-                        });
-                    }
-                    // Spring back to centre the moment the mouse button is released,
-                    // whether the interaction was a drag or a click.
-                    if !pb_r.is_pointer_button_down_on() && self.pitch_bend != 0.0 {
-                        self.pitch_bend = 0.0;
-                        self.events.send(EngineEvent::PitchBend { value_normalised: 0.0 });
-                    }
+                // Three synthesis panels side by side
+                ui.columns(3, |cols| {
+                    self.osc1_panel(&mut cols[0]);
+                    self.filter_panel(&mut cols[1]);
+                    self.amp_env_panel(&mut cols[2]);
                 });
 
-                // Virtual keyboard.
-                self.keyboard.show(ui, &self.events, kb_notes);
+                ui.add_space(8.0);
+                ui.separator();
+                ui.add_space(8.0);
 
-                // Sustain pedal toggle.
-                ui.vertical(|ui| {
-                    ui.label("Sustain");
+                // LFO and Env2 panels
+                ui.columns(3, |cols| {
+                    self.lfo_panel(&mut cols[0], 1, &snapshot);
+                    self.lfo_panel(&mut cols[1], 2, &snapshot);
+                    self.env2_panel(&mut cols[2], &snapshot);
+                });
+
+                ui.add_space(8.0);
+                ui.separator();
+                ui.add_space(6.0);
+
+                // Mod matrix
+                self.mod_matrix_panel(ui);
+
+                ui.add_space(8.0);
+                ui.separator();
+                ui.add_space(6.0);
+
+                // Master volume + pitch offset + BPM row
+                ui.horizontal(|ui| {
+                    ui.label("Master");
                     if ui
-                        .selectable_label(self.sustain_held, if self.sustain_held { "ON " } else { "OFF" })
-                        .clicked()
+                        .add(
+                            Knob::new(&mut self.master_volume, 0.0..=1.0, "Volume")
+                                .default_value(0.8)
+                                .format(|v| format!("{:.0}%", v * 100.0)),
+                        )
+                        .changed()
                     {
-                        self.sustain_held = !self.sustain_held;
-                        self.events.send(EngineEvent::Sustain {
-                            held: self.sustain_held,
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::MasterVolume,
+                            value: self.master_volume,
+                        });
+                    }
+
+                    ui.add_space(16.0);
+                    ui.label("Pitch");
+                    if ui
+                        .add(
+                            Knob::new(
+                                &mut self.pitch_offset_semis,
+                                -PITCH_OFFSET_RANGE..=PITCH_OFFSET_RANGE,
+                                "Offset",
+                            )
+                            .default_value(0.0)
+                            .format(|v| format!("{:+.2} st", v)),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::PitchOffsetSemis,
+                            value: self.pitch_offset_semis,
+                        });
+                    }
+
+                    ui.add_space(16.0);
+                    ui.label("BPM");
+                    if ui
+                        .add(
+                            Knob::new(&mut self.bpm, BPM_MIN..=BPM_MAX, "BPM")
+                                .default_value(120.0)
+                                .format(|v| format!("{:.1}", v)),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::Bpm,
+                            value: self.bpm,
                         });
                     }
                 });
-            });
+
+                ui.add_space(8.0);
+                ui.separator();
+                ui.add_space(6.0);
+
+                // Computer keyboard hint
+                ui.label(format!(
+                    "Keyboard: A S D F G H J (white) / W E T Y U (black). Z/X shift octave. Octave base: MIDI {} ({}).",
+                    self.computer_keyboard.octave_base(),
+                    midi_note_label(self.computer_keyboard.octave_base()),
+                ));
+                ui.add_space(6.0);
+
+                // Keep the virtual keyboard's visible range in sync with the
+                // computer keyboard's current octave so highlighted keys are
+                // always visible. If a mouse-held note was active when the
+                // range shifted, send NoteOff so the engine releases it.
+                if let Some(stuck) = self.keyboard.set_start_note(self.computer_keyboard.octave_base()) {
+                    self.events.send(EngineEvent::NoteOff { note_midi: stuck });
+                }
+                let kb_notes = self.computer_keyboard.held_notes();
+
+                ui.horizontal(|ui| {
+                    // Pitch-bend strip: vertical slider that springs to 0 on release.
+                    ui.vertical(|ui| {
+                        ui.label("PB");
+                        let pb_r = ui.add(
+                            egui::Slider::new(&mut self.pitch_bend, -1.0..=1.0)
+                                .vertical()
+                                .show_value(false),
+                        );
+                        if pb_r.changed() {
+                            self.events.send(EngineEvent::PitchBend {
+                                value_normalised: self.pitch_bend,
+                            });
+                        }
+                        // Spring back to centre the moment the mouse button is released,
+                        // whether the interaction was a drag or a click.
+                        if !pb_r.is_pointer_button_down_on() && self.pitch_bend != 0.0 {
+                            self.pitch_bend = 0.0;
+                            self.events.send(EngineEvent::PitchBend { value_normalised: 0.0 });
+                        }
+                    });
+
+                    // Virtual keyboard.
+                    self.keyboard.show(ui, &self.events, kb_notes);
+
+                    // Sustain pedal toggle.
+                    ui.vertical(|ui| {
+                        ui.label("Sustain");
+                        if ui
+                            .selectable_label(self.sustain_held, if self.sustain_held { "ON " } else { "OFF" })
+                            .clicked()
+                        {
+                            self.sustain_held = !self.sustain_held;
+                            self.events.send(EngineEvent::Sustain {
+                                held: self.sustain_held,
+                            });
+                        }
+                    });
+                });
+            }); // ScrollArea
         });
 
         ctx.request_repaint_after(std::time::Duration::from_millis(33));
