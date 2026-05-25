@@ -18,6 +18,7 @@
 use crate::POLYPHONY;
 use crate::filter::FilterMode;
 use crate::lfo::LfoShape;
+use crate::mod_matrix::{ModDest, ModMatrix, ModSource, ModSources};
 use crate::oscillator::Waveform;
 use crate::params::SampleParams;
 use crate::voice::Voice;
@@ -78,6 +79,16 @@ pub struct VoiceManager {
     /// sustain pedal was held and should fire when the pedal releases.
     /// Indexed by MIDI note number (0..=127).
     deferred_note_offs: [bool; 128],
+
+    /// 8-slot modulation matrix. Evaluated per-voice once per block.
+    matrix: ModMatrix,
+
+    /// Global mod sources shared across all voices: mod wheel, aftertouch,
+    /// and pitch bend. Updated from the parameter bus; consumed when building
+    /// per-voice `ModSources` inside `advance_modulators`.
+    global_mod_wheel: f32,
+    global_aftertouch: f32,
+    global_pitch_bend: f32,
 }
 
 impl VoiceManager {
@@ -92,6 +103,10 @@ impl VoiceManager {
             note_off_tick: [None; POLYPHONY],
             sustain_held: false,
             deferred_note_offs: [false; 128],
+            matrix: ModMatrix::default(),
+            global_mod_wheel: 0.0,
+            global_aftertouch: 0.0,
+            global_pitch_bend: 0.0,
         }
     }
 
@@ -305,13 +320,85 @@ impl VoiceManager {
         }
     }
 
-    /// Advances LFO1, LFO2, and Env2 on every active voice by one block.
+    // ── Mod matrix ───────────────────────────────────────────────────────────
+
+    /// Enables or disables the slot at `index`.
+    pub fn set_mod_slot_enabled(&mut self, index: usize, enabled: bool) {
+        if let Some(slot) = self.matrix.slots.get_mut(index) {
+            slot.enabled = enabled;
+        }
+    }
+
+    /// Sets the source for the slot at `index`.
+    pub fn set_mod_slot_source(&mut self, index: usize, source: ModSource) {
+        if let Some(slot) = self.matrix.slots.get_mut(index) {
+            slot.source = source;
+        }
+    }
+
+    /// Sets the destination for the slot at `index`.
+    pub fn set_mod_slot_dest(&mut self, index: usize, dest: ModDest) {
+        if let Some(slot) = self.matrix.slots.get_mut(index) {
+            slot.dest = dest;
+        }
+    }
+
+    /// Sets the amount for the slot at `index`.
+    pub fn set_mod_slot_amount(&mut self, index: usize, amount: f32) {
+        if let Some(slot) = self.matrix.slots.get_mut(index) {
+            slot.amount = amount;
+        }
+    }
+
+    /// Sets the via source for the slot at `index`. Use `ModSource::Off`
+    /// to disable via scaling.
+    pub fn set_mod_slot_via(&mut self, index: usize, via: ModSource) {
+        if let Some(slot) = self.matrix.slots.get_mut(index) {
+            slot.via = via;
+        }
+    }
+
+    /// Updates the global mod wheel value (0..=1) used in per-voice
+    /// `ModSources` construction.
+    pub fn set_global_mod_wheel(&mut self, value: f32) {
+        self.global_mod_wheel = value;
+    }
+
+    /// Updates the global channel aftertouch value (0..=1).
+    pub fn set_global_aftertouch(&mut self, value: f32) {
+        self.global_aftertouch = value;
+    }
+
+    /// Updates the global pitch bend value (-1..=1).
+    pub fn set_global_pitch_bend(&mut self, value: f32) {
+        self.global_pitch_bend = value;
+    }
+
+    /// Advances LFO1, LFO2, and Env2 on every active voice by one block,
+    /// then evaluates the mod matrix for each voice and stores the resulting
+    /// [`DestOffsets`] on the voice for use in the per-sample loop.
     /// Call once per inner block, before the per-sample loop.
     pub fn advance_modulators(&mut self, block_size: usize) {
         for v in &mut self.voices {
-            if !v.is_idle() {
-                v.advance_modulators(block_size);
+            if v.is_idle() {
+                continue;
             }
+            v.advance_modulators(block_size);
+
+            let key_tracking = v.held_note().map(|n| (f32::from(n) - 60.0) / 60.0).unwrap_or(0.0);
+
+            let sources = ModSources {
+                lfo1: v.lfo1_out(),
+                lfo2: v.lfo2_out(),
+                env2: v.env2_out(),
+                amp_env: v.amp_env_level(),
+                velocity: v.velocity_scale(),
+                key_tracking,
+                mod_wheel: self.global_mod_wheel,
+                aftertouch: self.global_aftertouch,
+                pitch_bend: self.global_pitch_bend,
+            };
+            v.mod_offsets = self.matrix.compute_offsets(&sources);
         }
     }
 
@@ -340,7 +427,19 @@ impl VoiceManager {
             if v.is_idle() {
                 continue;
             }
-            let (l, r) = v.next_sample(params);
+            // Apply per-voice mod matrix offsets to a local copy of the
+            // base params. Volume offset is applied inside the voice
+            // (on the amp envelope output); all other destinations are
+            // patched here before passing to the voice.
+            let mut vp = *params;
+            let off = &v.mod_offsets;
+            vp.filter_cutoff_hz = (vp.filter_cutoff_hz + off.filter_cutoff_hz).clamp(20.0, 20_000.0);
+            vp.filter_resonance = (vp.filter_resonance + off.filter_resonance).clamp(0.0, 1.0);
+            vp.pitch_offset_semis += off.pitch_semis;
+            vp.osc_main_detune_cents[0] += off.osc1_detune_cents;
+            vp.osc_main_pans[0] = (vp.osc_main_pans[0] + off.osc1_pan).clamp(-1.0, 1.0);
+
+            let (l, r) = v.next_sample(&vp);
             sum_l += l;
             sum_r += r;
         }
