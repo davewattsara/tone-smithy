@@ -954,13 +954,14 @@ impl ToneSmithyApp {
                         }
                     });
 
-                // Amount knob — range depends on currently selected dest
+                // Amount — DragValue so the number is always visible.
+                // Drag speed is range/100 so a 100 px drag covers the full range.
                 let range = MOD_AMOUNT_RANGES.get(self.mod_slot_dest[i]).copied().unwrap_or(1.0);
                 if ui
                     .add(
-                        Knob::new(&mut self.mod_slot_amount[i], -range..=range, "Amt")
-                            .default_value(0.0)
-                            .format(move |v| format!("{v:+.0}")),
+                        egui::DragValue::new(&mut self.mod_slot_amount[i])
+                            .range(-range..=range)
+                            .speed(range / 100.0),
                     )
                     .changed()
                 {
