@@ -4,7 +4,7 @@ Run these before closing out M6 and merging to main.
 
 ## Mod matrix
 
-- [ ] Enable slot 1, Source=Env2, Dest=Cutoff, Amount=+8000, Via=Off. Hold a note — filter sweeps open with the Env2 shape.
+- [ ] Set filter Cutoff to ~300 Hz and Resonance to ~0.5 (muffled, dark sound). Set Env2 Attack to 0.5s. Enable slot 1, Source=Env2, Dest=Cutoff, Amount=+8000, Via=Off. Hold a note — filter sweeps open over 0.5s. (Default cutoff of 8000 Hz + 8000 Hz mod is imperceptible without resonance; start from a low cutoff to hear the sweep clearly.)
 - [ ] Enable slot 2, Source=LFO1, Dest=Cutoff, Via=ModWheel, Amount=+5000. Mod wheel at 0: no sweep. Mod wheel at max: full LFO sweep. (Canonical "source via" test.)
 - [ ] Source=Velocity, Dest=Vol, Amount=+1.0. Soft MIDI notes quieter than hard ones.
 - [ ] Source=Key, Dest=Cutoff, Amount=+5000. High notes brighter than low notes.
