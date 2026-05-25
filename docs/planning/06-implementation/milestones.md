@@ -92,7 +92,7 @@ Make the synth playable from real hardware.
 
 ---
 
-## M4 — Minimal playable UI ✓
+## M4 — Minimal playable UI ✓ (tag `m04`)
 
 Make the synth tweakable from the window, not just from MIDI.
 
@@ -109,7 +109,7 @@ Make the synth tweakable from the window, not just from MIDI.
 
 ---
 
-## M5 — LFOs and Env2 (2 weeks)
+## M5 — LFOs and Env2 ✓ (tag `m05`)
 
 Add the modulation sources that the matrix will route in M6.
 

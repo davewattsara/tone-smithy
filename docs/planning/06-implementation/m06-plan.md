@@ -1,7 +1,7 @@
 # M6 — Modulation matrix
 
 Branch: `milestone/m06-mod-matrix`
-Status: **Not started**
+Status: **In progress** (M6.0–M6.3 complete; M6.4 close-out pending user test)
 
 ## Done-when
 
@@ -153,8 +153,8 @@ Unit tests for each source/dest combination and for via scaling.
 ### M6.1 — Voice + VoiceManager integration
 
 **Voice changes (`voice.rs`):**
-- Add `mod_offsets: DestOffsets` field (default zeros)
-- Add `pub fn set_mod_offsets(&mut self, offsets: DestOffsets)`
+- Add `pub mod_offsets: DestOffsets` field (default zeros; public so VoiceManager
+  can write directly without a setter)
 - In `next_sample`: apply volume offset:
   `let env = (self.amp_envelope.next_sample() * self.velocity_scale * (1.0 + self.mod_offsets.volume)).clamp(0.0, 1.0);`
 - Add `pub fn amp_env_level(&self) -> f32` calling `self.amp_envelope.current_level()`
@@ -166,7 +166,7 @@ Unit tests for each source/dest combination and for via scaling.
   1. Build `ModSources` from voice's lfo1/lfo2/env2/amp_env outputs, velocity,
      held note, and VoiceManager's global mod-wheel / aftertouch / pitch-bend values
   2. Call `self.matrix.compute_offsets(&sources)` → `DestOffsets`
-  3. Call `voice.set_mod_offsets(offsets)`
+  3. Assign directly: `v.mod_offsets = offsets`
 - In the per-sample loop (`next_sample`):
   ```rust
   let mut vp = *params;  // copy SampleParams
@@ -189,19 +189,19 @@ Unit tests for each source/dest combination and for via scaling.
 - New `ParamId` tuple variants:
   `ModSlotEnabled(u8)`, `ModSlotSource(u8)`, `ModSlotDest(u8)`,
   `ModSlotAmount(u8)`, `ModSlotVia(u8)`
-- `ModSource` and `ModDest` each implement `TryFrom<u8>` / `Into<u8>` for
-  encoding as f32 in the parameter bus
+- `ModSource` and `ModDest` each implement `from_index(u8) -> Option<Self>` and
+  `to_index(self) -> u8` for encoding as f32 in the parameter bus
 - Snapshot fields: `mod_slot_enabled: [bool; 8]`, `mod_slot_source: [u8; 8]`,
   `mod_slot_dest: [u8; 8]`, `mod_slot_amount: [f32; 8]`, `mod_slot_via: [u8; 8]`
 - Default snapshot: all slots disabled, amount 0
 
 **`engine.rs`:**
-- Fan-out new ParamId variants to `self.voices.update_mod_slot_*(index, value)`
-- Seed defaults in `Engine::new`
+- Fan-out new ParamId variants to `self.voices.set_mod_slot_*(index, value)`
 
 **`voice_manager.rs`:**
-- `update_mod_slot_enabled(i, v)`, `update_mod_slot_source(i, v)`, etc.
-  mutate `self.matrix.slots[i]`
+- `set_mod_slot_enabled(i, v)`, `set_mod_slot_source(i, v)`, `set_mod_slot_dest(i, v)`,
+  `set_mod_slot_amount(i, v)`, `set_mod_slot_via(i, v)` — each calls `slots.get_mut(i)`
+  and mutates the slot field
 
 **Files:** `crates/synth-engine/src/params.rs`,
            `crates/synth-engine/src/engine.rs`,
