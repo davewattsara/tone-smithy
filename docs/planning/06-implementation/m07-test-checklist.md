@@ -2,6 +2,10 @@
 
 Run these before closing out M7 and merging to main.
 
+Operator numbering in this document matches the UI: **Op 1** through
+**Op 4** (1-indexed). Internally the code uses 0-indexed indices, so
+UI "Op 4" = code op index 3, etc.
+
 ---
 
 ## Setup: load a clean state
@@ -54,29 +58,29 @@ all operators.
 
 For each algorithm, hold a note for 1–2 seconds, then release.
 
-- [ ] **Algorithm 1** (4→3→2→1 stack, op 0 carrier): Classic FM stack.
-  Should sound like a bright, bell-like or brass-like tone. Only op 0
-  contributes to output.
-- [ ] **Algorithm 2** (4→3→2→1 + op 3 self-feedback): Same stack but op
-  3 feeds back on itself. Should sound richer and rougher than Alg 1 —
-  more overtones, especially with feedback cranked up. Set Op 3 Feedback
-  knob to +0.7 to hear the difference clearly.
-- [ ] **Algorithm 3** (two stacks: 4→3 into 2→1, mixed): Ops 0 and 2
-  are both carriers. Should sound like two separate FM stacks layered,
-  giving a fuller timbre.
-- [ ] **Algorithm 4** (op 3 modulates ops 0, 1, 2 in parallel): Three
-  carriers (ops 0, 1, 2) all FM'd by the same modulator (op 3). Should
-  sound dense and organ-like.
-- [ ] **Algorithm 5** (op 3 modulates ops 1+2; op 2 modulates op 0):
+- [ ] **Algorithm 1** (Op 4→Op 3→Op 2→Op 1 stack, Op 1 is the carrier):
+  Classic FM stack. Should sound like a bright, bell-like or brass-like
+  tone. Only Op 1 contributes to the audio output.
+- [ ] **Algorithm 2** (same stack + Op 4 self-feedback): Same stack but
+  Op 4 feeds back on itself. Should sound richer and rougher than Alg 1
+  — more overtones, especially with feedback cranked up. Set the
+  **Op 4 Feedback** knob to +0.7 to hear the difference clearly.
+- [ ] **Algorithm 3** (two stacks: Op 4→Op 3 and Op 2→Op 1, mixed):
+  Op 1 and Op 3 are both carriers. Should sound like two separate FM
+  stacks layered, giving a fuller timbre.
+- [ ] **Algorithm 4** (Op 4 modulates Op 1, Op 2, Op 3 in parallel):
+  Three carriers (Op 1, Op 2, Op 3) all FM'd by the same modulator
+  (Op 4). Should sound dense and organ-like.
+- [ ] **Algorithm 5** (Op 4 modulates Op 2+Op 3; Op 3 modulates Op 1):
   Branching modulator. Should produce a complex, evolving timbre.
-- [ ] **Algorithm 6** (ops 2+1 modulate op 0; op 3 separate carrier):
-  Ops 0 and 3 are both carriers. Should sound like a carrier with
-  frequency-modulated harmonic content plus op 3's direct tone.
+- [ ] **Algorithm 6** (Op 3+Op 2 modulate Op 1; Op 4 separate carrier):
+  Op 1 and Op 4 are both carriers. Should sound like a carrier with
+  frequency-modulated harmonic content plus Op 4's direct sine tone.
 - [ ] **Algorithm 7** (all four parallel, additive): All four operators
   are carriers with no modulation. Should sound like four sine waves
   added together — a clean, slightly rich tone.
-- [ ] **Algorithm 8** (op 3→op 0; op 2→op 1; ops 0+1 carriers): Two
-  modulator–carrier pairs in parallel. Should sound similar to two
+- [ ] **Algorithm 8** (Op 4→Op 1; Op 3→Op 2; Op 1 and Op 2 are carriers):
+  Two modulator–carrier pairs in parallel. Should sound similar to two
   separate FM tones mixed.
 
 **Pass criterion**: every algorithm produces a recognisably different
@@ -86,15 +90,15 @@ timbre; none produce silence, DC offset, or distorted/broken audio.
 
 ## 4. Operator ratio
 
-Set: Slot 1 = FM, Algorithm 1 (4→3→2→1), all levels 1.0.
+Set: Slot 1 = FM, Algorithm 1 (Op 4→Op 3→Op 2→Op 1), all levels 1.0.
 
-- [ ] Set **Op 3 Ratio Integer** to 1. Hold a note — baseline timbre.
+- [ ] Set **Op 4 Ratio Integer** to 1. Hold a note — baseline timbre.
   Increase to 2, 4, 8. The timbre gets progressively brighter and more
   complex as the modulation index ratio increases.
-- [ ] Set all operators to **Ratio Integer = 1**, then set Op 0 (carrier)
-  to 2. Hold a note. The output pitch should be one octave higher than
-  the note played (carrier runs at 2× the note frequency).
-- [ ] Set **Op 3 Ratio Fine** to +100 ct. Hold a note — the timbre
+- [ ] Set all operators to **Ratio Integer = 1**, then set **Op 1**
+  (carrier) to 2. Hold a note. The output pitch should be one octave
+  higher than the note played (carrier runs at 2× the note frequency).
+- [ ] Set **Op 4 Ratio Fine** to +100 ct. Hold a note — the timbre
   becomes "detuned" or slightly inharmonic compared to fine = 0.
   Set to -100 ct for the opposite detuning. Return to 0.
 
@@ -104,44 +108,44 @@ Set: Slot 1 = FM, Algorithm 1 (4→3→2→1), all levels 1.0.
 
 Set: Slot 1 = FM, Algorithm 1, all ratios = 1.
 
-- [ ] Set **Op 3 Level** (top modulator in the stack) to 0. Hold a note.
-  With op 3 silent, its modulation contribution to op 2 is zero, so the
-  stack simplifies to 3→2→1→0 with the top link broken. Timbre becomes
-  simpler/cleaner.
-- [ ] Set Op 3 Level back to 1.0. Set **Op 2 Level** to 0. Now op 2
-  contributes no modulation to op 1, so the remaining chain is just
-  op 1 → op 0 at ratio 1 — effectively a simple FM pair.
-- [ ] Set all levels to 0 except **Op 0 Level** = 1.0. Algorithm 1 only
-  has op 0 as carrier. With no modulators active, you should hear a pure
+- [ ] Set **Op 4 Level** (top modulator in the stack) to 0. Hold a note.
+  With Op 4 silent, its modulation contribution to Op 3 is zero, so the
+  stack simplifies to Op 3→Op 2→Op 1 with the top link broken. Timbre
+  becomes simpler/cleaner.
+- [ ] Set Op 4 Level back to 1.0. Set **Op 3 Level** to 0. Now Op 3
+  contributes no modulation to Op 2, so the remaining chain is just
+  Op 2 → Op 1 — effectively a simple FM pair.
+- [ ] Set all levels to 0 except **Op 1 Level** = 1.0. Algorithm 1 only
+  has Op 1 as carrier. With no modulators active, you should hear a pure
   sine at the note frequency.
 
 ---
 
 ## 6. Operator ADSR
 
-Set: Slot 1 = FM, Algorithm 1. Op 0 level = 1.0, op 3 level = 1.0 (the
+Set: Slot 1 = FM, Algorithm 1. Op 1 level = 1.0, Op 4 level = 1.0 (the
 others at 0.5 so there is clear modulation but the carrier is audible).
 
-- [ ] Set **Op 3 Attack** to 2.0 s. Hold a note. The timbre should start
+- [ ] Set **Op 4 Attack** to 2.0 s. Hold a note. The timbre should start
   clean (little modulation) and gradually become brighter over 2 seconds
-  as op 3's envelope ramps up. Release — the modulation dies.
-- [ ] Set **Op 3 Decay** to 0.1 s, **Sustain** = 0. Hold a note. Op 3
-  fires and decays quickly — a sharp transient "click" or bright attack
-  followed by a simpler sustained tone as the modulator envelope falls to
-  0. Classic DX7-style bell.
-- [ ] Set **Op 0 Attack** to 1.0 s (the carrier's own envelope).
-  Hold a note. The output fades in slowly even though the modulator is
-  active. Confirms carrier amplitude is independently enveloped.
+  as Op 4's envelope ramps up. Release — the modulation dies.
+- [ ] Set **Op 4 Decay** to 0.1 s, **Op 4 Sustain** = 0. Hold a note.
+  Op 4 fires and decays quickly — a sharp transient "click" or bright
+  attack followed by a simpler sustained tone as the modulator envelope
+  falls to 0. Classic DX7-style bell.
+- [ ] Set **Op 1 Attack** to 1.0 s (the carrier's own envelope). Hold a
+  note. The output fades in slowly even though the modulator is active.
+  Confirms carrier amplitude is independently enveloped.
 
 ---
 
-## 7. Operator feedback (Op 3)
+## 7. Operator feedback (Op 4)
 
 Set: Slot 1 = FM, Algorithm 2 (has self-feedback), all levels = 1.0.
-Op 3 Ratio = 1.
+Op 4 Ratio = 1.
 
-- [ ] Set **Op 3 Feedback** to 0. Hold a note — clean FM tone.
-- [ ] Slowly increase **Op 3 Feedback** toward +1.0. The timbre should
+- [ ] Set **Op 4 Feedback** to 0. Hold a note — clean FM tone.
+- [ ] Slowly increase **Op 4 Feedback** toward +1.0. The timbre should
   become progressively noisier and more distorted as the feedback
   oscillates more aggressively. At +1.0 it should be very rich/noisy
   but should NOT produce clicks, infinite values, or silence.
@@ -160,10 +164,10 @@ Setup:
 - **Slot 0**: Subtractive, level = 1.0, pan = -0.25 (slightly left)
 - **Slot 1**: FM, level = 0.7, pan = +0.25 (slightly right)
 - Slot 1 algorithm: **1** (clean FM bell stack)
-- Slot 1 operator settings: all ratio = 1, Op 3 level = 0.8, Op 0
-  level = 1.0, others at 0.5. Op 3 envelope: A=0.01, D=0.3, S=0,
-  R=0.1 (fast transient modulator). Op 0 envelope: A=0.01, D=1.0,
-  S=0.6, R=0.5.
+- Slot 1 operator settings: all ratio = 1, Op 4 level = 0.8, Op 1
+  level = 1.0, Op 2 and Op 3 at 0.5.
+  Op 4 envelope: A=0.01, D=0.3, S=0, R=0.1 (fast transient modulator).
+  Op 1 envelope: A=0.01, D=1.0, S=0.6, R=0.5.
 - Voice amp envelope: A=0.01, D=0.5, S=0.7, R=0.3.
 
 - [ ] Hold a note. You should hear a warm saw (slot 0, slightly left)
@@ -186,8 +190,8 @@ This tests that the 2× oversampling in the FM bank reduces artefacts
 at high modulation indices.
 
 Setup: Slot 1 = FM, Algorithm 2, Slot 0 level = 0.
-Op 3: Ratio = 8, Level = 1.0, Feedback = 0.7.
-Op 0: Level = 1.0 (only carrier).
+**Op 4**: Ratio = 8, Level = 1.0, Feedback = 0.7.
+**Op 1**: Level = 1.0 (only carrier). Op 2 and Op 3 at level 0.5.
 
 - [ ] Hold a high note (C5 or above). The output should sound dense and
   harmonically complex but should NOT include obvious "digital" noise
