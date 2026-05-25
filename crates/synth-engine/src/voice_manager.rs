@@ -17,6 +17,7 @@
 
 use crate::POLYPHONY;
 use crate::filter::FilterMode;
+use crate::lfo::LfoShape;
 use crate::oscillator::Waveform;
 use crate::params::SampleParams;
 use crate::voice::Voice;
@@ -213,6 +214,119 @@ impl VoiceManager {
         }
     }
 
+    /// Sets LFO1 rate (Hz) on every voice.
+    pub fn set_lfo1_rate_hz(&mut self, rate_hz: f32) {
+        for v in &mut self.voices {
+            v.set_lfo1_rate_hz(rate_hz);
+        }
+    }
+
+    /// Sets LFO1 shape on every voice.
+    pub fn set_lfo1_shape(&mut self, shape: LfoShape) {
+        for v in &mut self.voices {
+            v.set_lfo1_shape(shape);
+        }
+    }
+
+    /// Sets LFO1 phase-reset-on-note-on on every voice.
+    pub fn set_lfo1_reset_on_note_on(&mut self, reset: bool) {
+        for v in &mut self.voices {
+            v.set_lfo1_reset_on_note_on(reset);
+        }
+    }
+
+    /// Sets LFO2 rate (Hz) on every voice.
+    pub fn set_lfo2_rate_hz(&mut self, rate_hz: f32) {
+        for v in &mut self.voices {
+            v.set_lfo2_rate_hz(rate_hz);
+        }
+    }
+
+    /// Sets LFO2 shape on every voice.
+    pub fn set_lfo2_shape(&mut self, shape: LfoShape) {
+        for v in &mut self.voices {
+            v.set_lfo2_shape(shape);
+        }
+    }
+
+    /// Sets LFO2 phase-reset-on-note-on on every voice.
+    pub fn set_lfo2_reset_on_note_on(&mut self, reset: bool) {
+        for v in &mut self.voices {
+            v.set_lfo2_reset_on_note_on(reset);
+        }
+    }
+
+    /// Sets Env2 attack time (seconds) on every voice.
+    pub fn set_env2_attack_secs(&mut self, secs: f32) {
+        for v in &mut self.voices {
+            v.set_env2_attack_secs(secs);
+        }
+    }
+
+    /// Sets Env2 decay time (seconds) on every voice.
+    pub fn set_env2_decay_secs(&mut self, secs: f32) {
+        for v in &mut self.voices {
+            v.set_env2_decay_secs(secs);
+        }
+    }
+
+    /// Sets Env2 sustain level on every voice.
+    pub fn set_env2_sustain_level(&mut self, level: f32) {
+        for v in &mut self.voices {
+            v.set_env2_sustain_level(level);
+        }
+    }
+
+    /// Sets Env2 release time (seconds) on every voice.
+    pub fn set_env2_release_secs(&mut self, secs: f32) {
+        for v in &mut self.voices {
+            v.set_env2_release_secs(secs);
+        }
+    }
+
+    /// Sets Env2 Attack curve on every voice.
+    pub fn set_env2_attack_curve(&mut self, curve: f32) {
+        for v in &mut self.voices {
+            v.set_env2_attack_curve(curve);
+        }
+    }
+
+    /// Sets Env2 Decay curve on every voice.
+    pub fn set_env2_decay_curve(&mut self, curve: f32) {
+        for v in &mut self.voices {
+            v.set_env2_decay_curve(curve);
+        }
+    }
+
+    /// Sets Env2 Release curve on every voice.
+    pub fn set_env2_release_curve(&mut self, curve: f32) {
+        for v in &mut self.voices {
+            v.set_env2_release_curve(curve);
+        }
+    }
+
+    /// Advances LFO1, LFO2, and Env2 on every active voice by one block.
+    /// Call once per inner block, before the per-sample loop.
+    pub fn advance_modulators(&mut self, block_size: usize) {
+        for v in &mut self.voices {
+            if !v.is_idle() {
+                v.advance_modulators(block_size);
+            }
+        }
+    }
+
+    /// Returns the LFO1/LFO2/Env2 outputs of the first active voice,
+    /// or `(0.0, 0.0, 0.0)` if no voice is active. Used for the UI
+    /// live readout in the snapshot.
+    pub fn first_active_modulator_outputs(&self) -> (f32, f32, f32) {
+        for v in &self.voices {
+            if !v.is_idle() {
+                return (v.lfo1_out(), v.lfo2_out(), v.env2_out());
+            }
+        }
+        (0.0, 0.0, 0.0)
+    }
+
     /// Produces one stereo frame as the sum of every non-idle voice.
     ///
     /// Idle voices skip their per-sample work — the oscillator phase
@@ -233,12 +347,14 @@ impl VoiceManager {
         (sum_l, sum_r)
     }
 
-    /// Returns the number of voices currently producing audio. The
-    /// engine forwards this into the parameter snapshot every block
-    /// so the UI footer can show the live count.
+    /// Returns the number of voices currently producing audio — those
+    /// whose amp envelope is not yet idle. Voices whose amp is silent
+    /// but whose Env2 is still releasing are not counted here; they
+    /// contribute nothing to the mix but remain allocated until fully
+    /// idle. The engine forwards this into the snapshot for the UI footer.
     #[must_use]
     pub fn active_count(&self) -> usize {
-        self.voices.iter().filter(|v| !v.is_idle()).count()
+        self.voices.iter().filter(|v| !v.is_amp_silent()).count()
     }
 
     /// Returns the index of the oldest voice currently holding the

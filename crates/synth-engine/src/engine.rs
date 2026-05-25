@@ -10,6 +10,7 @@
 //! [`VoiceManager`]: crate::voice_manager::VoiceManager
 
 use crate::events::EngineEvent;
+use crate::lfo::LfoShape;
 use crate::params::{ParamId, ParamSnapshot, ParameterTree};
 use crate::voice_manager::VoiceManager;
 
@@ -61,6 +62,19 @@ impl Engine {
         voices.set_release_secs(params.amp_release_secs());
         voices.set_main_waveform(params.waveform());
         voices.set_filter_mode(params.filter_mode());
+        voices.set_lfo1_rate_hz(params.lfo1_effective_rate_hz());
+        voices.set_lfo1_shape(LfoShape::from_index(params.lfo1_shape_index()));
+        voices.set_lfo1_reset_on_note_on(params.lfo1_reset_on_note_on());
+        voices.set_lfo2_rate_hz(params.lfo2_effective_rate_hz());
+        voices.set_lfo2_shape(LfoShape::from_index(params.lfo2_shape_index()));
+        voices.set_lfo2_reset_on_note_on(params.lfo2_reset_on_note_on());
+        voices.set_env2_attack_secs(params.env2_attack_secs());
+        voices.set_env2_decay_secs(params.env2_decay_secs());
+        voices.set_env2_sustain_level(params.env2_sustain_level());
+        voices.set_env2_release_secs(params.env2_release_secs());
+        voices.set_env2_attack_curve(params.env2_attack_curve());
+        voices.set_env2_decay_curve(params.env2_decay_curve());
+        voices.set_env2_release_curve(params.env2_release_curve());
         Self {
             sample_rate_hz,
             params,
@@ -106,6 +120,36 @@ impl Engine {
                     ParamId::AmpDecaySecs => self.voices.set_decay_secs(value),
                     ParamId::AmpSustainLevel => self.voices.set_sustain_level(value),
                     ParamId::AmpReleaseSecs => self.voices.set_release_secs(value),
+                    ParamId::Lfo1RateHz | ParamId::Lfo1SyncEnabled | ParamId::Lfo1SyncDivision | ParamId::Bpm => {
+                        // Re-derive LFO1 rate whenever anything that affects it changes.
+                        self.voices.set_lfo1_rate_hz(self.params.lfo1_effective_rate_hz());
+                        // Bpm also affects LFO2 if it's synced.
+                        if id == ParamId::Bpm {
+                            self.voices.set_lfo2_rate_hz(self.params.lfo2_effective_rate_hz());
+                        }
+                    }
+                    ParamId::Lfo1Shape => {
+                        self.voices.set_lfo1_shape(LfoShape::from_index(value as usize));
+                    }
+                    ParamId::Lfo1ResetOnNoteOn => {
+                        self.voices.set_lfo1_reset_on_note_on(value >= 0.5);
+                    }
+                    ParamId::Lfo2RateHz | ParamId::Lfo2SyncEnabled | ParamId::Lfo2SyncDivision => {
+                        self.voices.set_lfo2_rate_hz(self.params.lfo2_effective_rate_hz());
+                    }
+                    ParamId::Lfo2Shape => {
+                        self.voices.set_lfo2_shape(LfoShape::from_index(value as usize));
+                    }
+                    ParamId::Lfo2ResetOnNoteOn => {
+                        self.voices.set_lfo2_reset_on_note_on(value >= 0.5);
+                    }
+                    ParamId::Env2AttackSecs => self.voices.set_env2_attack_secs(value),
+                    ParamId::Env2DecaySecs => self.voices.set_env2_decay_secs(value),
+                    ParamId::Env2SustainLevel => self.voices.set_env2_sustain_level(value),
+                    ParamId::Env2ReleaseSecs => self.voices.set_env2_release_secs(value),
+                    ParamId::Env2AttackCurve => self.voices.set_env2_attack_curve(value),
+                    ParamId::Env2DecayCurve => self.voices.set_env2_decay_curve(value),
+                    ParamId::Env2ReleaseCurve => self.voices.set_env2_release_curve(value),
                     _ => {}
                 }
             }
@@ -139,6 +183,10 @@ impl Engine {
     pub fn process_stereo(&mut self, output: &mut [f32], frames: usize) {
         debug_assert_eq!(output.len(), frames * 2);
 
+        // Advance block-rate modulators (LFOs and Env2) once per block
+        // before the per-sample loop.
+        self.voices.advance_modulators(frames);
+
         for frame_index in 0..frames {
             let smoothed = self.params.next_sample();
             let (left, right) = self.voices.next_sample(&smoothed);
@@ -146,12 +194,13 @@ impl Engine {
             output[frame_index * 2 + 1] = right * smoothed.master_volume;
         }
 
-        // Mirror the post-block voice count into the tree so the next
-        // snapshot reflects what just played. POLYPHONY is 32, which
-        // fits in u8 without truncation.
+        // Mirror the post-block voice count and modulator outputs into
+        // the tree so the next snapshot reflects what just played.
         #[allow(clippy::cast_possible_truncation)]
         let count = self.voices.active_count() as u8;
         self.params.set_active_voice_count(count);
+        let (lfo1, lfo2, env2) = self.voices.first_active_modulator_outputs();
+        self.params.set_modulator_outputs(lfo1, lfo2, env2);
     }
 
     /// Returns the current parameter snapshot by value, without
