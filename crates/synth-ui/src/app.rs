@@ -1060,263 +1060,265 @@ impl ToneSmithyApp {
                 "FM"
             };
             let slot_label = format!("Slot {} ({})", slot_idx, mode_tag);
-            ui.collapsing(slot_label, |ui| {
-                // Mode toggle
-                ui.horizontal(|ui| {
-                    ui.label("Mode:");
-                    let is_sub = self.slot_mode[slot_idx] == 0;
-                    let is_fm = self.slot_mode[slot_idx] == 1;
-                    if ui.selectable_label(is_sub, "Subtractive").clicked() && !is_sub {
-                        self.slot_mode[slot_idx] = 0;
-                        self.events.send(EngineEvent::ParameterChange {
-                            id: ParamId::SlotMode(slot_idx as u8),
-                            value: 0.0,
-                        });
-                    }
-                    if ui.selectable_label(is_fm, "FM").clicked() && !is_fm {
-                        self.slot_mode[slot_idx] = 1;
-                        self.events.send(EngineEvent::ParameterChange {
-                            id: ParamId::SlotMode(slot_idx as u8),
-                            value: 1.0,
-                        });
-                    }
-                });
-
-                // Level and Pan
-                ui.horizontal(|ui| {
-                    if ui
-                        .add(
-                            Knob::new(&mut self.slot_level[slot_idx], 0.0..=1.0, "Level")
-                                .default_value(if slot_idx == 0 { 1.0 } else { 0.0 })
-                                .format(|v| format!("{:.2}", v)),
-                        )
-                        .changed()
-                    {
-                        self.events.send(EngineEvent::ParameterChange {
-                            id: ParamId::SlotLevel(slot_idx as u8),
-                            value: self.slot_level[slot_idx],
-                        });
-                    }
-                    if ui
-                        .add(
-                            Knob::new(&mut self.slot_pan[slot_idx], -1.0..=1.0, "Pan")
-                                .default_value(0.0)
-                                .format(|v| {
-                                    if v < -0.01 {
-                                        format!("L{:.0}", v.abs() * 100.0)
-                                    } else if v > 0.01 {
-                                        format!("R{:.0}", v * 100.0)
-                                    } else {
-                                        "C".to_string()
-                                    }
-                                }),
-                        )
-                        .changed()
-                    {
-                        self.events.send(EngineEvent::ParameterChange {
-                            id: ParamId::SlotPan(slot_idx as u8),
-                            value: self.slot_pan[slot_idx],
-                        });
-                    }
-                });
-
-                // FM-only controls
-                if self.slot_mode[slot_idx] == 1 {
-                    ui.add_space(4.0);
-
-                    // Algorithm picker
+            egui::CollapsingHeader::new(slot_label)
+                .id_salt(slot_idx)
+                .show(ui, |ui| {
+                    // Mode toggle
                     ui.horizontal(|ui| {
-                        ui.label("Algorithm:");
-                        let alg = self.fm_algorithm[slot_idx];
-                        const ALG_LABELS: [&str; 8] = [
-                            "1 Stack",
-                            "2 Stack+FB",
-                            "3 Two stacks",
-                            "4 Para mod",
-                            "5 Branch",
-                            "6 Mixed",
-                            "7 Additive",
-                            "8 Paired",
-                        ];
-                        egui::ComboBox::from_id_salt(format!("fm_alg_{slot_idx}"))
-                            .selected_text(ALG_LABELS[alg as usize])
-                            .show_ui(ui, |ui| {
-                                for (idx, &label) in ALG_LABELS.iter().enumerate() {
+                        ui.label("Mode:");
+                        let is_sub = self.slot_mode[slot_idx] == 0;
+                        let is_fm = self.slot_mode[slot_idx] == 1;
+                        if ui.selectable_label(is_sub, "Subtractive").clicked() && !is_sub {
+                            self.slot_mode[slot_idx] = 0;
+                            self.events.send(EngineEvent::ParameterChange {
+                                id: ParamId::SlotMode(slot_idx as u8),
+                                value: 0.0,
+                            });
+                        }
+                        if ui.selectable_label(is_fm, "FM").clicked() && !is_fm {
+                            self.slot_mode[slot_idx] = 1;
+                            self.events.send(EngineEvent::ParameterChange {
+                                id: ParamId::SlotMode(slot_idx as u8),
+                                value: 1.0,
+                            });
+                        }
+                    });
+
+                    // Level and Pan
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add(
+                                Knob::new(&mut self.slot_level[slot_idx], 0.0..=1.0, "Level")
+                                    .default_value(if slot_idx == 0 { 1.0 } else { 0.0 })
+                                    .format(|v| format!("{:.2}", v)),
+                            )
+                            .changed()
+                        {
+                            self.events.send(EngineEvent::ParameterChange {
+                                id: ParamId::SlotLevel(slot_idx as u8),
+                                value: self.slot_level[slot_idx],
+                            });
+                        }
+                        if ui
+                            .add(
+                                Knob::new(&mut self.slot_pan[slot_idx], -1.0..=1.0, "Pan")
+                                    .default_value(0.0)
+                                    .format(|v| {
+                                        if v < -0.01 {
+                                            format!("L{:.0}", v.abs() * 100.0)
+                                        } else if v > 0.01 {
+                                            format!("R{:.0}", v * 100.0)
+                                        } else {
+                                            "C".to_string()
+                                        }
+                                    }),
+                            )
+                            .changed()
+                        {
+                            self.events.send(EngineEvent::ParameterChange {
+                                id: ParamId::SlotPan(slot_idx as u8),
+                                value: self.slot_pan[slot_idx],
+                            });
+                        }
+                    });
+
+                    // FM-only controls
+                    if self.slot_mode[slot_idx] == 1 {
+                        ui.add_space(4.0);
+
+                        // Algorithm picker
+                        ui.horizontal(|ui| {
+                            ui.label("Algorithm:");
+                            let alg = self.fm_algorithm[slot_idx];
+                            const ALG_LABELS: [&str; 8] = [
+                                "1 Stack",
+                                "2 Stack+FB",
+                                "3 Two stacks",
+                                "4 Para mod",
+                                "5 Branch",
+                                "6 Mixed",
+                                "7 Additive",
+                                "8 Paired",
+                            ];
+                            egui::ComboBox::from_id_salt(format!("fm_alg_{slot_idx}"))
+                                .selected_text(ALG_LABELS[alg as usize])
+                                .show_ui(ui, |ui| {
+                                    for (idx, &label) in ALG_LABELS.iter().enumerate() {
+                                        if ui
+                                            .selectable_value(&mut self.fm_algorithm[slot_idx], idx as u8, label)
+                                            .changed()
+                                        {
+                                            self.events.send(EngineEvent::ParameterChange {
+                                                id: ParamId::FmAlgorithm(slot_idx as u8),
+                                                value: idx as f32,
+                                            });
+                                        }
+                                    }
+                                });
+                        });
+
+                        ui.add_space(4.0);
+
+                        // Operator rows in a grid: Op | Ratio Int | Ratio Fine | Level | A | D | S | R | [Feedback]
+                        egui::Grid::new(format!("fm_ops_{slot_idx}"))
+                            .striped(true)
+                            .spacing([4.0, 4.0])
+                            .show(ui, |ui| {
+                                ui.label("Op");
+                                ui.label("Ratio");
+                                ui.label("Fine");
+                                ui.label("Level");
+                                ui.label("A");
+                                ui.label("D");
+                                ui.label("S");
+                                ui.label("R");
+                                ui.label("FB");
+                                ui.end_row();
+
+                                for op in 0..4usize {
+                                    let packed = ((slot_idx as u8) << 4) | (op as u8);
+                                    ui.label(format!("Op {}", op + 1));
+
+                                    // Ratio integer
+                                    let mut ratio_int = self.fm_op_ratio_integer[slot_idx][op] as i32;
                                     if ui
-                                        .selectable_value(&mut self.fm_algorithm[slot_idx], idx as u8, label)
+                                        .add(egui::DragValue::new(&mut ratio_int).range(1..=15).speed(0.1))
+                                        .changed()
+                                    {
+                                        self.fm_op_ratio_integer[slot_idx][op] = ratio_int as u8;
+                                        self.events.send(EngineEvent::ParameterChange {
+                                            id: ParamId::FmOpRatioInteger(packed),
+                                            value: ratio_int as f32,
+                                        });
+                                    }
+
+                                    // Ratio fine (cents)
+                                    if ui
+                                        .add(
+                                            egui::DragValue::new(&mut self.fm_op_ratio_fine[slot_idx][op])
+                                                .range(-FM_RATIO_FINE_MAX..=FM_RATIO_FINE_MAX)
+                                                .speed(0.5)
+                                                .suffix(" ct"),
+                                        )
                                         .changed()
                                     {
                                         self.events.send(EngineEvent::ParameterChange {
-                                            id: ParamId::FmAlgorithm(slot_idx as u8),
-                                            value: idx as f32,
+                                            id: ParamId::FmOpRatioFine(packed),
+                                            value: self.fm_op_ratio_fine[slot_idx][op],
                                         });
                                     }
-                                }
-                            });
-                    });
 
-                    ui.add_space(4.0);
-
-                    // Operator rows in a grid: Op | Ratio Int | Ratio Fine | Level | A | D | S | R | [Feedback]
-                    egui::Grid::new(format!("fm_ops_{slot_idx}"))
-                        .striped(true)
-                        .spacing([4.0, 4.0])
-                        .show(ui, |ui| {
-                            ui.label("Op");
-                            ui.label("Ratio");
-                            ui.label("Fine");
-                            ui.label("Level");
-                            ui.label("A");
-                            ui.label("D");
-                            ui.label("S");
-                            ui.label("R");
-                            ui.label("FB");
-                            ui.end_row();
-
-                            for op in 0..4usize {
-                                let packed = ((slot_idx as u8) << 4) | (op as u8);
-                                ui.label(format!("Op {}", op + 1));
-
-                                // Ratio integer
-                                let mut ratio_int = self.fm_op_ratio_integer[slot_idx][op] as i32;
-                                if ui
-                                    .add(egui::DragValue::new(&mut ratio_int).range(1..=15).speed(0.1))
-                                    .changed()
-                                {
-                                    self.fm_op_ratio_integer[slot_idx][op] = ratio_int as u8;
-                                    self.events.send(EngineEvent::ParameterChange {
-                                        id: ParamId::FmOpRatioInteger(packed),
-                                        value: ratio_int as f32,
-                                    });
-                                }
-
-                                // Ratio fine (cents)
-                                if ui
-                                    .add(
-                                        egui::DragValue::new(&mut self.fm_op_ratio_fine[slot_idx][op])
-                                            .range(-FM_RATIO_FINE_MAX..=FM_RATIO_FINE_MAX)
-                                            .speed(0.5)
-                                            .suffix(" ct"),
-                                    )
-                                    .changed()
-                                {
-                                    self.events.send(EngineEvent::ParameterChange {
-                                        id: ParamId::FmOpRatioFine(packed),
-                                        value: self.fm_op_ratio_fine[slot_idx][op],
-                                    });
-                                }
-
-                                // Level
-                                if ui
-                                    .add(
-                                        Knob::new(&mut self.fm_op_level[slot_idx][op], 0.0..=1.0, "Lv")
-                                            .default_value(1.0)
-                                            .format(|v| format!("{:.2}", v)),
-                                    )
-                                    .changed()
-                                {
-                                    self.events.send(EngineEvent::ParameterChange {
-                                        id: ParamId::FmOpLevel(packed),
-                                        value: self.fm_op_level[slot_idx][op],
-                                    });
-                                }
-
-                                // Attack
-                                if ui
-                                    .add(
-                                        Knob::new(
-                                            &mut self.fm_op_attack_secs[slot_idx][op],
-                                            FM_OP_ENV_MIN_SECS..=FM_OP_ENV_MAX_SECS,
-                                            "A",
-                                        )
-                                        .default_value(0.010)
-                                        .format(secs_format),
-                                    )
-                                    .changed()
-                                {
-                                    self.events.send(EngineEvent::ParameterChange {
-                                        id: ParamId::FmOpAttackSecs(packed),
-                                        value: self.fm_op_attack_secs[slot_idx][op],
-                                    });
-                                }
-
-                                // Decay
-                                if ui
-                                    .add(
-                                        Knob::new(
-                                            &mut self.fm_op_decay_secs[slot_idx][op],
-                                            FM_OP_ENV_MIN_SECS..=FM_OP_ENV_MAX_SECS,
-                                            "D",
-                                        )
-                                        .default_value(0.200)
-                                        .format(secs_format),
-                                    )
-                                    .changed()
-                                {
-                                    self.events.send(EngineEvent::ParameterChange {
-                                        id: ParamId::FmOpDecaySecs(packed),
-                                        value: self.fm_op_decay_secs[slot_idx][op],
-                                    });
-                                }
-
-                                // Sustain
-                                if ui
-                                    .add(
-                                        Knob::new(&mut self.fm_op_sustain_level[slot_idx][op], 0.0..=1.0, "S")
-                                            .default_value(0.8)
-                                            .format(|v| format!("{:.2}", v)),
-                                    )
-                                    .changed()
-                                {
-                                    self.events.send(EngineEvent::ParameterChange {
-                                        id: ParamId::FmOpSustainLevel(packed),
-                                        value: self.fm_op_sustain_level[slot_idx][op],
-                                    });
-                                }
-
-                                // Release
-                                if ui
-                                    .add(
-                                        Knob::new(
-                                            &mut self.fm_op_release_secs[slot_idx][op],
-                                            FM_OP_ENV_MIN_SECS..=FM_OP_ENV_MAX_SECS,
-                                            "R",
-                                        )
-                                        .default_value(0.200)
-                                        .format(secs_format),
-                                    )
-                                    .changed()
-                                {
-                                    self.events.send(EngineEvent::ParameterChange {
-                                        id: ParamId::FmOpReleaseSecs(packed),
-                                        value: self.fm_op_release_secs[slot_idx][op],
-                                    });
-                                }
-
-                                // Feedback (op 3 only in starter algorithms)
-                                if op == 3 {
+                                    // Level
                                     if ui
                                         .add(
-                                            Knob::new(&mut self.fm_op_feedback[slot_idx][op], -1.0..=1.0, "FB")
-                                                .default_value(0.0)
+                                            Knob::new(&mut self.fm_op_level[slot_idx][op], 0.0..=1.0, "Lv")
+                                                .default_value(1.0)
                                                 .format(|v| format!("{:.2}", v)),
                                         )
                                         .changed()
                                     {
                                         self.events.send(EngineEvent::ParameterChange {
-                                            id: ParamId::FmOpFeedback(packed),
-                                            value: self.fm_op_feedback[slot_idx][op],
+                                            id: ParamId::FmOpLevel(packed),
+                                            value: self.fm_op_level[slot_idx][op],
                                         });
                                     }
-                                } else {
-                                    ui.label("-");
-                                }
 
-                                ui.end_row();
-                            }
-                        });
-                }
-            });
+                                    // Attack
+                                    if ui
+                                        .add(
+                                            Knob::new(
+                                                &mut self.fm_op_attack_secs[slot_idx][op],
+                                                FM_OP_ENV_MIN_SECS..=FM_OP_ENV_MAX_SECS,
+                                                "A",
+                                            )
+                                            .default_value(0.010)
+                                            .format(secs_format),
+                                        )
+                                        .changed()
+                                    {
+                                        self.events.send(EngineEvent::ParameterChange {
+                                            id: ParamId::FmOpAttackSecs(packed),
+                                            value: self.fm_op_attack_secs[slot_idx][op],
+                                        });
+                                    }
+
+                                    // Decay
+                                    if ui
+                                        .add(
+                                            Knob::new(
+                                                &mut self.fm_op_decay_secs[slot_idx][op],
+                                                FM_OP_ENV_MIN_SECS..=FM_OP_ENV_MAX_SECS,
+                                                "D",
+                                            )
+                                            .default_value(0.200)
+                                            .format(secs_format),
+                                        )
+                                        .changed()
+                                    {
+                                        self.events.send(EngineEvent::ParameterChange {
+                                            id: ParamId::FmOpDecaySecs(packed),
+                                            value: self.fm_op_decay_secs[slot_idx][op],
+                                        });
+                                    }
+
+                                    // Sustain
+                                    if ui
+                                        .add(
+                                            Knob::new(&mut self.fm_op_sustain_level[slot_idx][op], 0.0..=1.0, "S")
+                                                .default_value(0.8)
+                                                .format(|v| format!("{:.2}", v)),
+                                        )
+                                        .changed()
+                                    {
+                                        self.events.send(EngineEvent::ParameterChange {
+                                            id: ParamId::FmOpSustainLevel(packed),
+                                            value: self.fm_op_sustain_level[slot_idx][op],
+                                        });
+                                    }
+
+                                    // Release
+                                    if ui
+                                        .add(
+                                            Knob::new(
+                                                &mut self.fm_op_release_secs[slot_idx][op],
+                                                FM_OP_ENV_MIN_SECS..=FM_OP_ENV_MAX_SECS,
+                                                "R",
+                                            )
+                                            .default_value(0.200)
+                                            .format(secs_format),
+                                        )
+                                        .changed()
+                                    {
+                                        self.events.send(EngineEvent::ParameterChange {
+                                            id: ParamId::FmOpReleaseSecs(packed),
+                                            value: self.fm_op_release_secs[slot_idx][op],
+                                        });
+                                    }
+
+                                    // Feedback (op 3 only in starter algorithms)
+                                    if op == 3 {
+                                        if ui
+                                            .add(
+                                                Knob::new(&mut self.fm_op_feedback[slot_idx][op], -1.0..=1.0, "FB")
+                                                    .default_value(0.0)
+                                                    .format(|v| format!("{:.2}", v)),
+                                            )
+                                            .changed()
+                                        {
+                                            self.events.send(EngineEvent::ParameterChange {
+                                                id: ParamId::FmOpFeedback(packed),
+                                                value: self.fm_op_feedback[slot_idx][op],
+                                            });
+                                        }
+                                    } else {
+                                        ui.label("-");
+                                    }
+
+                                    ui.end_row();
+                                }
+                            });
+                    }
+                });
         }
     }
 
