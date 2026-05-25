@@ -24,9 +24,11 @@
 
 use crate::MAIN_OSCILLATOR_COUNT;
 use crate::filter::FilterMode;
+use crate::fm::OPERATOR_COUNT;
 use crate::lfo::SyncDivision;
 use crate::mod_matrix::{ModDest, ModSource};
 use crate::oscillator::Waveform;
+use crate::slot::SlotMode;
 use crate::smoothing::SmoothedParam;
 
 /// Default amp envelope attack time, in seconds.
@@ -247,6 +249,34 @@ pub enum ParamId {
     /// Via-source index for slot `i`. `ModSource::Off` (index 0) means
     /// no via scaling.
     ModSlotVia(u8),
+
+    // ── FM synthesis (M7.3) ────────────────────────────────────────────────
+    /// Slot synthesis mode. Slot index 0..=1; value 0.0 = Subtractive,
+    /// 1.0 = FM.
+    SlotMode(u8),
+    /// Per-slot mix level, 0..=1. Slot index 0..=1.
+    SlotLevel(u8),
+    /// Per-slot mix pan, -1..=1. Slot index 0..=1.
+    SlotPan(u8),
+    /// FM algorithm for a slot. Slot index 0..=1; value 0.0..=7.0.
+    FmAlgorithm(u8),
+    /// FM operator integer ratio. Packed `(slot << 4) | op`. Value 0.0..=15.0.
+    FmOpRatioInteger(u8),
+    /// FM operator fine ratio in cents. Packed `(slot << 4) | op`. Value -100.0..=100.0.
+    FmOpRatioFine(u8),
+    /// FM operator output level, 0..=1. Packed `(slot << 4) | op`.
+    FmOpLevel(u8),
+    /// FM operator envelope attack, seconds. Packed `(slot << 4) | op`.
+    FmOpAttackSecs(u8),
+    /// FM operator envelope decay, seconds. Packed `(slot << 4) | op`.
+    FmOpDecaySecs(u8),
+    /// FM operator envelope sustain level, 0..=1. Packed `(slot << 4) | op`.
+    FmOpSustainLevel(u8),
+    /// FM operator envelope release, seconds. Packed `(slot << 4) | op`.
+    FmOpReleaseSecs(u8),
+    /// FM operator self-feedback, -1..=1. Packed `(slot << 4) | op`.
+    /// Only meaningful for op 3 in the 8 starter algorithms.
+    FmOpFeedback(u8),
 }
 
 /// An immutable snapshot of the engine's outward-facing parameter
@@ -397,6 +427,32 @@ pub struct ParamSnapshot {
     pub mod_slot_amount: [f32; 8],
     /// Via-source index for each slot (0 = Off = no scaling).
     pub mod_slot_via: [u8; 8],
+
+    // ── FM synthesis mirrors ───────────────────────────────────────────
+    /// Slot mode per slot: 0 = Subtractive, 1 = FM.
+    pub slot_mode: [u8; 2],
+    /// Per-slot mix level, 0..=1.
+    pub slot_level: [f32; 2],
+    /// Per-slot mix pan, -1..=1.
+    pub slot_pan: [f32; 2],
+    /// FM algorithm index per slot, 0..=7.
+    pub fm_algorithm: [u8; 2],
+    /// FM operator integer ratio per `[slot][op]`, 0..=15.
+    pub fm_op_ratio_integer: [[u8; OPERATOR_COUNT]; 2],
+    /// FM operator fine ratio in cents per `[slot][op]`, -100..=100.
+    pub fm_op_ratio_fine_cents: [[f32; OPERATOR_COUNT]; 2],
+    /// FM operator output level per `[slot][op]`, 0..=1.
+    pub fm_op_level: [[f32; OPERATOR_COUNT]; 2],
+    /// FM operator envelope attack in seconds per `[slot][op]`.
+    pub fm_op_attack_secs: [[f32; OPERATOR_COUNT]; 2],
+    /// FM operator envelope decay in seconds per `[slot][op]`.
+    pub fm_op_decay_secs: [[f32; OPERATOR_COUNT]; 2],
+    /// FM operator envelope sustain level per `[slot][op]`, 0..=1.
+    pub fm_op_sustain_level: [[f32; OPERATOR_COUNT]; 2],
+    /// FM operator envelope release in seconds per `[slot][op]`.
+    pub fm_op_release_secs: [[f32; OPERATOR_COUNT]; 2],
+    /// FM operator self-feedback amount per `[slot][op]`, -1..=1.
+    pub fm_op_feedback: [[f32; OPERATOR_COUNT]; 2],
 }
 
 impl Default for ParamSnapshot {
@@ -451,6 +507,18 @@ impl Default for ParamSnapshot {
             mod_slot_dest: [0; 8],
             mod_slot_amount: [0.0; 8],
             mod_slot_via: [0; 8],
+            slot_mode: [0; 2],
+            slot_level: [1.0, 0.0],
+            slot_pan: [0.0; 2],
+            fm_algorithm: [0; 2],
+            fm_op_ratio_integer: [[1; OPERATOR_COUNT]; 2],
+            fm_op_ratio_fine_cents: [[0.0; OPERATOR_COUNT]; 2],
+            fm_op_level: [[1.0; OPERATOR_COUNT]; 2],
+            fm_op_attack_secs: [[DEFAULT_AMP_ATTACK_SECS; OPERATOR_COUNT]; 2],
+            fm_op_decay_secs: [[DEFAULT_AMP_DECAY_SECS; OPERATOR_COUNT]; 2],
+            fm_op_sustain_level: [[DEFAULT_AMP_SUSTAIN_LEVEL; OPERATOR_COUNT]; 2],
+            fm_op_release_secs: [[DEFAULT_AMP_RELEASE_SECS; OPERATOR_COUNT]; 2],
+            fm_op_feedback: [[0.0; OPERATOR_COUNT]; 2],
         }
     }
 }
@@ -550,6 +618,20 @@ pub struct ParameterTree {
     mod_slot_dest: [u8; 8],
     mod_slot_amount: [f32; 8],
     mod_slot_via: [u8; 8],
+
+    // ── FM synthesis ───────────────────────────────────────────────────
+    slot_mode: [SlotMode; 2],
+    slot_level: [f32; 2],
+    slot_pan: [f32; 2],
+    fm_algorithm: [u8; 2],
+    fm_op_ratio_integer: [[u8; OPERATOR_COUNT]; 2],
+    fm_op_ratio_fine_cents: [[f32; OPERATOR_COUNT]; 2],
+    fm_op_level: [[f32; OPERATOR_COUNT]; 2],
+    fm_op_attack_secs: [[f32; OPERATOR_COUNT]; 2],
+    fm_op_decay_secs: [[f32; OPERATOR_COUNT]; 2],
+    fm_op_sustain_level: [[f32; OPERATOR_COUNT]; 2],
+    fm_op_release_secs: [[f32; OPERATOR_COUNT]; 2],
+    fm_op_feedback: [[f32; OPERATOR_COUNT]; 2],
 }
 
 impl ParameterTree {
@@ -615,6 +697,18 @@ impl ParameterTree {
             mod_slot_dest: [0; 8],
             mod_slot_amount: [0.0; 8],
             mod_slot_via: [0; 8],
+            slot_mode: [SlotMode::Subtractive; 2],
+            slot_level: defaults.slot_level,
+            slot_pan: defaults.slot_pan,
+            fm_algorithm: defaults.fm_algorithm,
+            fm_op_ratio_integer: defaults.fm_op_ratio_integer,
+            fm_op_ratio_fine_cents: defaults.fm_op_ratio_fine_cents,
+            fm_op_level: defaults.fm_op_level,
+            fm_op_attack_secs: defaults.fm_op_attack_secs,
+            fm_op_decay_secs: defaults.fm_op_decay_secs,
+            fm_op_sustain_level: defaults.fm_op_sustain_level,
+            fm_op_release_secs: defaults.fm_op_release_secs,
+            fm_op_feedback: defaults.fm_op_feedback,
         }
     }
 
@@ -701,6 +795,86 @@ impl ParameterTree {
             ParamId::ModSlotVia(i) => {
                 if (i as usize) < 8 {
                     self.mod_slot_via[i as usize] = ModSource::from_index(value as u8).unwrap_or_default().to_index();
+                }
+            }
+            ParamId::SlotMode(i) => {
+                if (i as usize) < 2 {
+                    self.slot_mode[i as usize] = if value >= 0.5 {
+                        SlotMode::Fm
+                    } else {
+                        SlotMode::Subtractive
+                    };
+                }
+            }
+            ParamId::SlotLevel(i) => {
+                if (i as usize) < 2 {
+                    self.slot_level[i as usize] = value.clamp(0.0, 1.0);
+                }
+            }
+            ParamId::SlotPan(i) => {
+                if (i as usize) < 2 {
+                    self.slot_pan[i as usize] = value.clamp(-1.0, 1.0);
+                }
+            }
+            ParamId::FmAlgorithm(i) => {
+                if (i as usize) < 2 {
+                    self.fm_algorithm[i as usize] = (value as u8).min(7);
+                }
+            }
+            ParamId::FmOpRatioInteger(packed) => {
+                let slot = ((packed >> 4) & 0x0F) as usize;
+                let op = (packed & 0x0F) as usize;
+                if slot < 2 && op < OPERATOR_COUNT {
+                    self.fm_op_ratio_integer[slot][op] = (value as u8).min(15);
+                }
+            }
+            ParamId::FmOpRatioFine(packed) => {
+                let slot = ((packed >> 4) & 0x0F) as usize;
+                let op = (packed & 0x0F) as usize;
+                if slot < 2 && op < OPERATOR_COUNT {
+                    self.fm_op_ratio_fine_cents[slot][op] = value.clamp(-100.0, 100.0);
+                }
+            }
+            ParamId::FmOpLevel(packed) => {
+                let slot = ((packed >> 4) & 0x0F) as usize;
+                let op = (packed & 0x0F) as usize;
+                if slot < 2 && op < OPERATOR_COUNT {
+                    self.fm_op_level[slot][op] = value.clamp(0.0, 1.0);
+                }
+            }
+            ParamId::FmOpAttackSecs(packed) => {
+                let slot = ((packed >> 4) & 0x0F) as usize;
+                let op = (packed & 0x0F) as usize;
+                if slot < 2 && op < OPERATOR_COUNT {
+                    self.fm_op_attack_secs[slot][op] = value;
+                }
+            }
+            ParamId::FmOpDecaySecs(packed) => {
+                let slot = ((packed >> 4) & 0x0F) as usize;
+                let op = (packed & 0x0F) as usize;
+                if slot < 2 && op < OPERATOR_COUNT {
+                    self.fm_op_decay_secs[slot][op] = value;
+                }
+            }
+            ParamId::FmOpSustainLevel(packed) => {
+                let slot = ((packed >> 4) & 0x0F) as usize;
+                let op = (packed & 0x0F) as usize;
+                if slot < 2 && op < OPERATOR_COUNT {
+                    self.fm_op_sustain_level[slot][op] = value.clamp(0.0, 1.0);
+                }
+            }
+            ParamId::FmOpReleaseSecs(packed) => {
+                let slot = ((packed >> 4) & 0x0F) as usize;
+                let op = (packed & 0x0F) as usize;
+                if slot < 2 && op < OPERATOR_COUNT {
+                    self.fm_op_release_secs[slot][op] = value;
+                }
+            }
+            ParamId::FmOpFeedback(packed) => {
+                let slot = ((packed >> 4) & 0x0F) as usize;
+                let op = (packed & 0x0F) as usize;
+                if slot < 2 && op < OPERATOR_COUNT {
+                    self.fm_op_feedback[slot][op] = value.clamp(-1.0, 1.0);
                 }
             }
         }
@@ -992,6 +1166,18 @@ impl ParameterTree {
             mod_slot_dest: self.mod_slot_dest,
             mod_slot_amount: self.mod_slot_amount,
             mod_slot_via: self.mod_slot_via,
+            slot_mode: self.slot_mode.map(|m| if m == SlotMode::Fm { 1 } else { 0 }),
+            slot_level: self.slot_level,
+            slot_pan: self.slot_pan,
+            fm_algorithm: self.fm_algorithm,
+            fm_op_ratio_integer: self.fm_op_ratio_integer,
+            fm_op_ratio_fine_cents: self.fm_op_ratio_fine_cents,
+            fm_op_level: self.fm_op_level,
+            fm_op_attack_secs: self.fm_op_attack_secs,
+            fm_op_decay_secs: self.fm_op_decay_secs,
+            fm_op_sustain_level: self.fm_op_sustain_level,
+            fm_op_release_secs: self.fm_op_release_secs,
+            fm_op_feedback: self.fm_op_feedback,
         }
     }
 }

@@ -33,7 +33,7 @@ use crate::mod_env::ModEnv;
 use crate::mod_matrix::DestOffsets;
 use crate::oscillator::Waveform;
 use crate::params::SampleParams;
-use crate::slot::Slot;
+use crate::slot::{Slot, SlotMode};
 
 /// LFO1 and LFO2 use different seeds so their S&H and SmoothRandom
 /// sequences are independent from the very first note.
@@ -237,6 +237,106 @@ impl Voice {
     /// Sets the Env2 Release stage curve, `[-1, +1]`.
     pub fn set_env2_release_curve(&mut self, curve: f32) {
         self.mod_env.set_release_curve(curve);
+    }
+
+    /// Sets the synthesis mode for slot `slot` (0 or 1).
+    pub fn set_slot_mode(&mut self, slot: usize, mode: SlotMode) {
+        if let Some(s) = self.slots.get_mut(slot) {
+            s.mode = mode;
+        }
+    }
+
+    /// Sets the mix level for slot `slot`, clamped to 0..=1.
+    pub fn set_slot_level(&mut self, slot: usize, level: f32) {
+        if let Some(s) = self.slots.get_mut(slot) {
+            s.level = level.clamp(0.0, 1.0);
+        }
+    }
+
+    /// Sets the mix pan for slot `slot`, clamped to -1..=1.
+    pub fn set_slot_pan(&mut self, slot: usize, pan: f32) {
+        if let Some(s) = self.slots.get_mut(slot) {
+            s.pan = pan.clamp(-1.0, 1.0);
+        }
+    }
+
+    /// Sets the FM algorithm for slot `slot`.
+    pub fn set_fm_algorithm(&mut self, slot: usize, index: u8) {
+        if let Some(s) = self.slots.get_mut(slot) {
+            s.fm.set_algorithm(index);
+        }
+    }
+
+    /// Sets an FM operator's integer ratio.
+    pub fn set_fm_op_ratio_integer(&mut self, slot: usize, op: usize, v: u8) {
+        if let Some(s) = self.slots.get_mut(slot) {
+            if let Some(operator) = s.fm.operator_mut(op) {
+                operator.set_ratio_integer(v);
+            }
+        }
+    }
+
+    /// Sets an FM operator's fine ratio in cents.
+    pub fn set_fm_op_ratio_fine(&mut self, slot: usize, op: usize, v: f32) {
+        if let Some(s) = self.slots.get_mut(slot) {
+            if let Some(operator) = s.fm.operator_mut(op) {
+                operator.set_ratio_fine_cents(v);
+            }
+        }
+    }
+
+    /// Sets an FM operator's output level.
+    pub fn set_fm_op_level(&mut self, slot: usize, op: usize, v: f32) {
+        if let Some(s) = self.slots.get_mut(slot) {
+            if let Some(operator) = s.fm.operator_mut(op) {
+                operator.set_level(v);
+            }
+        }
+    }
+
+    /// Sets an FM operator's envelope attack time in seconds.
+    pub fn set_fm_op_attack_secs(&mut self, slot: usize, op: usize, v: f32) {
+        if let Some(s) = self.slots.get_mut(slot) {
+            if let Some(operator) = s.fm.operator_mut(op) {
+                operator.set_attack_secs(v);
+            }
+        }
+    }
+
+    /// Sets an FM operator's envelope decay time in seconds.
+    pub fn set_fm_op_decay_secs(&mut self, slot: usize, op: usize, v: f32) {
+        if let Some(s) = self.slots.get_mut(slot) {
+            if let Some(operator) = s.fm.operator_mut(op) {
+                operator.set_decay_secs(v);
+            }
+        }
+    }
+
+    /// Sets an FM operator's envelope sustain level.
+    pub fn set_fm_op_sustain_level(&mut self, slot: usize, op: usize, v: f32) {
+        if let Some(s) = self.slots.get_mut(slot) {
+            if let Some(operator) = s.fm.operator_mut(op) {
+                operator.set_sustain_level(v);
+            }
+        }
+    }
+
+    /// Sets an FM operator's envelope release time in seconds.
+    pub fn set_fm_op_release_secs(&mut self, slot: usize, op: usize, v: f32) {
+        if let Some(s) = self.slots.get_mut(slot) {
+            if let Some(operator) = s.fm.operator_mut(op) {
+                operator.set_release_secs(v);
+            }
+        }
+    }
+
+    /// Sets an FM operator's self-feedback amount.
+    pub fn set_fm_op_feedback(&mut self, slot: usize, op: usize, v: f32) {
+        if let Some(s) = self.slots.get_mut(slot) {
+            if let Some(operator) = s.fm.operator_mut(op) {
+                operator.set_feedback_amount(v);
+            }
+        }
     }
 
     /// Advances LFO1, LFO2, and Env2 by `block_size` samples and caches
