@@ -335,6 +335,22 @@ pub enum ParamId {
     FxReverbDamping,
     /// Reverb dry/wet mix, 0..=1.
     FxReverbMix,
+
+    // ── Arpeggiator ────────────────────────────────────────────────────────
+    /// Arp on/off, 0.0 = off, 1.0 = on.
+    ArpEnabled,
+    /// Arp mode: 0=Up 1=Down 2=UpDown 3=Random 4=Played.
+    ArpMode,
+    /// Octave range, 1–4.
+    ArpOctaves,
+    /// Step rate: 0=1/32 1=1/16 2=1/8 3=1/4 4=1/2.
+    ArpRate,
+    /// Internal BPM, 20–300.
+    ArpBpm,
+    /// Gate fraction of step duration, 0.01–1.0.
+    ArpGate,
+    /// Swing fraction, 0.5–0.75.
+    ArpSwing,
 }
 
 /// An immutable snapshot of the engine's outward-facing parameter
@@ -541,6 +557,15 @@ pub struct ParamSnapshot {
     pub fx_reverb_size: f32,
     pub fx_reverb_damping: f32,
     pub fx_reverb_mix: f32,
+
+    // ── Arpeggiator ──────────────────────────────────────────────────────
+    pub arp_enabled: bool,
+    pub arp_mode: u8,
+    pub arp_octaves: u8,
+    pub arp_rate: u8,
+    pub arp_bpm: f32,
+    pub arp_gate: f32,
+    pub arp_swing: f32,
 }
 
 impl Default for ParamSnapshot {
@@ -635,6 +660,13 @@ impl Default for ParamSnapshot {
             fx_reverb_size: 0.7,
             fx_reverb_damping: 0.5,
             fx_reverb_mix: 0.25,
+            arp_enabled: false,
+            arp_mode: 0,
+            arp_octaves: 1,
+            arp_rate: 2, // 1/8
+            arp_bpm: 120.0,
+            arp_gate: 0.5,
+            arp_swing: 0.5,
         }
     }
 }
@@ -778,6 +810,14 @@ pub struct ParameterTree {
     fx_reverb_size: f32,
     fx_reverb_damping: f32,
     fx_reverb_mix: f32,
+    // ── Arpeggiator ──────────────────────────────────────────────────────
+    arp_enabled: bool,
+    arp_mode: u8,
+    arp_octaves: u8,
+    arp_rate: u8,
+    arp_bpm: f32,
+    arp_gate: f32,
+    arp_swing: f32,
 }
 
 impl ParameterTree {
@@ -883,6 +923,13 @@ impl ParameterTree {
             fx_reverb_size: defaults.fx_reverb_size,
             fx_reverb_damping: defaults.fx_reverb_damping,
             fx_reverb_mix: defaults.fx_reverb_mix,
+            arp_enabled: defaults.arp_enabled,
+            arp_mode: defaults.arp_mode,
+            arp_octaves: defaults.arp_octaves,
+            arp_rate: defaults.arp_rate,
+            arp_bpm: defaults.arp_bpm,
+            arp_gate: defaults.arp_gate,
+            arp_swing: defaults.arp_swing,
         }
     }
 
@@ -1079,6 +1126,13 @@ impl ParameterTree {
             ParamId::FxReverbSize => self.fx_reverb_size = value.clamp(0.1, 1.0),
             ParamId::FxReverbDamping => self.fx_reverb_damping = value.clamp(0.0, 1.0),
             ParamId::FxReverbMix => self.fx_reverb_mix = value.clamp(0.0, 1.0),
+            ParamId::ArpEnabled => self.arp_enabled = value >= 0.5,
+            ParamId::ArpMode => self.arp_mode = (value as u8).min(4),
+            ParamId::ArpOctaves => self.arp_octaves = (value as u8).clamp(1, 4),
+            ParamId::ArpRate => self.arp_rate = (value as u8).min(4),
+            ParamId::ArpBpm => self.arp_bpm = value.clamp(20.0, 300.0),
+            ParamId::ArpGate => self.arp_gate = value.clamp(0.01, 1.0),
+            ParamId::ArpSwing => self.arp_swing = value.clamp(0.5, 0.75),
         }
     }
 
@@ -1408,6 +1462,13 @@ impl ParameterTree {
             fx_reverb_size: self.fx_reverb_size,
             fx_reverb_damping: self.fx_reverb_damping,
             fx_reverb_mix: self.fx_reverb_mix,
+            arp_enabled: self.arp_enabled,
+            arp_mode: self.arp_mode,
+            arp_octaves: self.arp_octaves,
+            arp_rate: self.arp_rate,
+            arp_bpm: self.arp_bpm,
+            arp_gate: self.arp_gate,
+            arp_swing: self.arp_swing,
         }
     }
 }
