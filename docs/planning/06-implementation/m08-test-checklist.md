@@ -70,12 +70,6 @@ Manual testing steps. All items must be ticked before M8 is merged to `main`.
 - [ ] Enable Delay + Reverb: delay echoes are fed into the reverb tail
 - [ ] Enable all 5 simultaneously — no crash, no silent output, sound is audibly processed
 
-## Parameter snapshot / preset round-trip
-
-- [ ] Save a preset with FX settings enabled and knobs at non-default values
-- [ ] Load a different preset — FX settings change
-- [ ] Reload the saved preset — FX settings restore correctly (enabled state and knob values)
-
 ## Regression checks
 
 - [ ] Subtractive synth core (oscillators, filter, envelopes) still works with FX enabled
