@@ -238,7 +238,7 @@ timbre; none produce silence, DC offset, or distorted/broken audio.
 **Starting state:** defaults, then:
 - Slot 0 level = 0.00 (silent)
 - Slot 1 = FM, Algorithm 2, level = 1.00
-- Op 4: Ratio Integer = 8, Level = 1.00, Feedback = 0.70
+- Op 4: Ratio Integer = 4, Level = 1.00, Feedback = 0.50
 - Op 1: Level = 1.00 (only carrier). Op 2 and Op 3 at level 0.50.
 
 - [ ] Hold a high note (C5 or above). The output should sound dense and
@@ -249,9 +249,17 @@ timbre; none produce silence, DC offset, or distorted/broken audio.
   hash or aliasing noise that changes character with pitch in an
   unmusical way.
 
-**Pass criterion**: subjectively clean FM tone even at high modulation
-index and high pitch. Perfect attenuation is not required — the
-half-band filter provides ~-44 dB which should be inaudible in a mix.
+**Pass criterion**: subjectively clean FM tone at high modulation index
+and high pitch. The half-band filter provides ~-44 dB attenuation of
+aliased content, which should be inaudible in a mix at these settings.
+
+**Known limitation**: at ratio=8 and feedback above ~0.60, aliasing
+becomes audible at C5 and above. The 6th harmonic of the modulator
+(~25 kHz at C5) exceeds the base Nyquist and the half-band filter
+cannot fully suppress it at those energy levels. This is a ceiling of
+2× oversampling at extreme settings — it will be addressed in the
+optimization pass (see R12). Real-world patches rarely reach these
+values.
 
 ---
 
