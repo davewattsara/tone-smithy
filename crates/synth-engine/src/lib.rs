@@ -40,6 +40,7 @@ pub use crate::envelope::Adsr;
 pub use crate::events::EngineEvent;
 pub use crate::filter::{FilterMode, StateVariableFilter};
 pub use crate::fm::{ALGORITHM_COUNT, ALGORITHMS, Algorithm, FmBank, OPERATOR_COUNT, Operator};
+pub use crate::fx::FxChain;
 pub use crate::lfo::{Lfo, LfoShape, SyncDivision};
 pub use crate::mod_env::{ModEnv, ModEnvStage};
 pub use crate::mod_matrix::{DestOffsets, ModDest, ModMatrix, ModSlot, ModSource, ModSources};
@@ -50,6 +51,7 @@ pub use crate::smoothing::{DEFAULT_TIME_CONSTANT_MS, SmoothedParam};
 pub use crate::voice::Voice;
 pub use crate::voice_manager::VoiceManager;
 
+pub mod fx;
 pub mod param_bus;
 
 mod engine;
