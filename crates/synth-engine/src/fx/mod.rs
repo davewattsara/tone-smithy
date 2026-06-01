@@ -50,7 +50,7 @@ impl FxChain {
         Self {
             eq: Eq3Band::new(sample_rate_hz),
             eq_enabled: false,
-            drive: Drive::default(),
+            drive: Drive::new(sample_rate_hz),
             drive_enabled: false,
             chorus: Chorus::new(sample_rate_hz),
             chorus_enabled: false,
