@@ -152,6 +152,36 @@ pub struct ToneSmithyApp {
     fm_op_release_secs: [[f32; 4]; 2],
     fm_op_feedback: [[f32; 4]; 2],
 
+    // ── FX chain mirrors ─────────────────────────────────────────────────────
+    fx_eq_enabled: bool,
+    fx_eq_low_gain_db: f32,
+    fx_eq_low_freq_hz: f32,
+    fx_eq_mid_gain_db: f32,
+    fx_eq_mid_freq_hz: f32,
+    fx_eq_mid_q: f32,
+    fx_eq_high_gain_db: f32,
+    fx_eq_high_freq_hz: f32,
+    fx_drive_enabled: bool,
+    fx_drive_drive: f32,
+    fx_drive_asymmetry: f32,
+    fx_chorus_enabled: bool,
+    fx_chorus_rate_hz: f32,
+    fx_chorus_depth_ms: f32,
+    fx_chorus_mix: f32,
+    fx_chorus_spread: f32,
+    fx_delay_enabled: bool,
+    fx_delay_time_secs: f32,
+    fx_delay_feedback: f32,
+    fx_delay_mix: f32,
+    fx_delay_lowcut_hz: f32,
+    fx_delay_ping_pong: bool,
+    fx_reverb_enabled: bool,
+    fx_reverb_predelay_ms: f32,
+    fx_reverb_decay_secs: f32,
+    fx_reverb_size: f32,
+    fx_reverb_damping: f32,
+    fx_reverb_mix: f32,
+
     // ── Global ───────────────────────────────────────────────────────────────
     pitch_offset_semis: f32,
     master_volume: f32,
@@ -235,6 +265,34 @@ impl ToneSmithyApp {
             fm_op_sustain_level: snap.fm_op_sustain_level,
             fm_op_release_secs: snap.fm_op_release_secs,
             fm_op_feedback: snap.fm_op_feedback,
+            fx_eq_enabled: snap.fx_eq_enabled,
+            fx_eq_low_gain_db: snap.fx_eq_low_gain_db,
+            fx_eq_low_freq_hz: snap.fx_eq_low_freq_hz,
+            fx_eq_mid_gain_db: snap.fx_eq_mid_gain_db,
+            fx_eq_mid_freq_hz: snap.fx_eq_mid_freq_hz,
+            fx_eq_mid_q: snap.fx_eq_mid_q,
+            fx_eq_high_gain_db: snap.fx_eq_high_gain_db,
+            fx_eq_high_freq_hz: snap.fx_eq_high_freq_hz,
+            fx_drive_enabled: snap.fx_drive_enabled,
+            fx_drive_drive: snap.fx_drive_drive,
+            fx_drive_asymmetry: snap.fx_drive_asymmetry,
+            fx_chorus_enabled: snap.fx_chorus_enabled,
+            fx_chorus_rate_hz: snap.fx_chorus_rate_hz,
+            fx_chorus_depth_ms: snap.fx_chorus_depth_ms,
+            fx_chorus_mix: snap.fx_chorus_mix,
+            fx_chorus_spread: snap.fx_chorus_spread,
+            fx_delay_enabled: snap.fx_delay_enabled,
+            fx_delay_time_secs: snap.fx_delay_time_secs,
+            fx_delay_feedback: snap.fx_delay_feedback,
+            fx_delay_mix: snap.fx_delay_mix,
+            fx_delay_lowcut_hz: snap.fx_delay_lowcut_hz,
+            fx_delay_ping_pong: snap.fx_delay_ping_pong,
+            fx_reverb_enabled: snap.fx_reverb_enabled,
+            fx_reverb_predelay_ms: snap.fx_reverb_predelay_ms,
+            fx_reverb_decay_secs: snap.fx_reverb_decay_secs,
+            fx_reverb_size: snap.fx_reverb_size,
+            fx_reverb_damping: snap.fx_reverb_damping,
+            fx_reverb_mix: snap.fx_reverb_mix,
             pitch_offset_semis: snap.pitch_offset_semis,
             master_volume: snap.master_volume,
             bpm: snap.bpm,
@@ -302,6 +360,13 @@ impl eframe::App for ToneSmithyApp {
 
                 // Mod matrix
                 self.mod_matrix_panel(ui);
+
+                ui.add_space(8.0);
+                ui.separator();
+                ui.add_space(6.0);
+
+                // FX chain
+                self.fx_panel(ui);
 
                 ui.add_space(8.0);
                 ui.separator();
@@ -1320,6 +1385,370 @@ impl ToneSmithyApp {
                     }
                 });
         }
+    }
+
+    fn fx_panel(&mut self, ui: &mut egui::Ui) {
+        ui.label("FX Chain");
+        ui.add_space(4.0);
+
+        ui.columns(5, |cols| {
+            // ── EQ ─────────────────────────────────────────────────────
+            cols[0].vertical(|ui| {
+                ui.horizontal(|ui| {
+                    if ui.checkbox(&mut self.fx_eq_enabled, "EQ").changed() {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::FxEqEnabled,
+                            value: if self.fx_eq_enabled { 1.0 } else { 0.0 },
+                        });
+                    }
+                });
+                ui.add_enabled_ui(self.fx_eq_enabled, |ui| {
+                    ui.label("Low");
+                    if ui
+                        .add(
+                            Knob::new(&mut self.fx_eq_low_gain_db, -15.0..=15.0, "Gain")
+                                .default_value(0.0)
+                                .format(|v| format!("{:+.1} dB", v)),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::FxEqLowGainDb,
+                            value: self.fx_eq_low_gain_db,
+                        });
+                    }
+                    if ui
+                        .add(
+                            Knob::new(&mut self.fx_eq_low_freq_hz, 20.0..=2_000.0, "Freq")
+                                .default_value(200.0)
+                                .format(|v| format!("{:.0} Hz", v)),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::FxEqLowFreqHz,
+                            value: self.fx_eq_low_freq_hz,
+                        });
+                    }
+                    ui.label("Mid");
+                    if ui
+                        .add(
+                            Knob::new(&mut self.fx_eq_mid_gain_db, -15.0..=15.0, "Gain")
+                                .default_value(0.0)
+                                .format(|v| format!("{:+.1} dB", v)),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::FxEqMidGainDb,
+                            value: self.fx_eq_mid_gain_db,
+                        });
+                    }
+                    if ui
+                        .add(
+                            Knob::new(&mut self.fx_eq_mid_freq_hz, 200.0..=8_000.0, "Freq")
+                                .default_value(1_000.0)
+                                .format(|v| format!("{:.0} Hz", v)),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::FxEqMidFreqHz,
+                            value: self.fx_eq_mid_freq_hz,
+                        });
+                    }
+                    if ui
+                        .add(
+                            Knob::new(&mut self.fx_eq_mid_q, 0.1..=10.0, "Q")
+                                .default_value(0.7)
+                                .format(|v| format!("{:.2}", v)),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::FxEqMidQ,
+                            value: self.fx_eq_mid_q,
+                        });
+                    }
+                    ui.label("High");
+                    if ui
+                        .add(
+                            Knob::new(&mut self.fx_eq_high_gain_db, -15.0..=15.0, "Gain")
+                                .default_value(0.0)
+                                .format(|v| format!("{:+.1} dB", v)),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::FxEqHighGainDb,
+                            value: self.fx_eq_high_gain_db,
+                        });
+                    }
+                    if ui
+                        .add(
+                            Knob::new(&mut self.fx_eq_high_freq_hz, 2_000.0..=20_000.0, "Freq")
+                                .default_value(6_000.0)
+                                .format(|v| format!("{:.0} Hz", v)),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::FxEqHighFreqHz,
+                            value: self.fx_eq_high_freq_hz,
+                        });
+                    }
+                });
+            });
+
+            // ── Drive ──────────────────────────────────────────────────
+            cols[1].vertical(|ui| {
+                if ui.checkbox(&mut self.fx_drive_enabled, "Drive").changed() {
+                    self.events.send(EngineEvent::ParameterChange {
+                        id: ParamId::FxDriveEnabled,
+                        value: if self.fx_drive_enabled { 1.0 } else { 0.0 },
+                    });
+                }
+                ui.add_enabled_ui(self.fx_drive_enabled, |ui| {
+                    if ui
+                        .add(
+                            Knob::new(&mut self.fx_drive_drive, 1.0..=20.0, "Drive")
+                                .default_value(1.0)
+                                .format(|v| format!("{:.1}x", v)),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::FxDriveDrive,
+                            value: self.fx_drive_drive,
+                        });
+                    }
+                    if ui
+                        .add(
+                            Knob::new(&mut self.fx_drive_asymmetry, -1.0..=1.0, "Asym")
+                                .default_value(0.0)
+                                .format(|v| format!("{:+.2}", v)),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::FxDriveAsymmetry,
+                            value: self.fx_drive_asymmetry,
+                        });
+                    }
+                });
+            });
+
+            // ── Chorus ─────────────────────────────────────────────────
+            cols[2].vertical(|ui| {
+                if ui.checkbox(&mut self.fx_chorus_enabled, "Chorus").changed() {
+                    self.events.send(EngineEvent::ParameterChange {
+                        id: ParamId::FxChorusEnabled,
+                        value: if self.fx_chorus_enabled { 1.0 } else { 0.0 },
+                    });
+                }
+                ui.add_enabled_ui(self.fx_chorus_enabled, |ui| {
+                    if ui
+                        .add(
+                            Knob::new(&mut self.fx_chorus_rate_hz, 0.1..=8.0, "Rate")
+                                .default_value(0.5)
+                                .format(|v| format!("{:.2} Hz", v)),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::FxChorusRateHz,
+                            value: self.fx_chorus_rate_hz,
+                        });
+                    }
+                    if ui
+                        .add(
+                            Knob::new(&mut self.fx_chorus_depth_ms, 0.0..=15.0, "Depth")
+                                .default_value(3.0)
+                                .format(|v| format!("{:.1} ms", v)),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::FxChorusDepthMs,
+                            value: self.fx_chorus_depth_ms,
+                        });
+                    }
+                    if ui
+                        .add(
+                            Knob::new(&mut self.fx_chorus_mix, 0.0..=1.0, "Mix")
+                                .default_value(0.5)
+                                .format(|v| format!("{:.0}%", v * 100.0)),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::FxChorusMix,
+                            value: self.fx_chorus_mix,
+                        });
+                    }
+                    if ui
+                        .add(
+                            Knob::new(&mut self.fx_chorus_spread, 0.0..=1.0, "Spread")
+                                .default_value(0.5)
+                                .format(|v| format!("{:.0}%", v * 100.0)),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::FxChorusSpread,
+                            value: self.fx_chorus_spread,
+                        });
+                    }
+                });
+            });
+
+            // ── Delay ──────────────────────────────────────────────────
+            cols[3].vertical(|ui| {
+                if ui.checkbox(&mut self.fx_delay_enabled, "Delay").changed() {
+                    self.events.send(EngineEvent::ParameterChange {
+                        id: ParamId::FxDelayEnabled,
+                        value: if self.fx_delay_enabled { 1.0 } else { 0.0 },
+                    });
+                }
+                ui.add_enabled_ui(self.fx_delay_enabled, |ui| {
+                    if ui
+                        .add(
+                            Knob::new(&mut self.fx_delay_time_secs, 0.001..=2.0, "Time")
+                                .default_value(0.375)
+                                .format(secs_format),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::FxDelayTimeSecs,
+                            value: self.fx_delay_time_secs,
+                        });
+                    }
+                    if ui
+                        .add(
+                            Knob::new(&mut self.fx_delay_feedback, 0.0..=0.95, "Fdbk")
+                                .default_value(0.35)
+                                .format(|v| format!("{:.0}%", v * 100.0)),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::FxDelayFeedback,
+                            value: self.fx_delay_feedback,
+                        });
+                    }
+                    if ui
+                        .add(
+                            Knob::new(&mut self.fx_delay_mix, 0.0..=1.0, "Mix")
+                                .default_value(0.30)
+                                .format(|v| format!("{:.0}%", v * 100.0)),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::FxDelayMix,
+                            value: self.fx_delay_mix,
+                        });
+                    }
+                    if ui
+                        .add(
+                            Knob::new(&mut self.fx_delay_lowcut_hz, 20.0..=2_000.0, "LoCut")
+                                .default_value(200.0)
+                                .format(|v| format!("{:.0} Hz", v)),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::FxDelayLowcutHz,
+                            value: self.fx_delay_lowcut_hz,
+                        });
+                    }
+                    if ui.checkbox(&mut self.fx_delay_ping_pong, "Ping-pong").changed() {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::FxDelayPingPong,
+                            value: if self.fx_delay_ping_pong { 1.0 } else { 0.0 },
+                        });
+                    }
+                });
+            });
+
+            // ── Reverb ─────────────────────────────────────────────────
+            cols[4].vertical(|ui| {
+                if ui.checkbox(&mut self.fx_reverb_enabled, "Reverb").changed() {
+                    self.events.send(EngineEvent::ParameterChange {
+                        id: ParamId::FxReverbEnabled,
+                        value: if self.fx_reverb_enabled { 1.0 } else { 0.0 },
+                    });
+                }
+                ui.add_enabled_ui(self.fx_reverb_enabled, |ui| {
+                    if ui
+                        .add(
+                            Knob::new(&mut self.fx_reverb_predelay_ms, 0.0..=50.0, "Pre")
+                                .default_value(10.0)
+                                .format(|v| format!("{:.0} ms", v)),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::FxReverbPredelayMs,
+                            value: self.fx_reverb_predelay_ms,
+                        });
+                    }
+                    if ui
+                        .add(
+                            Knob::new(&mut self.fx_reverb_decay_secs, 0.1..=30.0, "Decay")
+                                .default_value(2.0)
+                                .format(secs_format),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::FxReverbDecaySecs,
+                            value: self.fx_reverb_decay_secs,
+                        });
+                    }
+                    if ui
+                        .add(
+                            Knob::new(&mut self.fx_reverb_size, 0.1..=1.0, "Size")
+                                .default_value(0.7)
+                                .format(|v| format!("{:.2}", v)),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::FxReverbSize,
+                            value: self.fx_reverb_size,
+                        });
+                    }
+                    if ui
+                        .add(
+                            Knob::new(&mut self.fx_reverb_damping, 0.0..=1.0, "Damp")
+                                .default_value(0.5)
+                                .format(|v| format!("{:.0}%", v * 100.0)),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::FxReverbDamping,
+                            value: self.fx_reverb_damping,
+                        });
+                    }
+                    if ui
+                        .add(
+                            Knob::new(&mut self.fx_reverb_mix, 0.0..=1.0, "Mix")
+                                .default_value(0.25)
+                                .format(|v| format!("{:.0}%", v * 100.0)),
+                        )
+                        .changed()
+                    {
+                        self.events.send(EngineEvent::ParameterChange {
+                            id: ParamId::FxReverbMix,
+                            value: self.fx_reverb_mix,
+                        });
+                    }
+                });
+            });
+        });
     }
 
     fn footer_bar(&self, ui: &mut egui::Ui, snapshot: &synth_engine::ParamSnapshot) {
