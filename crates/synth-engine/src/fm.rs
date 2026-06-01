@@ -59,8 +59,12 @@ pub struct Operator {
     /// One-sample-delayed self-feedback amount. Only op 3 of a default
     /// algorithm exercises this; the other operators leave it at 0.
     feedback_amount: f32,
-    /// Stored previous-sample output for the feedback path.
+    /// Two most-recent outputs for the DX7-style two-sample-average
+    /// feedback path. Averaging acts as a one-tap low-pass that removes
+    /// the Nyquist-frequency oscillation which causes clicks at high
+    /// feedback amounts.
     feedback_prev_output: f32,
+    feedback_prev_prev_output: f32,
 }
 
 impl Operator {
@@ -79,6 +83,7 @@ impl Operator {
             level: 1.0,
             feedback_amount: 0.0,
             feedback_prev_output: 0.0,
+            feedback_prev_prev_output: 0.0,
         }
     }
 
@@ -90,6 +95,7 @@ impl Operator {
         self.envelope.note_on();
         self.phase = 0.0;
         self.feedback_prev_output = 0.0;
+        self.feedback_prev_prev_output = 0.0;
     }
 
     /// Begins the release stage of the envelope.
@@ -178,6 +184,7 @@ impl Operator {
         let phase_modulated = (self.phase + mod_in).rem_euclid(1.0);
         let output = (TAU * phase_modulated).sin() * env * self.level;
         self.phase = (self.phase + phase_increment).rem_euclid(1.0);
+        self.feedback_prev_prev_output = self.feedback_prev_output;
         self.feedback_prev_output = output;
         output
     }
@@ -199,6 +206,7 @@ impl Operator {
         let phase_modulated = (self.phase + mod_in).rem_euclid(1.0);
         let output = (TAU * phase_modulated).sin() * env * self.level;
         self.phase = (self.phase + phase_increment).rem_euclid(1.0);
+        self.feedback_prev_prev_output = self.feedback_prev_output;
         self.feedback_prev_output = output;
         output
     }
@@ -371,9 +379,13 @@ impl FmBank {
                     continue;
                 }
                 if src_idx == op_idx {
-                    // Self-feedback: previous sub-sample output × feedback_amount.
+                    // Two-sample-average feedback (DX7 style): averaging the
+                    // previous two outputs acts as a one-tap low-pass that
+                    // suppresses the Nyquist-rate oscillation responsible for
+                    // clicks at high feedback amounts.
                     let op = &self.operators[op_idx];
-                    mod_in += op.feedback_amount * op.feedback_prev_output;
+                    let fb_avg = (op.feedback_prev_output + op.feedback_prev_prev_output) * 0.5;
+                    mod_in += op.feedback_amount * fb_avg;
                 } else {
                     mod_in += self.op_outputs[src_idx];
                 }
