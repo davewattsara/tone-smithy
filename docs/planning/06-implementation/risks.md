@@ -96,6 +96,16 @@ The risks most likely to derail v1, with a mitigation for each. Reviewed at each
 - Public visibility — early devlogs, a short demo video at M5, a small public alpha at M10 — to build accountability and community.
 - The risk is the developer's, not the project's; this risk lives here as a reminder rather than something to "engineer around".
 
+## R12 — Audio engine CPU target requires optimization pass
+
+**Risk:** The 50% CPU target (32 voices, reference patch, MSI i5-10500H) is not met by the baseline implementation. As of M7, a comparable load (3 saws + sub + 1 LFO on filter cutoff, no effects) sits at ~69%. Adding reverb and the full effects chain will push this higher before optimization work brings it down.
+
+**Mitigation:**
+- Reserve a focused performance pass before v1.0 (after M12 when all engine features are in place).
+- Profile with Superluminal/Tracy to identify the top cost centres before writing any optimized code.
+- Candidate wins: SIMD oscillator batching, per-voice early-out when amplitude is below threshold, filter algorithm selection.
+- If the 50% target proves incompatible with the desired sound quality (e.g. better-sounding band-limited oscillators cost more), revise the target rather than compromise the audio.
+
 ## R11 — Cross-thread parameter consistency bugs
 
 **Risk:** Subtle races between UI changes, MIDI Learn, and modulation cause parameter values to drift or display incorrectly.
