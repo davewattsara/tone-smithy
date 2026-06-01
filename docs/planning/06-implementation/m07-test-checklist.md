@@ -194,14 +194,15 @@ timbre; none produce silence, DC offset, or distorted/broken audio.
 - Slot 1 = FM, Algorithm 2, level = 1.0
 - All operator levels = 1.0, all ratios = 1, Op 4 Feedback = 0
 
-- [ ] Hold a note — clean FM tone with no feedback.
-- [ ] Slowly increase **Op 4 Feedback** toward +1.0. The timbre should
+- [x] Hold a note — clean FM tone with no feedback.
+- [x] Slowly increase **Op 4 Feedback** toward +1.0. The timbre should
   become progressively noisier and more distorted as the feedback
   oscillates more aggressively. At +1.0 it should be very rich/noisy
-  but should NOT produce clicks, infinite values, or silence.
-- [ ] Set to -1.0. Should sound similar to +1.0 (the sign of feedback
+  (near-static with a faint tonal residue) but should NOT produce
+  clicks, infinite values, or silence.
+- [x] Set to -1.0. Should sound similar to +1.0 (the sign of feedback
   affects phase but not spectral density at high amounts).
-- [ ] Set back to 0. Clean tone returns.
+- [x] Set back to 0. Clean tone returns.
 
 ---
 
