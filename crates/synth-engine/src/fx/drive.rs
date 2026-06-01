@@ -48,9 +48,12 @@ impl Drive {
 
     #[inline]
     fn shape(&self, x: f32) -> f32 {
-        let biased = x + self.asymmetry;
-        let clipped = (biased * self.drive).tanh();
-        (clipped - self.asymmetry) * self.output_gain
+        // Bias is injected after the drive gain so it stays bounded to ±1
+        // regardless of drive level. DC removal uses tanh(asymmetry), not the
+        // raw asymmetry value, because the tanh clips the bias too.
+        let clipped = (x * self.drive + self.asymmetry).tanh();
+        let dc = self.asymmetry.tanh();
+        (clipped - dc) * self.output_gain
     }
 }
 
