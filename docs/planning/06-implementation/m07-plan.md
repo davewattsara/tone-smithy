@@ -1,7 +1,7 @@
 # M7 — FM engine
 
 Branch: `milestone/m07-fm-engine`
-Status: **Draft** (no sub-milestones implemented yet)
+Status: **Complete**
 
 ## Done-when
 
