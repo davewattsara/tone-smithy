@@ -1,7 +1,7 @@
 # M8 — Effects chain
 
 Branch: `milestone/m08-effects-chain`
-Status: **In progress**
+Status: **Complete**
 
 ## Done-when
 
