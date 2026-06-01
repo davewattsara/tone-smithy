@@ -96,6 +96,25 @@ The risks most likely to derail v1, with a mitigation for each. Reviewed at each
 - Public visibility — early devlogs, a short demo video at M5, a small public alpha at M10 — to build accountability and community.
 - The risk is the developer's, not the project's; this risk lives here as a reminder rather than something to "engineer around".
 
+## R12 — Audio engine CPU target requires optimization pass
+
+**Risk:** The 50% CPU target (32 voices, reference patch, MSI i5-10500H) is not met by the baseline implementation. As of M7, a comparable load (3 saws + sub + 1 LFO on filter cutoff, no effects) sits at ~69%. Adding reverb and the full effects chain will push this higher before optimization work brings it down.
+
+**Mitigation:**
+- Reserve a focused performance pass before v1.0 (after M12 when all engine features are in place).
+- Profile with Superluminal/Tracy to identify the top cost centres before writing any optimized code.
+- Candidate wins: SIMD oscillator batching, per-voice early-out when amplitude is below threshold, filter algorithm selection.
+- If the 50% target proves incompatible with the desired sound quality (e.g. better-sounding band-limited oscillators cost more), revise the target rather than compromise the audio.
+
+## R13 — FM aliasing audible at extreme settings above C5
+
+**Risk:** The 2× oversampling in the FM engine provides ~-44 dB attenuation of aliased content, which is sufficient for typical patches. At ratio=8 and feedback above ~0.60, however, the 6th harmonic of the modulator exceeds the base Nyquist at C5 (~25 kHz), and the half-band filter cannot suppress it fully at those energy levels. Aliasing becomes audible in isolation at C5 and above with such settings.
+
+**Mitigation:**
+- Real-world patches rarely combine ratio=8 with feedback > 0.60, so the audible range for this artifact is narrow.
+- The M7 test checklist documents the ceiling and uses ratio=4 / feedback=0.50 as the verified-clean test settings.
+- Address in the optimization pass: candidates are 4× oversampling (expensive), a polyphase IIR half-band (cheaper, slight phase distortion), or a one-pole pre-filter on the feedback signal before it re-enters the phase modulator.
+
 ## R11 — Cross-thread parameter consistency bugs
 
 **Risk:** Subtle races between UI changes, MIDI Learn, and modulation cause parameter values to drift or display incorrectly.

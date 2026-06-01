@@ -13,6 +13,7 @@ use crate::events::EngineEvent;
 use crate::lfo::LfoShape;
 use crate::mod_matrix::{ModDest, ModSource};
 use crate::params::{ParamId, ParamSnapshot, ParameterTree};
+use crate::slot::SlotMode;
 use crate::voice_manager::VoiceManager;
 
 /// Maximum block size the engine promises to handle, in frames.
@@ -169,6 +170,57 @@ impl Engine {
                     ParamId::ModSlotVia(i) => {
                         let via = ModSource::from_index(value as u8).unwrap_or_default();
                         self.voices.set_mod_slot_via(i as usize, via);
+                    }
+                    ParamId::SlotMode(i) => {
+                        let mode = if value >= 0.5 {
+                            SlotMode::Fm
+                        } else {
+                            SlotMode::Subtractive
+                        };
+                        self.voices.set_slot_mode(i as usize, mode);
+                    }
+                    ParamId::SlotLevel(i) => self.voices.set_slot_level(i as usize, value),
+                    ParamId::SlotPan(i) => self.voices.set_slot_pan(i as usize, value),
+                    ParamId::FmAlgorithm(i) => self.voices.set_fm_algorithm(i as usize, value as u8),
+                    ParamId::FmOpRatioInteger(packed) => {
+                        let slot = ((packed >> 4) & 0x0F) as usize;
+                        let op = (packed & 0x0F) as usize;
+                        self.voices.set_fm_op_ratio_integer(slot, op, value as u8);
+                    }
+                    ParamId::FmOpRatioFine(packed) => {
+                        let slot = ((packed >> 4) & 0x0F) as usize;
+                        let op = (packed & 0x0F) as usize;
+                        self.voices.set_fm_op_ratio_fine(slot, op, value);
+                    }
+                    ParamId::FmOpLevel(packed) => {
+                        let slot = ((packed >> 4) & 0x0F) as usize;
+                        let op = (packed & 0x0F) as usize;
+                        self.voices.set_fm_op_level(slot, op, value);
+                    }
+                    ParamId::FmOpAttackSecs(packed) => {
+                        let slot = ((packed >> 4) & 0x0F) as usize;
+                        let op = (packed & 0x0F) as usize;
+                        self.voices.set_fm_op_attack_secs(slot, op, value);
+                    }
+                    ParamId::FmOpDecaySecs(packed) => {
+                        let slot = ((packed >> 4) & 0x0F) as usize;
+                        let op = (packed & 0x0F) as usize;
+                        self.voices.set_fm_op_decay_secs(slot, op, value);
+                    }
+                    ParamId::FmOpSustainLevel(packed) => {
+                        let slot = ((packed >> 4) & 0x0F) as usize;
+                        let op = (packed & 0x0F) as usize;
+                        self.voices.set_fm_op_sustain_level(slot, op, value);
+                    }
+                    ParamId::FmOpReleaseSecs(packed) => {
+                        let slot = ((packed >> 4) & 0x0F) as usize;
+                        let op = (packed & 0x0F) as usize;
+                        self.voices.set_fm_op_release_secs(slot, op, value);
+                    }
+                    ParamId::FmOpFeedback(packed) => {
+                        let slot = ((packed >> 4) & 0x0F) as usize;
+                        let op = (packed & 0x0F) as usize;
+                        self.voices.set_fm_op_feedback(slot, op, value);
                     }
                     _ => {}
                 }

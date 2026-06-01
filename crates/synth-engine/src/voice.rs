@@ -1,21 +1,21 @@
 //! A single synth voice.
 //!
-//! A voice owns the subtractive slot's four oscillators — three main
-//! [`UnisonOscillator`] banks (each one a 1..=7 voice unison sharing
-//! a waveform), plus a dedicated sub oscillator that is always a sine
-//! an octave below the held pitch — one filter (per channel), one amp
-//! envelope, two LFOs, and one modulation envelope (Env2). Smoothed
-//! parameters live in the engine's [`ParameterTree`]; the voice
+//! A voice owns two [`Slot`] lanes — each independently subtractive or
+//! FM, mixed before the per-voice filter — plus one filter (per channel),
+//! one amp envelope, two LFOs, and one modulation envelope (Env2).
+//! Smoothed parameters live in the engine's [`ParameterTree`]; the voice
 //! consumes the current per-sample values as a [`SampleParams`]
 //! reference passed to [`Voice::next_sample`].
 //!
-//! Signal flow per sample: each main oscillator bank produces a
-//! stereo pair (its unison voices already mixed with the per-osc pan
-//! as the spread centre); the sub contributes one mono sample
-//! equal-power panned; the per-channel sums get the slot headroom
-//! scale and feed the per-channel filter, then the envelope. The
-//! filter sits *after* the per-osc mix so LP cutoff sweeps act on
-//! the whole slot.
+//! Signal flow per sample: each slot produces a stereo pair scaled by
+//! its mix level; both slot outputs are summed, the slot headroom
+//! scale is applied, the per-channel filter runs, then the amp envelope
+//! gates the result. The filter sits *after* the slot mix so a cutoff
+//! sweep acts on the whole voice, not just one slot.
+//!
+//! M7.0 holds slot 1's mix level at zero so the audible behaviour
+//! matches the pre-M7 single-slot voice. Slot 1 becomes audible once
+//! the parameter bus surface (M7.3) and FM bank (M7.1/M7.2) land.
 //!
 //! LFOs and Env2 are block-rate: advance them once per inner block
 //! via [`Voice::advance_modulators`] before the per-sample loop.
@@ -24,37 +24,39 @@
 //!
 //! [`ParameterTree`]: crate::params::ParameterTree
 //! [`SampleParams`]: crate::params::SampleParams
-//! [`UnisonOscillator`]: crate::oscillator::UnisonOscillator
+//! [`Slot`]: crate::slot::Slot
 
-use crate::MAIN_OSCILLATOR_COUNT;
 use crate::envelope::Adsr;
 use crate::filter::{FilterMode, StateVariableFilter};
 use crate::lfo::{Lfo, LfoShape};
 use crate::mod_env::ModEnv;
 use crate::mod_matrix::DestOffsets;
-use crate::oscillator::{Oscillator, UnisonOscillator, Waveform};
-use crate::panning::equal_power_pan;
+use crate::oscillator::Waveform;
 use crate::params::SampleParams;
+use crate::slot::{Slot, SlotMode};
 
 /// LFO1 and LFO2 use different seeds so their S&H and SmoothRandom
 /// sequences are independent from the very first note.
 const LFO1_SEED: u32 = 0x1234_5678;
 const LFO2_SEED: u32 = 0x9ABC_DEF0;
 
-/// Headroom scale applied to each channel's slot sum. Sized so the
-/// worst-case in-phase sum of four unit-level oscillators (3 main
-/// banks + sub, each summing to ≤ 1 internally) cannot exceed unity
-/// per channel even before the equal-power pan attenuation.
-/// `1 / (MAIN_OSCILLATOR_COUNT + 1)`.
+/// Headroom scale applied to the summed slot output before the filter.
+/// Sized so the worst-case in-phase sum of one slot's four unit-level
+/// oscillators (3 main banks + sub, each summing to ≤ 1 internally)
+/// cannot exceed unity per channel. The same scale is reused for the
+/// two-slot sum so a single audible slot keeps its pre-M7 headroom;
+/// when slot 1 also runs (M7.3+) callers will need to mind the combined
+/// peak via the per-slot level controls.
 const SLOT_MIX_SCALE: f32 = 1.0 / 4.0;
 
-/// One synth voice: three unison main oscillator banks + a sub
-/// oscillator, mixed through per-osc level/pan into a stereo slot
-/// sum, fed through one filter (per channel), gated by one amp
-/// envelope, and accompanied by two LFOs and a modulation envelope.
+/// One synth voice: two slots ([`Slot`]) mixed before a per-channel
+/// filter, gated by one amp envelope, accompanied by two LFOs and a
+/// modulation envelope (Env2).
 pub struct Voice {
-    main_oscillators: [UnisonOscillator; MAIN_OSCILLATOR_COUNT],
-    sub_oscillator: Oscillator,
+    /// Two synthesis slots. Slot 0 carries the existing subtractive
+    /// behaviour at unit mix level. Slot 1 starts silent (level 0) in
+    /// M7.0 and becomes audible once the parameter bus surface lands.
+    slots: [Slot; 2],
     filter_l: StateVariableFilter,
     filter_r: StateVariableFilter,
     amp_envelope: Adsr,
@@ -85,16 +87,15 @@ pub struct Voice {
 }
 
 impl Voice {
-    /// Creates a silent, idle voice at the given sample rate. All
-    /// three main oscillator banks default to one voice each
-    /// ([`Waveform::Sine`]); the sub oscillator is fixed as a sine
-    /// and never changes shape. The filter defaults to a wide-open
-    /// low-pass.
+    /// Creates a silent, idle voice at the given sample rate. Both
+    /// slots default to subtractive mode; slot 0 carries the existing
+    /// behaviour at mix level 1.0 and slot 1 is silent (mix level 0.0)
+    /// until M7.3 surfaces per-slot mixing on the parameter bus. The
+    /// filter defaults to a wide-open low-pass.
     #[must_use]
     pub fn new(sample_rate_hz: f32) -> Self {
         Self {
-            main_oscillators: [(); MAIN_OSCILLATOR_COUNT].map(|()| UnisonOscillator::new(sample_rate_hz)),
-            sub_oscillator: Oscillator::new(sample_rate_hz),
+            slots: [Slot::new(sample_rate_hz, 1.0), Slot::new(sample_rate_hz, 0.0)],
             filter_l: StateVariableFilter::new(sample_rate_hz),
             filter_r: StateVariableFilter::new(sample_rate_hz),
             amp_envelope: Adsr::new(sample_rate_hz),
@@ -124,11 +125,11 @@ impl Voice {
     pub fn note_on(&mut self, note_midi: u8, velocity: u8) {
         self.held_note_midi = Some(note_midi);
         self.velocity_scale = f32::from(velocity) / 127.0;
-        if self.amp_envelope.is_idle() {
-            for bank in &mut self.main_oscillators {
-                bank.randomize_phases();
-            }
-            self.sub_oscillator.reset_phase();
+        let is_first_note = self.amp_envelope.is_idle();
+        for slot in &mut self.slots {
+            slot.note_on(is_first_note);
+        }
+        if is_first_note {
             self.filter_l.reset();
             self.filter_r.reset();
         }
@@ -144,6 +145,9 @@ impl Voice {
     /// note-off events.
     pub fn note_off(&mut self, note_midi: u8) {
         if self.held_note_midi == Some(note_midi) {
+            for slot in &mut self.slots {
+                slot.note_off();
+            }
             self.amp_envelope.note_off();
             self.mod_env.note_off();
             self.held_note_midi = None;
@@ -235,6 +239,106 @@ impl Voice {
         self.mod_env.set_release_curve(curve);
     }
 
+    /// Sets the synthesis mode for slot `slot` (0 or 1).
+    pub fn set_slot_mode(&mut self, slot: usize, mode: SlotMode) {
+        if let Some(s) = self.slots.get_mut(slot) {
+            s.mode = mode;
+        }
+    }
+
+    /// Sets the mix level for slot `slot`, clamped to 0..=1.
+    pub fn set_slot_level(&mut self, slot: usize, level: f32) {
+        if let Some(s) = self.slots.get_mut(slot) {
+            s.level = level.clamp(0.0, 1.0);
+        }
+    }
+
+    /// Sets the mix pan for slot `slot`, clamped to -1..=1.
+    pub fn set_slot_pan(&mut self, slot: usize, pan: f32) {
+        if let Some(s) = self.slots.get_mut(slot) {
+            s.pan = pan.clamp(-1.0, 1.0);
+        }
+    }
+
+    /// Sets the FM algorithm for slot `slot`.
+    pub fn set_fm_algorithm(&mut self, slot: usize, index: u8) {
+        if let Some(s) = self.slots.get_mut(slot) {
+            s.fm.set_algorithm(index);
+        }
+    }
+
+    /// Sets an FM operator's integer ratio.
+    pub fn set_fm_op_ratio_integer(&mut self, slot: usize, op: usize, v: u8) {
+        if let Some(s) = self.slots.get_mut(slot) {
+            if let Some(operator) = s.fm.operator_mut(op) {
+                operator.set_ratio_integer(v);
+            }
+        }
+    }
+
+    /// Sets an FM operator's fine ratio in cents.
+    pub fn set_fm_op_ratio_fine(&mut self, slot: usize, op: usize, v: f32) {
+        if let Some(s) = self.slots.get_mut(slot) {
+            if let Some(operator) = s.fm.operator_mut(op) {
+                operator.set_ratio_fine_cents(v);
+            }
+        }
+    }
+
+    /// Sets an FM operator's output level.
+    pub fn set_fm_op_level(&mut self, slot: usize, op: usize, v: f32) {
+        if let Some(s) = self.slots.get_mut(slot) {
+            if let Some(operator) = s.fm.operator_mut(op) {
+                operator.set_level(v);
+            }
+        }
+    }
+
+    /// Sets an FM operator's envelope attack time in seconds.
+    pub fn set_fm_op_attack_secs(&mut self, slot: usize, op: usize, v: f32) {
+        if let Some(s) = self.slots.get_mut(slot) {
+            if let Some(operator) = s.fm.operator_mut(op) {
+                operator.set_attack_secs(v);
+            }
+        }
+    }
+
+    /// Sets an FM operator's envelope decay time in seconds.
+    pub fn set_fm_op_decay_secs(&mut self, slot: usize, op: usize, v: f32) {
+        if let Some(s) = self.slots.get_mut(slot) {
+            if let Some(operator) = s.fm.operator_mut(op) {
+                operator.set_decay_secs(v);
+            }
+        }
+    }
+
+    /// Sets an FM operator's envelope sustain level.
+    pub fn set_fm_op_sustain_level(&mut self, slot: usize, op: usize, v: f32) {
+        if let Some(s) = self.slots.get_mut(slot) {
+            if let Some(operator) = s.fm.operator_mut(op) {
+                operator.set_sustain_level(v);
+            }
+        }
+    }
+
+    /// Sets an FM operator's envelope release time in seconds.
+    pub fn set_fm_op_release_secs(&mut self, slot: usize, op: usize, v: f32) {
+        if let Some(s) = self.slots.get_mut(slot) {
+            if let Some(operator) = s.fm.operator_mut(op) {
+                operator.set_release_secs(v);
+            }
+        }
+    }
+
+    /// Sets an FM operator's self-feedback amount.
+    pub fn set_fm_op_feedback(&mut self, slot: usize, op: usize, v: f32) {
+        if let Some(s) = self.slots.get_mut(slot) {
+            if let Some(operator) = s.fm.operator_mut(op) {
+                operator.set_feedback_amount(v);
+            }
+        }
+    }
+
     /// Advances LFO1, LFO2, and Env2 by `block_size` samples and caches
     /// their outputs. Call once per inner block, before the per-sample loop.
     pub fn advance_modulators(&mut self, block_size: usize) {
@@ -261,14 +365,19 @@ impl Voice {
         self.env2_out
     }
 
-    /// Sets the waveform on every voice of all three main oscillator
-    /// banks. The sub oscillator is unaffected — it is always a sine
-    /// per `docs/planning/05-design/dsp-and-sound.md`. The discrete-
+    /// Sets the subtractive waveform on every main oscillator bank of
+    /// both slots. The sub oscillator is unaffected — it is always a
+    /// sine per `docs/planning/05-design/dsp-and-sound.md`. FM bank
+    /// operators are always sine and ignore this setter. The discrete-
     /// parameter-at-block-boundary rule is enforced by the engine
     /// draining events before processing.
+    ///
+    /// Applied to both slots in M7.0 so the global `SetOscillatorWaveform`
+    /// event keeps its previous voice-wide effect. Per-slot waveform
+    /// control arrives with the parameter bus expansion in M7.3.
     pub fn set_main_waveform(&mut self, waveform: Waveform) {
-        for bank in &mut self.main_oscillators {
-            bank.set_waveform(waveform);
+        for slot in &mut self.slots {
+            slot.set_main_waveform(waveform);
         }
     }
 
@@ -336,24 +445,22 @@ impl Voice {
 
     /// Produces one stereo frame as `(left, right)`. Reads every
     /// per-sample smoothed parameter from `params`; the voice itself
-    /// is stateless with respect to parameter sources.
+    /// is stateless with respect to parameter sources. Each slot
+    /// internally short-circuits to silence if its mix level is zero,
+    /// so a single-slot patch costs the same as the pre-M7 voice plus
+    /// one comparison per sample.
     pub fn next_sample(&mut self, params: &SampleParams) -> (f32, f32) {
-        self.update_voice_counts_and_frequencies(params);
         let env =
             (self.amp_envelope.next_sample() * self.velocity_scale * (1.0 + self.mod_offsets.volume)).clamp(0.0, 1.0);
 
+        let held = self.held_note_midi;
         let mut sum_l = 0.0_f32;
         let mut sum_r = 0.0_f32;
-        for (i, bank) in self.main_oscillators.iter_mut().enumerate() {
-            let level = params.osc_main_levels[i];
-            let (l, r) = bank.next_sample_stereo(params.osc_main_unison_spreads[i], params.osc_main_pans[i]);
-            sum_l += l * level;
-            sum_r += r * level;
+        for slot in &mut self.slots {
+            let (l, r) = slot.next_sample(params, held);
+            sum_l += l;
+            sum_r += r;
         }
-        let sub = self.sub_oscillator.next_sample();
-        let (sub_pl, sub_pr) = equal_power_pan(params.sub_pan);
-        sum_l += sub * params.sub_level * sub_pl;
-        sum_r += sub * params.sub_level * sub_pr;
 
         let mixed_l = sum_l * SLOT_MIX_SCALE;
         let mixed_r = sum_r * SLOT_MIX_SCALE;
@@ -367,47 +474,12 @@ impl Voice {
 
         (filtered_l * env, filtered_r * env)
     }
-
-    /// Per sample: clamp unison voice counts to `1..=MAX_UNISON_VOICES`,
-    /// then re-derive each oscillator's frequencies. Voice-count
-    /// changes are detected inside the unison bank so newly active
-    /// voices get fresh phases.
-    fn update_voice_counts_and_frequencies(&mut self, params: &SampleParams) {
-        // Voice count is meaningful even when no note is held — the
-        // bank caches the count for the next frequency update.
-        for (i, bank) in self.main_oscillators.iter_mut().enumerate() {
-            let count = round_voice_count(params.osc_main_unison_voices[i]);
-            bank.set_voice_count(count);
-        }
-        if let Some(note) = self.held_note_midi {
-            let base_semis = f32::from(note) + params.pitch_offset_semis + params.pitch_bend_semis;
-            for (i, bank) in self.main_oscillators.iter_mut().enumerate() {
-                let detune_semis = params.osc_main_detune_cents[i] * (1.0 / 100.0);
-                let semis = base_semis + detune_semis;
-                let osc_base_hz = 440.0 * 2.0_f32.powf((semis - 69.0) / 12.0);
-                bank.set_base_frequency(osc_base_hz, params.osc_main_unison_detune_cents[i]);
-            }
-            // Sub: one octave below the base, no detune.
-            let sub_hz = 440.0 * 2.0_f32.powf((base_semis - 81.0) / 12.0);
-            self.sub_oscillator.set_frequency_hz(sub_hz);
-        }
-    }
-}
-
-/// Rounds an `f32` voice-count parameter to the nearest valid `u8` in
-/// `1..=MAX_UNISON_VOICES`. The unison bank clamps internally too, but
-/// rounding here keeps `SampleParams`-side and bank-side semantics
-/// aligned.
-fn round_voice_count(v: f32) -> u8 {
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    let rounded = v.round().max(1.0) as u32;
-    rounded.min(u8::MAX as u32) as u8
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ParamSnapshot;
+    use crate::{MAIN_OSCILLATOR_COUNT, ParamSnapshot};
 
     /// Open-filter sample params derived from `ParamSnapshot::default`,
     /// with the filter forced wide open so the oscillator-only voice
@@ -629,5 +701,46 @@ mod tests {
             let (l, r) = voice.next_sample(&params);
             assert!(l.is_finite() && r.is_finite(), "non-finite output");
         }
+    }
+
+    #[test]
+    fn fm_slot_routes_audio_through_voice_filter_and_amp() {
+        // Smoke test: configure slot 1 in FM mode at unit level, snap
+        // the operator envelopes and the amp envelope so we are audible
+        // within a small window, play a note, confirm the voice produces
+        // bounded non-zero stereo audio.
+        use crate::slot::SlotMode;
+
+        let mut voice = Voice::new(48_000.0);
+        // Silence slot 0 so we measure only the FM contribution.
+        voice.slots[0].level = 0.0;
+        // Enable slot 1 in FM mode.
+        voice.slots[1].mode = SlotMode::Fm;
+        voice.slots[1].level = 1.0;
+        for i in 0..crate::fm::OPERATOR_COUNT {
+            let op = voice.slots[1].fm.operator_mut(i).unwrap();
+            op.set_attack_secs(0.001);
+            op.set_decay_secs(0.001);
+            op.set_sustain_level(1.0);
+        }
+        // Snap amp envelope so we don't wait for its attack.
+        voice.set_attack_secs(0.001);
+        voice.set_decay_secs(0.001);
+        voice.set_sustain_level(1.0);
+        voice.note_on(60, 100);
+
+        let params = default_sample_params();
+        // Settle envelopes.
+        for _ in 0..256 {
+            voice.next_sample(&params);
+        }
+        let mut peak = 0.0_f32;
+        for _ in 0..4096 {
+            let (l, r) = voice.next_sample(&params);
+            assert!(l.is_finite() && r.is_finite(), "non-finite FM output");
+            peak = peak.max(l.abs()).max(r.abs());
+        }
+        assert!(peak > 0.001, "FM-only voice should produce audio, peak={peak}");
+        assert!(peak < 2.0, "FM voice output should stay bounded, peak={peak}");
     }
 }

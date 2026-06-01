@@ -21,6 +21,7 @@ use crate::lfo::LfoShape;
 use crate::mod_matrix::{ModDest, ModMatrix, ModSource, ModSources};
 use crate::oscillator::Waveform;
 use crate::params::SampleParams;
+use crate::slot::SlotMode;
 use crate::voice::Voice;
 
 /// Fixed-size pool of [`Voice`]s with note allocation and stealing.
@@ -372,6 +373,92 @@ impl VoiceManager {
     /// Updates the global pitch bend value (-1..=1).
     pub fn set_global_pitch_bend(&mut self, value: f32) {
         self.global_pitch_bend = value;
+    }
+
+    // ── FM synthesis ─────────────────────────────────────────────────────────
+
+    /// Sets the synthesis mode on slot `slot` of every voice.
+    pub fn set_slot_mode(&mut self, slot: usize, mode: SlotMode) {
+        for v in &mut self.voices {
+            v.set_slot_mode(slot, mode);
+        }
+    }
+
+    /// Sets the mix level on slot `slot` of every voice.
+    pub fn set_slot_level(&mut self, slot: usize, level: f32) {
+        for v in &mut self.voices {
+            v.set_slot_level(slot, level);
+        }
+    }
+
+    /// Sets the mix pan on slot `slot` of every voice.
+    pub fn set_slot_pan(&mut self, slot: usize, pan: f32) {
+        for v in &mut self.voices {
+            v.set_slot_pan(slot, pan);
+        }
+    }
+
+    /// Sets the FM algorithm on slot `slot` of every voice.
+    pub fn set_fm_algorithm(&mut self, slot: usize, index: u8) {
+        for v in &mut self.voices {
+            v.set_fm_algorithm(slot, index);
+        }
+    }
+
+    /// Sets an FM operator's integer ratio on every voice.
+    pub fn set_fm_op_ratio_integer(&mut self, slot: usize, op: usize, v: u8) {
+        for voice in &mut self.voices {
+            voice.set_fm_op_ratio_integer(slot, op, v);
+        }
+    }
+
+    /// Sets an FM operator's fine ratio in cents on every voice.
+    pub fn set_fm_op_ratio_fine(&mut self, slot: usize, op: usize, v: f32) {
+        for voice in &mut self.voices {
+            voice.set_fm_op_ratio_fine(slot, op, v);
+        }
+    }
+
+    /// Sets an FM operator's output level on every voice.
+    pub fn set_fm_op_level(&mut self, slot: usize, op: usize, v: f32) {
+        for voice in &mut self.voices {
+            voice.set_fm_op_level(slot, op, v);
+        }
+    }
+
+    /// Sets an FM operator's envelope attack time on every voice.
+    pub fn set_fm_op_attack_secs(&mut self, slot: usize, op: usize, v: f32) {
+        for voice in &mut self.voices {
+            voice.set_fm_op_attack_secs(slot, op, v);
+        }
+    }
+
+    /// Sets an FM operator's envelope decay time on every voice.
+    pub fn set_fm_op_decay_secs(&mut self, slot: usize, op: usize, v: f32) {
+        for voice in &mut self.voices {
+            voice.set_fm_op_decay_secs(slot, op, v);
+        }
+    }
+
+    /// Sets an FM operator's envelope sustain level on every voice.
+    pub fn set_fm_op_sustain_level(&mut self, slot: usize, op: usize, v: f32) {
+        for voice in &mut self.voices {
+            voice.set_fm_op_sustain_level(slot, op, v);
+        }
+    }
+
+    /// Sets an FM operator's envelope release time on every voice.
+    pub fn set_fm_op_release_secs(&mut self, slot: usize, op: usize, v: f32) {
+        for voice in &mut self.voices {
+            voice.set_fm_op_release_secs(slot, op, v);
+        }
+    }
+
+    /// Sets an FM operator's self-feedback amount on every voice.
+    pub fn set_fm_op_feedback(&mut self, slot: usize, op: usize, v: f32) {
+        for voice in &mut self.voices {
+            voice.set_fm_op_feedback(slot, op, v);
+        }
     }
 
     /// Advances LFO1, LFO2, and Env2 on every active voice by one block,
