@@ -6,18 +6,29 @@ Operator numbering in this document matches the UI: **Op 1** through
 **Op 4** (1-indexed). Internally the code uses 0-indexed indices, so
 UI "Op 4" = code op index 3, etc.
 
+Each section is self-contained. Restart the synth (or kill and relaunch)
+before any section you want to run in isolation.
+
 ---
 
-## Setup: load a clean state
+## Default state reference
 
-Before starting, restart the synth (or kill and relaunch) so all
-parameters are at their defaults. Default state: slot 0 = Subtractive
-(saw, unison), slot 1 = Subtractive at level 0 (silent). Filter cutoff
-8000 Hz, amp envelope with short attack, no mod slots active.
+After a restart, the synth is in this state:
+
+- Slot 0: Subtractive, level 1.0, pan centre
+- Slot 1: Subtractive, level 0.0 (silent)
+- Waveform: Saw; Filter: LP, cutoff 8 kHz, resonance 0
+- Amp env: A=10 ms, D=200 ms, S=0.8, R=200 ms
+- LFOs: rate 1 Hz, Sine shape, sync off
+- Env2: A=10 ms, D=200 ms, S=0.8, R=200 ms
+- Mod matrix: all 8 slots disabled
+- FM operators (both slots): all ratio=1, level=1.0, ADSR defaults, feedback=0
 
 ---
 
 ## 1. Slot mode switching
+
+**Starting state:** defaults.
 
 - [ ] Open the FM panel. Both slots show **Subtractive** selected. Slot 0
   level knob reads ~1.0; slot 1 level reads 0.0.
@@ -37,9 +48,10 @@ parameters are at their defaults. Default state: slot 0 = Subtractive
 
 ## 2. Slot level and pan
 
-- [ ] Set slot 1 to FM, level 0.5. Hold a note. Move the **Slot 1 Pan**
-  knob left — FM sound pans to the left channel. Right — pans right.
-  Centre — balanced. Release.
+**Starting state:** defaults, then set Slot 1 to FM, level 0.5.
+
+- [ ] Hold a note. Move the **Slot 1 Pan** knob left — FM sound pans to
+  the left channel. Right — pans right. Centre — balanced. Release.
 - [ ] Move **Slot 0 Pan** right. Hold a note. Saw comes from the right,
   FM from the left (or wherever you set each). A hybrid stereo image.
   Return both pans to centre. Release.
@@ -51,10 +63,11 @@ parameters are at their defaults. Default state: slot 0 = Subtractive
 
 ## 3. All 8 FM algorithms on Slot 1
 
-Set: Slot 0 level = 0 (silent), Slot 1 = FM, level = 1.0.
-All operator ADSR: Attack = 0.05 s, Decay = 0.5 s, Sustain = 0.8,
-Release = 0.3 s. All levels = 1.0 unless a specific ratio is given
-for that algorithm below.
+**Starting state:** defaults, then:
+- Slot 0 level = 0 (silent)
+- Slot 1 = FM, level = 1.0
+- All operator ADSR: A=0.05 s, D=0.5 s, S=0.8, R=0.3 s
+- All operator levels = 1.0
 
 **Note:** with every operator at ratio 1, algorithms that combine
 multiple carriers modulated by the same source will sound identical
@@ -116,7 +129,10 @@ timbre; none produce silence, DC offset, or distorted/broken audio.
 
 ## 4. Operator ratio
 
-Set: Slot 1 = FM, Algorithm 1 (Op 4→Op 3→Op 2→Op 1), all levels 1.0.
+**Starting state:** defaults, then:
+- Slot 0 level = 0 (silent)
+- Slot 1 = FM, Algorithm 1 (Op 4→Op 3→Op 2→Op 1), level = 1.0
+- All operator levels = 1.0, all ratios = 1
 
 - [ ] Set **Op 4 Ratio Integer** to 1. Hold a note — baseline timbre.
   Increase to 2, 4, 8. The timbre gets progressively brighter and more
@@ -132,7 +148,10 @@ Set: Slot 1 = FM, Algorithm 1 (Op 4→Op 3→Op 2→Op 1), all levels 1.0.
 
 ## 5. Operator level
 
-Set: Slot 1 = FM, Algorithm 1, all ratios = 1.
+**Starting state:** defaults, then:
+- Slot 0 level = 0 (silent)
+- Slot 1 = FM, Algorithm 1, level = 1.0
+- All operator ratios = 1, all operator levels = 1.0
 
 - [ ] Set **Op 4 Level** (top modulator in the stack) to 0. Hold a note.
   With Op 4 silent, its modulation contribution to Op 3 is zero, so the
@@ -149,8 +168,11 @@ Set: Slot 1 = FM, Algorithm 1, all ratios = 1.
 
 ## 6. Operator ADSR
 
-Set: Slot 1 = FM, Algorithm 1. Op 1 level = 1.0, Op 4 level = 1.0 (the
-others at 0.5 so there is clear modulation but the carrier is audible).
+**Starting state:** defaults, then:
+- Slot 0 level = 0 (silent)
+- Slot 1 = FM, Algorithm 1, level = 1.0
+- Op 1 level = 1.0, Op 4 level = 1.0, Op 2 and Op 3 levels = 0.5
+- All operator ratios = 1, all ADSR at defaults (A=10 ms, D=200 ms, S=0.8, R=200 ms)
 
 - [ ] Set **Op 4 Attack** to 2.0 s. Hold a note. The timbre should start
   clean (little modulation) and gradually become brighter over 2 seconds
@@ -167,10 +189,12 @@ others at 0.5 so there is clear modulation but the carrier is audible).
 
 ## 7. Operator feedback (Op 4)
 
-Set: Slot 1 = FM, Algorithm 2 (has self-feedback), all levels = 1.0.
-Op 4 Ratio = 1.
+**Starting state:** defaults, then:
+- Slot 0 level = 0 (silent)
+- Slot 1 = FM, Algorithm 2, level = 1.0
+- All operator levels = 1.0, all ratios = 1, Op 4 Feedback = 0
 
-- [ ] Set **Op 4 Feedback** to 0. Hold a note — clean FM tone.
+- [ ] Hold a note — clean FM tone with no feedback.
 - [ ] Slowly increase **Op 4 Feedback** toward +1.0. The timbre should
   become progressively noisier and more distorted as the feedback
   oscillates more aggressively. At +1.0 it should be very rich/noisy
@@ -183,12 +207,9 @@ Op 4 Ratio = 1.
 
 ## 8. Hybrid patch (canonical M7 test)
 
-This is the primary goal of M7: a patch that uses both a subtractive
-slot and an FM slot simultaneously.
-
-Setup:
-- **Slot 0**: Subtractive, level = 1.0, pan = -0.25 (slightly left)
-- **Slot 1**: FM, level = 0.7, pan = +0.25 (slightly right)
+**Starting state:** defaults, then apply:
+- Slot 0: Subtractive, level = 1.0, pan = -0.25 (slightly left)
+- Slot 1: FM, level = 0.7, pan = +0.25 (slightly right)
 - Slot 1 algorithm: **1** (clean FM bell stack)
 - Slot 1 operator settings: all ratio = 1, Op 4 level = 0.8, Op 1
   level = 1.0, Op 2 and Op 3 at 0.5.
@@ -212,12 +233,11 @@ Setup:
 
 ## 9. Anti-aliasing sanity
 
-This tests that the 2× oversampling in the FM bank reduces artefacts
-at high modulation indices.
-
-Setup: Slot 1 = FM, Algorithm 2, Slot 0 level = 0.
-**Op 4**: Ratio = 8, Level = 1.0, Feedback = 0.7.
-**Op 1**: Level = 1.0 (only carrier). Op 2 and Op 3 at level 0.5.
+**Starting state:** defaults, then:
+- Slot 0 level = 0 (silent)
+- Slot 1 = FM, Algorithm 2, level = 1.0
+- Op 4: Ratio Integer = 8, Level = 1.0, Feedback = 0.7
+- Op 1: Level = 1.0 (only carrier). Op 2 and Op 3 at level 0.5.
 
 - [ ] Hold a high note (C5 or above). The output should sound dense and
   harmonically complex but should NOT include obvious "digital" noise
@@ -235,6 +255,9 @@ half-band filter provides ~-44 dB which should be inaudible in a mix.
 
 ## 10. 32-voice stress test
 
+**Starting state:** defaults, then set Slot 1 to FM, level = 1.0
+(so the stress test exercises the FM engine, not just the subtractive path).
+
 - [ ] Set sustain ON. Rapidly play 32 different notes (use the virtual
   keyboard to tap across its full range). All 32 should sound. Check
   the footer **voice count** reads 32.
@@ -248,20 +271,25 @@ half-band filter provides ~-44 dB which should be inaudible in a mix.
 
 ## 11. Mod matrix with FM slot levels
 
+**Starting state:** defaults, then set Slot 1 to FM, level = 1.0
+(FM must be active for this test to be meaningful).
+
 This is a rough sanity check only — full FM modulation targets are M11.
 
 - [ ] Enable mod matrix Slot 1: Source = LFO1, Dest = **Vol** (master
   volume), Amount = +0.3. Hold a note. The overall volume should
   tremolo at LFO rate. (This uses the existing Vol destination; it
   affects the whole voice, not per-slot.)
-- [ ] Try Source = Env2, Dest = **Cutoff**, Amount = +5000. Hold a note.
-  Filter sweeps as before — FM slot does not interfere with the filter
-  modulation path. Confirms FM is upstream of the filter, not bypassing
-  it.
+- [ ] Change to Source = Env2, Dest = **Cutoff**, Amount = +5000. Hold a
+  note. Filter sweeps as before — FM slot does not interfere with the
+  filter modulation path. Confirms FM is upstream of the filter, not
+  bypassing it.
 
 ---
 
 ## 12. Regression — features present before M7
+
+**Starting state:** defaults (both slots Subtractive).
 
 - [ ] With **both slots set to Subtractive**, the synth sounds identical
   to pre-M7 (warm saw, filter, mod matrix all work as before).
