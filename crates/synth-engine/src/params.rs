@@ -277,6 +277,64 @@ pub enum ParamId {
     /// FM operator self-feedback, -1..=1. Packed `(slot << 4) | op`.
     /// Only meaningful for op 3 in the 8 starter algorithms.
     FmOpFeedback(u8),
+
+    // ── FX chain (M8) ─────────────────────────────────────────────────────
+    /// EQ stage enabled; 0.0 = off, 1.0 = on.
+    FxEqEnabled,
+    /// EQ low-shelf gain, -15..=15 dB.
+    FxEqLowGainDb,
+    /// EQ low-shelf frequency, 20..=2000 Hz.
+    FxEqLowFreqHz,
+    /// EQ mid-peak gain, -15..=15 dB.
+    FxEqMidGainDb,
+    /// EQ mid-peak frequency, 200..=8000 Hz.
+    FxEqMidFreqHz,
+    /// EQ mid-peak Q, 0.1..=10.
+    FxEqMidQ,
+    /// EQ high-shelf gain, -15..=15 dB.
+    FxEqHighGainDb,
+    /// EQ high-shelf frequency, 2000..=20000 Hz.
+    FxEqHighFreqHz,
+    /// Drive stage enabled; 0.0 = off, 1.0 = on.
+    FxDriveEnabled,
+    /// Drive pre-clip gain, 1..=20.
+    FxDriveDrive,
+    /// Drive asymmetry, -1..=1.
+    FxDriveAsymmetry,
+    /// Chorus stage enabled; 0.0 = off, 1.0 = on.
+    FxChorusEnabled,
+    /// Chorus LFO rate, 0.1..=8 Hz.
+    FxChorusRateHz,
+    /// Chorus modulation depth, 0..=15 ms.
+    FxChorusDepthMs,
+    /// Chorus dry/wet mix, 0..=1.
+    FxChorusMix,
+    /// Chorus stereo spread, 0..=1.
+    FxChorusSpread,
+    /// Delay stage enabled; 0.0 = off, 1.0 = on.
+    FxDelayEnabled,
+    /// Delay time in seconds, 0.001..=2.0.
+    FxDelayTimeSecs,
+    /// Delay feedback, 0..=0.95.
+    FxDelayFeedback,
+    /// Delay dry/wet mix, 0..=1.
+    FxDelayMix,
+    /// Delay feedback low-cut frequency, 20..=2000 Hz.
+    FxDelayLowcutHz,
+    /// Delay ping-pong mode; 0.0 = off, 1.0 = on.
+    FxDelayPingPong,
+    /// Reverb stage enabled; 0.0 = off, 1.0 = on.
+    FxReverbEnabled,
+    /// Reverb pre-delay, 0..=50 ms.
+    FxReverbPredelayMs,
+    /// Reverb decay time, 0.1..=30 s.
+    FxReverbDecaySecs,
+    /// Reverb room size, 0.1..=1.0.
+    FxReverbSize,
+    /// Reverb HF damping, 0..=1.
+    FxReverbDamping,
+    /// Reverb dry/wet mix, 0..=1.
+    FxReverbMix,
 }
 
 /// An immutable snapshot of the engine's outward-facing parameter
@@ -453,6 +511,36 @@ pub struct ParamSnapshot {
     pub fm_op_release_secs: [[f32; OPERATOR_COUNT]; 2],
     /// FM operator self-feedback amount per `[slot][op]`, -1..=1.
     pub fm_op_feedback: [[f32; OPERATOR_COUNT]; 2],
+
+    // ── FX chain mirrors (M8) ──────────────────────────────────────────────
+    pub fx_eq_enabled: bool,
+    pub fx_eq_low_gain_db: f32,
+    pub fx_eq_low_freq_hz: f32,
+    pub fx_eq_mid_gain_db: f32,
+    pub fx_eq_mid_freq_hz: f32,
+    pub fx_eq_mid_q: f32,
+    pub fx_eq_high_gain_db: f32,
+    pub fx_eq_high_freq_hz: f32,
+    pub fx_drive_enabled: bool,
+    pub fx_drive_drive: f32,
+    pub fx_drive_asymmetry: f32,
+    pub fx_chorus_enabled: bool,
+    pub fx_chorus_rate_hz: f32,
+    pub fx_chorus_depth_ms: f32,
+    pub fx_chorus_mix: f32,
+    pub fx_chorus_spread: f32,
+    pub fx_delay_enabled: bool,
+    pub fx_delay_time_secs: f32,
+    pub fx_delay_feedback: f32,
+    pub fx_delay_mix: f32,
+    pub fx_delay_lowcut_hz: f32,
+    pub fx_delay_ping_pong: bool,
+    pub fx_reverb_enabled: bool,
+    pub fx_reverb_predelay_ms: f32,
+    pub fx_reverb_decay_secs: f32,
+    pub fx_reverb_size: f32,
+    pub fx_reverb_damping: f32,
+    pub fx_reverb_mix: f32,
 }
 
 impl Default for ParamSnapshot {
@@ -519,6 +607,34 @@ impl Default for ParamSnapshot {
             fm_op_sustain_level: [[DEFAULT_AMP_SUSTAIN_LEVEL; OPERATOR_COUNT]; 2],
             fm_op_release_secs: [[DEFAULT_AMP_RELEASE_SECS; OPERATOR_COUNT]; 2],
             fm_op_feedback: [[0.0; OPERATOR_COUNT]; 2],
+            fx_eq_enabled: false,
+            fx_eq_low_gain_db: 0.0,
+            fx_eq_low_freq_hz: 200.0,
+            fx_eq_mid_gain_db: 0.0,
+            fx_eq_mid_freq_hz: 1_000.0,
+            fx_eq_mid_q: 0.7,
+            fx_eq_high_gain_db: 0.0,
+            fx_eq_high_freq_hz: 6_000.0,
+            fx_drive_enabled: false,
+            fx_drive_drive: 1.0,
+            fx_drive_asymmetry: 0.0,
+            fx_chorus_enabled: false,
+            fx_chorus_rate_hz: 0.5,
+            fx_chorus_depth_ms: 3.0,
+            fx_chorus_mix: 0.5,
+            fx_chorus_spread: 0.5,
+            fx_delay_enabled: false,
+            fx_delay_time_secs: 0.375,
+            fx_delay_feedback: 0.35,
+            fx_delay_mix: 0.30,
+            fx_delay_lowcut_hz: 200.0,
+            fx_delay_ping_pong: false,
+            fx_reverb_enabled: false,
+            fx_reverb_predelay_ms: 10.0,
+            fx_reverb_decay_secs: 2.0,
+            fx_reverb_size: 0.7,
+            fx_reverb_damping: 0.5,
+            fx_reverb_mix: 0.25,
         }
     }
 }
@@ -632,6 +748,36 @@ pub struct ParameterTree {
     fm_op_sustain_level: [[f32; OPERATOR_COUNT]; 2],
     fm_op_release_secs: [[f32; OPERATOR_COUNT]; 2],
     fm_op_feedback: [[f32; OPERATOR_COUNT]; 2],
+
+    // ── FX chain (M8) ─────────────────────────────────────────────────────
+    fx_eq_enabled: bool,
+    fx_eq_low_gain_db: f32,
+    fx_eq_low_freq_hz: f32,
+    fx_eq_mid_gain_db: f32,
+    fx_eq_mid_freq_hz: f32,
+    fx_eq_mid_q: f32,
+    fx_eq_high_gain_db: f32,
+    fx_eq_high_freq_hz: f32,
+    fx_drive_enabled: bool,
+    fx_drive_drive: f32,
+    fx_drive_asymmetry: f32,
+    fx_chorus_enabled: bool,
+    fx_chorus_rate_hz: f32,
+    fx_chorus_depth_ms: f32,
+    fx_chorus_mix: f32,
+    fx_chorus_spread: f32,
+    fx_delay_enabled: bool,
+    fx_delay_time_secs: f32,
+    fx_delay_feedback: f32,
+    fx_delay_mix: f32,
+    fx_delay_lowcut_hz: f32,
+    fx_delay_ping_pong: bool,
+    fx_reverb_enabled: bool,
+    fx_reverb_predelay_ms: f32,
+    fx_reverb_decay_secs: f32,
+    fx_reverb_size: f32,
+    fx_reverb_damping: f32,
+    fx_reverb_mix: f32,
 }
 
 impl ParameterTree {
@@ -709,6 +855,34 @@ impl ParameterTree {
             fm_op_sustain_level: defaults.fm_op_sustain_level,
             fm_op_release_secs: defaults.fm_op_release_secs,
             fm_op_feedback: defaults.fm_op_feedback,
+            fx_eq_enabled: defaults.fx_eq_enabled,
+            fx_eq_low_gain_db: defaults.fx_eq_low_gain_db,
+            fx_eq_low_freq_hz: defaults.fx_eq_low_freq_hz,
+            fx_eq_mid_gain_db: defaults.fx_eq_mid_gain_db,
+            fx_eq_mid_freq_hz: defaults.fx_eq_mid_freq_hz,
+            fx_eq_mid_q: defaults.fx_eq_mid_q,
+            fx_eq_high_gain_db: defaults.fx_eq_high_gain_db,
+            fx_eq_high_freq_hz: defaults.fx_eq_high_freq_hz,
+            fx_drive_enabled: defaults.fx_drive_enabled,
+            fx_drive_drive: defaults.fx_drive_drive,
+            fx_drive_asymmetry: defaults.fx_drive_asymmetry,
+            fx_chorus_enabled: defaults.fx_chorus_enabled,
+            fx_chorus_rate_hz: defaults.fx_chorus_rate_hz,
+            fx_chorus_depth_ms: defaults.fx_chorus_depth_ms,
+            fx_chorus_mix: defaults.fx_chorus_mix,
+            fx_chorus_spread: defaults.fx_chorus_spread,
+            fx_delay_enabled: defaults.fx_delay_enabled,
+            fx_delay_time_secs: defaults.fx_delay_time_secs,
+            fx_delay_feedback: defaults.fx_delay_feedback,
+            fx_delay_mix: defaults.fx_delay_mix,
+            fx_delay_lowcut_hz: defaults.fx_delay_lowcut_hz,
+            fx_delay_ping_pong: defaults.fx_delay_ping_pong,
+            fx_reverb_enabled: defaults.fx_reverb_enabled,
+            fx_reverb_predelay_ms: defaults.fx_reverb_predelay_ms,
+            fx_reverb_decay_secs: defaults.fx_reverb_decay_secs,
+            fx_reverb_size: defaults.fx_reverb_size,
+            fx_reverb_damping: defaults.fx_reverb_damping,
+            fx_reverb_mix: defaults.fx_reverb_mix,
         }
     }
 
@@ -877,6 +1051,34 @@ impl ParameterTree {
                     self.fm_op_feedback[slot][op] = value.clamp(-1.0, 1.0);
                 }
             }
+            ParamId::FxEqEnabled => self.fx_eq_enabled = value >= 0.5,
+            ParamId::FxEqLowGainDb => self.fx_eq_low_gain_db = value.clamp(-15.0, 15.0),
+            ParamId::FxEqLowFreqHz => self.fx_eq_low_freq_hz = value.clamp(20.0, 2_000.0),
+            ParamId::FxEqMidGainDb => self.fx_eq_mid_gain_db = value.clamp(-15.0, 15.0),
+            ParamId::FxEqMidFreqHz => self.fx_eq_mid_freq_hz = value.clamp(200.0, 8_000.0),
+            ParamId::FxEqMidQ => self.fx_eq_mid_q = value.clamp(0.1, 10.0),
+            ParamId::FxEqHighGainDb => self.fx_eq_high_gain_db = value.clamp(-15.0, 15.0),
+            ParamId::FxEqHighFreqHz => self.fx_eq_high_freq_hz = value.clamp(2_000.0, 20_000.0),
+            ParamId::FxDriveEnabled => self.fx_drive_enabled = value >= 0.5,
+            ParamId::FxDriveDrive => self.fx_drive_drive = value.clamp(1.0, 20.0),
+            ParamId::FxDriveAsymmetry => self.fx_drive_asymmetry = value.clamp(-1.0, 1.0),
+            ParamId::FxChorusEnabled => self.fx_chorus_enabled = value >= 0.5,
+            ParamId::FxChorusRateHz => self.fx_chorus_rate_hz = value.clamp(0.1, 8.0),
+            ParamId::FxChorusDepthMs => self.fx_chorus_depth_ms = value.clamp(0.0, 15.0),
+            ParamId::FxChorusMix => self.fx_chorus_mix = value.clamp(0.0, 1.0),
+            ParamId::FxChorusSpread => self.fx_chorus_spread = value.clamp(0.0, 1.0),
+            ParamId::FxDelayEnabled => self.fx_delay_enabled = value >= 0.5,
+            ParamId::FxDelayTimeSecs => self.fx_delay_time_secs = value.clamp(0.001, 2.0),
+            ParamId::FxDelayFeedback => self.fx_delay_feedback = value.clamp(0.0, 0.95),
+            ParamId::FxDelayMix => self.fx_delay_mix = value.clamp(0.0, 1.0),
+            ParamId::FxDelayLowcutHz => self.fx_delay_lowcut_hz = value.clamp(20.0, 2_000.0),
+            ParamId::FxDelayPingPong => self.fx_delay_ping_pong = value >= 0.5,
+            ParamId::FxReverbEnabled => self.fx_reverb_enabled = value >= 0.5,
+            ParamId::FxReverbPredelayMs => self.fx_reverb_predelay_ms = value.clamp(0.0, 50.0),
+            ParamId::FxReverbDecaySecs => self.fx_reverb_decay_secs = value.clamp(0.1, 30.0),
+            ParamId::FxReverbSize => self.fx_reverb_size = value.clamp(0.1, 1.0),
+            ParamId::FxReverbDamping => self.fx_reverb_damping = value.clamp(0.0, 1.0),
+            ParamId::FxReverbMix => self.fx_reverb_mix = value.clamp(0.0, 1.0),
         }
     }
 
@@ -1178,6 +1380,34 @@ impl ParameterTree {
             fm_op_sustain_level: self.fm_op_sustain_level,
             fm_op_release_secs: self.fm_op_release_secs,
             fm_op_feedback: self.fm_op_feedback,
+            fx_eq_enabled: self.fx_eq_enabled,
+            fx_eq_low_gain_db: self.fx_eq_low_gain_db,
+            fx_eq_low_freq_hz: self.fx_eq_low_freq_hz,
+            fx_eq_mid_gain_db: self.fx_eq_mid_gain_db,
+            fx_eq_mid_freq_hz: self.fx_eq_mid_freq_hz,
+            fx_eq_mid_q: self.fx_eq_mid_q,
+            fx_eq_high_gain_db: self.fx_eq_high_gain_db,
+            fx_eq_high_freq_hz: self.fx_eq_high_freq_hz,
+            fx_drive_enabled: self.fx_drive_enabled,
+            fx_drive_drive: self.fx_drive_drive,
+            fx_drive_asymmetry: self.fx_drive_asymmetry,
+            fx_chorus_enabled: self.fx_chorus_enabled,
+            fx_chorus_rate_hz: self.fx_chorus_rate_hz,
+            fx_chorus_depth_ms: self.fx_chorus_depth_ms,
+            fx_chorus_mix: self.fx_chorus_mix,
+            fx_chorus_spread: self.fx_chorus_spread,
+            fx_delay_enabled: self.fx_delay_enabled,
+            fx_delay_time_secs: self.fx_delay_time_secs,
+            fx_delay_feedback: self.fx_delay_feedback,
+            fx_delay_mix: self.fx_delay_mix,
+            fx_delay_lowcut_hz: self.fx_delay_lowcut_hz,
+            fx_delay_ping_pong: self.fx_delay_ping_pong,
+            fx_reverb_enabled: self.fx_reverb_enabled,
+            fx_reverb_predelay_ms: self.fx_reverb_predelay_ms,
+            fx_reverb_decay_secs: self.fx_reverb_decay_secs,
+            fx_reverb_size: self.fx_reverb_size,
+            fx_reverb_damping: self.fx_reverb_damping,
+            fx_reverb_mix: self.fx_reverb_mix,
         }
     }
 }

@@ -10,6 +10,7 @@
 //! [`VoiceManager`]: crate::voice_manager::VoiceManager
 
 use crate::events::EngineEvent;
+use crate::fx::FxChain;
 use crate::lfo::LfoShape;
 use crate::mod_matrix::{ModDest, ModSource};
 use crate::params::{ParamId, ParamSnapshot, ParameterTree};
@@ -44,6 +45,9 @@ pub struct Engine {
 
     /// Polyphonic voice pool sized to [`crate::POLYPHONY`].
     voices: VoiceManager,
+
+    /// Post-mix effects chain: EQ → Drive → Chorus → Delay → Reverb.
+    fx: FxChain,
 }
 
 impl Engine {
@@ -81,6 +85,7 @@ impl Engine {
             sample_rate_hz,
             params,
             voices,
+            fx: FxChain::new(sample_rate_hz),
         }
     }
 
@@ -222,6 +227,70 @@ impl Engine {
                         let op = (packed & 0x0F) as usize;
                         self.voices.set_fm_op_feedback(slot, op, value);
                     }
+                    // FX chain — push to FxChain directly; ParameterTree
+                    // stores the value for snapshot mirroring.
+                    ParamId::FxEqEnabled => self.fx.set_eq_enabled(value >= 0.5),
+                    ParamId::FxEqLowGainDb | ParamId::FxEqLowFreqHz => self.fx.set_eq_low(
+                        self.params.snapshot().fx_eq_low_freq_hz,
+                        self.params.snapshot().fx_eq_low_gain_db,
+                    ),
+                    ParamId::FxEqMidGainDb | ParamId::FxEqMidFreqHz | ParamId::FxEqMidQ => {
+                        let s = self.params.snapshot();
+                        self.fx
+                            .set_eq_mid(s.fx_eq_mid_freq_hz, s.fx_eq_mid_gain_db, s.fx_eq_mid_q);
+                    }
+                    ParamId::FxEqHighGainDb | ParamId::FxEqHighFreqHz => self.fx.set_eq_high(
+                        self.params.snapshot().fx_eq_high_freq_hz,
+                        self.params.snapshot().fx_eq_high_gain_db,
+                    ),
+                    ParamId::FxDriveEnabled => self.fx.set_drive_enabled(value >= 0.5),
+                    ParamId::FxDriveDrive | ParamId::FxDriveAsymmetry => {
+                        let s = self.params.snapshot();
+                        self.fx.set_drive_params(s.fx_drive_drive, s.fx_drive_asymmetry);
+                    }
+                    ParamId::FxChorusEnabled => self.fx.set_chorus_enabled(value >= 0.5),
+                    ParamId::FxChorusRateHz
+                    | ParamId::FxChorusDepthMs
+                    | ParamId::FxChorusMix
+                    | ParamId::FxChorusSpread => {
+                        let s = self.params.snapshot();
+                        self.fx.set_chorus_params(
+                            s.fx_chorus_rate_hz,
+                            s.fx_chorus_depth_ms,
+                            s.fx_chorus_mix,
+                            s.fx_chorus_spread,
+                        );
+                    }
+                    ParamId::FxDelayEnabled => self.fx.set_delay_enabled(value >= 0.5),
+                    ParamId::FxDelayTimeSecs
+                    | ParamId::FxDelayFeedback
+                    | ParamId::FxDelayMix
+                    | ParamId::FxDelayLowcutHz
+                    | ParamId::FxDelayPingPong => {
+                        let s = self.params.snapshot();
+                        self.fx.set_delay_params(
+                            s.fx_delay_time_secs,
+                            s.fx_delay_feedback,
+                            s.fx_delay_mix,
+                            s.fx_delay_lowcut_hz,
+                            s.fx_delay_ping_pong,
+                        );
+                    }
+                    ParamId::FxReverbEnabled => self.fx.set_reverb_enabled(value >= 0.5),
+                    ParamId::FxReverbPredelayMs
+                    | ParamId::FxReverbDecaySecs
+                    | ParamId::FxReverbSize
+                    | ParamId::FxReverbDamping
+                    | ParamId::FxReverbMix => {
+                        let s = self.params.snapshot();
+                        self.fx.set_reverb_params(
+                            s.fx_reverb_predelay_ms,
+                            s.fx_reverb_decay_secs,
+                            s.fx_reverb_size,
+                            s.fx_reverb_damping,
+                            s.fx_reverb_mix,
+                        );
+                    }
                     _ => {}
                 }
             }
@@ -265,8 +334,11 @@ impl Engine {
         for frame_index in 0..frames {
             let smoothed = self.params.next_sample();
             let (left, right) = self.voices.next_sample(&smoothed);
-            output[frame_index * 2] = left * smoothed.master_volume;
-            output[frame_index * 2 + 1] = right * smoothed.master_volume;
+            let scaled_l = left * smoothed.master_volume;
+            let scaled_r = right * smoothed.master_volume;
+            let (out_l, out_r) = self.fx.process(scaled_l, scaled_r);
+            output[frame_index * 2] = out_l;
+            output[frame_index * 2 + 1] = out_r;
         }
 
         // Mirror the post-block voice count and modulator outputs into
