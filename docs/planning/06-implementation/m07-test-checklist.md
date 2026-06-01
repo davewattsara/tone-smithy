@@ -209,8 +209,8 @@ timbre; none produce silence, DC offset, or distorted/broken audio.
 ## 8. Hybrid patch (canonical M7 test)
 
 **Starting state:** defaults, then apply:
-- Slot 0: Subtractive, level = 1.0, pan = -0.25 (slightly left)
-- Slot 1: FM, level = 0.7, pan = +0.25 (slightly right)
+- Slot 0: Subtractive, level = 1.0, pan = L25
+- Slot 1: FM, level = 0.7, pan = R25
 - Slot 1 algorithm: **1** (clean FM bell stack)
 - Slot 1 operator settings: all ratio = 1, Op 4 level = 0.8, Op 1
   level = 1.0, Op 2 and Op 3 at 0.5.
@@ -224,8 +224,8 @@ timbre; none produce silence, DC offset, or distorted/broken audio.
 - [ ] Play a scale across 2+ octaves. Both layers track pitch correctly.
 - [ ] Play several notes in quick succession (short staccato). Both
   layers start and stop cleanly with no hanging notes.
-- [ ] While holding a note, move **Slot 0 Pan** to -1 (full left) and
-  **Slot 1 Pan** to +1 (full right). The saw and FM bell should be
+- [ ] While holding a note, move **Slot 0 Pan** to L100 (full left) and
+  **Slot 1 Pan** to R100 (full right). The saw and FM bell should be
   clearly separated in the stereo field.
 - [ ] Set **Slot 1 Level** to 0. Only the saw remains. Set to 1.0. FM
   bell returns. Both changes take effect immediately.
