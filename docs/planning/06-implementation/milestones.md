@@ -137,6 +137,8 @@ Wire the sources to anything.
 
 ## M7 — FM engine (4–5 weeks)
 
+> Implementation plan: [`m07-plan.md`](m07-plan.md) — sub-milestone breakdown, algorithm table, operator model, oversampling strategy.
+
 The harder of the two synthesis methods. Conceptually new ground for someone learning DSP.
 
 - 4-operator FM slot.

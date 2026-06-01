@@ -11,7 +11,7 @@ A v1 release is "ready" when these objective criteria are met. They are intentio
 
 ## Performance
 
-- **32 voices** of moderate-complexity patches play simultaneously below **50% CPU** on a mid-range Windows laptop (reference target: a 2022-era 8-core machine, single thread of the audio engine).
+- **32 voices** of a moderate-complexity patch play simultaneously below **50% CPU** on the reference machine (MSI laptop, Intel Core i5-10500H @ 2.50 GHz, single audio thread). The reference patch is defined as: subtractive slot with 2 detuned saw oscillators and 1 sub oscillator, no unison, LP filter at 4 kHz, 1 LFO routed to filter cutoff, Env2 active, reverb at 30% mix, all other effects bypassed, no other mod matrix routes. *(As of M7 a comparable load runs at ~69% — hitting 50% requires a deliberate performance optimization pass before v1.0. The target may be revised upward if doing so would compromise sound quality.)*
 - **Input-to-output latency under 10 ms** at a 256-sample buffer / 48 kHz, including UI overhead.
 - **No allocations on the audio thread** in steady state, verified by a CI test using `assert_no_alloc` or equivalent.
 - **No audio dropouts** during a one-hour stress test (random preset changes every 5 s, sustained 32-voice playback).
