@@ -34,10 +34,13 @@ impl Drive {
     pub fn set_params(&mut self, drive: f32, asymmetry: f32) {
         self.drive = drive.clamp(1.0, 20.0);
         self.asymmetry = asymmetry.clamp(-1.0, 1.0);
-        // Compensate: tanh(drive) ≈ output amplitude at clipping — normalise
-        // back to unity so the effect is level-neutral at full drive.
-        let clip_ceiling = self.drive.tanh();
-        self.output_gain = if clip_ceiling > 1e-6 { 1.0 / clip_ceiling } else { 1.0 };
+        // Normalise at a reference input amplitude of 0.5: for any drive setting,
+        // a 0.5-peak signal produces a 0.5-peak output. Signals above 0.5 are
+        // progressively clipped; signals below 0.5 pass with near-unity gain.
+        // Using tanh(drive) as reference (amplitude=1.0) instead would let the
+        // output level rise significantly for typical synth signals (~0.5 peak).
+        let ref_out = (self.drive * 0.5).tanh();
+        self.output_gain = if ref_out > 1e-6 { 0.5 / ref_out } else { 1.0 };
     }
 
     /// Process one stereo sample.
@@ -65,8 +68,7 @@ mod tests {
     fn unity_drive_is_near_transparent() {
         let d = Drive::default();
         let (l, r) = d.process(0.5, -0.3);
-        // At drive=1, tanh(0.5)/tanh(1) ≈ 0.462/0.762 ≈ 0.606; some
-        // compression is expected even at unity drive.
+        // At drive=1 output_gain ≈ 1.08; a 0.5 input maps to ≈ 0.5 (level-neutral).
         assert!(l > 0.0 && l < 1.0, "expected 0..1, got {l}");
         assert!(r > -1.0 && r < 0.0, "expected -1..0, got {r}");
     }
@@ -75,9 +77,15 @@ mod tests {
     fn drive_clips_hard_signals() {
         let mut d = Drive::default();
         d.set_params(10.0, 0.0);
-        // At drive=10, tanh clips aggressively; output near ±1 after gain comp.
-        let (l, _) = d.process(1.0, 0.0);
-        assert!(l > 0.9, "expected near-clipped output, got {l}");
+        // Reference amplitude is 0.5, so a 1.0 input should clip near the
+        // ceiling (~0.5) and a 0.7 input should produce nearly the same output.
+        let (l1, _) = d.process(1.0, 0.0);
+        let (l2, _) = d.process(0.7, 0.0);
+        assert!(l1 > 0.4, "expected output near ceiling, got {l1}");
+        assert!(
+            (l1 - l2).abs() < 0.05,
+            "both should be clipped to same ceiling: {l1} vs {l2}"
+        );
     }
 
     #[test]
