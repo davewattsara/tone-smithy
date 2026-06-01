@@ -90,8 +90,17 @@ impl StereoDelay {
         let fb_l = self.fb_filter_l.process(fb_l) * self.feedback;
         let fb_r = self.fb_filter_r.process(fb_r) * self.feedback;
 
-        self.buf_l[self.write_pos] = left + fb_l;
-        self.buf_r[self.write_pos] = right + fb_r;
+        if self.ping_pong {
+            // Input enters the L buffer only (mono sum). The R buffer receives
+            // no direct input — it is fed solely by the L→R feedback crossover.
+            // This makes echo 1 appear in L, echo 2 in R, alternating each cycle.
+            let mono_in = (left + right) * 0.5;
+            self.buf_l[self.write_pos] = mono_in + fb_l;
+            self.buf_r[self.write_pos] = fb_r;
+        } else {
+            self.buf_l[self.write_pos] = left + fb_l;
+            self.buf_r[self.write_pos] = right + fb_r;
+        }
         self.write_pos = (self.write_pos + 1) % self.buf_len;
 
         let out_l = left + self.mix * (delayed_l - left);
