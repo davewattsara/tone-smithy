@@ -315,7 +315,7 @@ impl ToneSmithyApp {
                             "8 Paired",
                         ];
                         ui.horizontal(|ui| {
-                            ui.label("Alg");
+                            ui.label(egui::RichText::new("Alg").color(theme::FG1).font(theme::font_small()));
                             egui::ComboBox::from_id_salt(format!("fm_alg_{slot_idx}"))
                                 .selected_text(ALG_LABELS[self.fm_algorithm[slot_idx] as usize])
                                 .show_ui(ui, |ui| {
@@ -338,15 +338,15 @@ impl ToneSmithyApp {
                             .striped(true)
                             .spacing([4.0, 4.0])
                             .show(ui, |ui| {
-                                ui.label("Op");
-                                ui.label("Ratio");
-                                ui.label("Fine");
-                                ui.label("Level");
-                                ui.label("A");
-                                ui.label("D");
-                                ui.label("S");
-                                ui.label("R");
-                                ui.label("FB");
+                                ui.label(egui::RichText::new("Op").color(theme::FG2).font(theme::font_small()));
+                                ui.label(egui::RichText::new("Ratio").color(theme::FG2).font(theme::font_small()));
+                                ui.label(egui::RichText::new("Fine").color(theme::FG2).font(theme::font_small()));
+                                ui.label(egui::RichText::new("Level").color(theme::FG2).font(theme::font_small()));
+                                ui.label(egui::RichText::new("A").color(theme::FG2).font(theme::font_small()));
+                                ui.label(egui::RichText::new("D").color(theme::FG2).font(theme::font_small()));
+                                ui.label(egui::RichText::new("S").color(theme::FG2).font(theme::font_small()));
+                                ui.label(egui::RichText::new("R").color(theme::FG2).font(theme::font_small()));
+                                ui.label(egui::RichText::new("FB").color(theme::FG2).font(theme::font_small()));
                                 ui.end_row();
 
                                 for op in 0..4usize {

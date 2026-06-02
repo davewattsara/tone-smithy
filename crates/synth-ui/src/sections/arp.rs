@@ -23,7 +23,7 @@ impl ToneSmithyApp {
 
         ui.add_enabled_ui(self.arp_enabled, |ui| {
             ui.horizontal(|ui| {
-                ui.label("Mode");
+                ui.label(egui::RichText::new("Mode").color(theme::FG1).font(theme::font_small()));
                 let mode_labels = ["Up", "Down", "Up/Dn", "Rand", "Played"];
                 egui::ComboBox::from_id_salt("arp_mode")
                     .selected_text(mode_labels[self.arp_mode as usize])
@@ -42,7 +42,11 @@ impl ToneSmithyApp {
             ui.add_space(4.0);
 
             ui.horizontal(|ui| {
-                ui.label("Octaves");
+                ui.label(
+                    egui::RichText::new("Octaves")
+                        .color(theme::FG1)
+                        .font(theme::font_small()),
+                );
                 let oct_labels = ["1 oct", "2 oct", "3 oct", "4 oct"];
                 egui::ComboBox::from_id_salt("arp_oct")
                     .selected_text(oct_labels[(self.arp_octaves as usize).saturating_sub(1).min(3)])
@@ -62,7 +66,7 @@ impl ToneSmithyApp {
             ui.add_space(4.0);
 
             ui.horizontal(|ui| {
-                ui.label("Rate");
+                ui.label(egui::RichText::new("Rate").color(theme::FG1).font(theme::font_small()));
                 let rate_labels = ["1/32", "1/16", "1/8", "1/4", "1/2"];
                 egui::ComboBox::from_id_salt("arp_rate")
                     .selected_text(rate_labels[self.arp_rate as usize])

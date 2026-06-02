@@ -149,7 +149,7 @@ impl ToneSmithyApp {
         });
 
         ui.add_space(4.0);
-        ui.label("Curve");
+        ui.label(egui::RichText::new("Curve").color(theme::FG1).font(theme::font_small()));
         ui.horizontal(|ui| {
             if ui
                 .add(
@@ -247,7 +247,7 @@ impl ToneSmithyApp {
         let events = self.events.clone();
 
         const SHAPE_LABELS: [&str; 7] = ["Sin", "Tri", "Saw+", "Saw-", "Sq", "S&H", "Rnd"];
-        ui.label("Shape");
+        ui.label(egui::RichText::new("Shape").color(theme::FG1).font(theme::font_small()));
         ui.horizontal_wrapped(|ui| {
             for (i, label) in SHAPE_LABELS.iter().enumerate() {
                 if ui.selectable_label(shape_index == i, *label).clicked() {

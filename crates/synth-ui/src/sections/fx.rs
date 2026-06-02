@@ -29,7 +29,7 @@ impl ToneSmithyApp {
             });
         }
         ui.add_enabled_ui(self.fx_eq_enabled, |ui| {
-            ui.label("Low");
+            ui.label(egui::RichText::new("Low").color(theme::FG1).font(theme::font_small()));
             if ui
                 .add(
                     Knob::new(&mut self.fx_eq_low_gain_db, -15.0..=15.0, "Gain")
@@ -56,7 +56,7 @@ impl ToneSmithyApp {
                     value: self.fx_eq_low_freq_hz,
                 });
             }
-            ui.label("Mid");
+            ui.label(egui::RichText::new("Mid").color(theme::FG1).font(theme::font_small()));
             if ui
                 .add(
                     Knob::new(&mut self.fx_eq_mid_gain_db, -15.0..=15.0, "Gain")
@@ -96,7 +96,7 @@ impl ToneSmithyApp {
                     value: self.fx_eq_mid_q,
                 });
             }
-            ui.label("High");
+            ui.label(egui::RichText::new("High").color(theme::FG1).font(theme::font_small()));
             if ui
                 .add(
                     Knob::new(&mut self.fx_eq_high_gain_db, -15.0..=15.0, "Gain")

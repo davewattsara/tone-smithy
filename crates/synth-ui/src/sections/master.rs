@@ -11,6 +11,7 @@ impl ToneSmithyApp {
         ui.add_space(theme::PANEL_PADDING);
         theme::section_label(ui, "MASTER");
 
+        // Main controls row
         ui.horizontal(|ui| {
             if ui
                 .add(
@@ -25,7 +26,6 @@ impl ToneSmithyApp {
                     value: self.master_volume,
                 });
             }
-
             if ui
                 .add(
                     Knob::new(
@@ -43,7 +43,6 @@ impl ToneSmithyApp {
                     value: self.pitch_offset_semis,
                 });
             }
-
             if ui
                 .add(
                     Knob::new(&mut self.bpm, BPM_MIN..=BPM_MAX, "BPM")
@@ -60,66 +59,29 @@ impl ToneSmithyApp {
         });
 
         ui.add_space(theme::GROUP_GAP);
-
-        // Voice / modulator status
-        ui.label(
-            egui::RichText::new(format!(
-                "Voices: {}   LFO1: {:.3}   LFO2: {:.3}   Env2: {:.3}",
-                snapshot.active_voice_count, snapshot.lfo1_out, snapshot.lfo2_out, snapshot.env2_out,
-            ))
-            .color(theme::FG2)
-            .font(theme::font_small()),
-        );
-
+        theme::subtle_separator(ui);
         ui.add_space(theme::GROUP_GAP);
 
-        // Pitch-bend / mod-wheel / sustain controls
+        // Live status readout
+        theme::section_label(ui, "STATUS");
         ui.horizontal(|ui| {
-            ui.vertical(|ui| {
-                ui.label(egui::RichText::new("Pitch Bend").color(theme::FG1));
-                let old = self.pitch_bend;
-                if ui
-                    .add(egui::Slider::new(&mut self.pitch_bend, -1.0..=1.0).show_value(false))
-                    .changed()
-                {
-                    self.events.send(EngineEvent::PitchBend {
-                        value_normalised: self.pitch_bend,
-                    });
-                }
-                // Spring-back when released
-                if ui.input(|i| i.pointer.any_released()) && old != 0.0 {
-                    self.pitch_bend = 0.0;
-                    self.events.send(EngineEvent::PitchBend { value_normalised: 0.0 });
-                }
-            });
+            status_chip(ui, "Voices", &snapshot.active_voice_count.to_string());
             ui.add_space(8.0);
-            ui.vertical(|ui| {
-                ui.label(egui::RichText::new("Mod Wheel").color(theme::FG1));
-                if ui
-                    .add(
-                        egui::Slider::new(&mut self.mod_wheel, 0.0..=1.0)
-                            .show_value(false)
-                            .vertical(),
-                    )
-                    .changed()
-                {
-                    self.events.send(EngineEvent::ControlChange {
-                        cc: 1,
-                        value_normalised: self.mod_wheel,
-                    });
-                }
-            });
+            status_chip(ui, "LFO 1", &format!("{:+.3}", snapshot.lfo1_out));
             ui.add_space(8.0);
-            ui.vertical(|ui| {
-                ui.label(egui::RichText::new("Sustain").color(theme::FG1));
-                let label = if self.sustain_held { "ON" } else { "OFF" };
-                if ui.button(label).clicked() {
-                    self.sustain_held = !self.sustain_held;
-                    self.events.send(EngineEvent::Sustain {
-                        held: self.sustain_held,
-                    });
-                }
-            });
+            status_chip(ui, "LFO 2", &format!("{:+.3}", snapshot.lfo2_out));
+            ui.add_space(8.0);
+            status_chip(ui, "Env 2", &format!("{:.3}", snapshot.env2_out));
         });
     }
+}
+
+/// Renders a small `label: value` status pair.
+fn status_chip(ui: &mut egui::Ui, label: &str, value: &str) {
+    ui.label(
+        egui::RichText::new(format!("{label}:"))
+            .color(theme::FG2)
+            .font(theme::font_small()),
+    );
+    ui.label(egui::RichText::new(value).color(theme::FG1).font(theme::font_small()));
 }
