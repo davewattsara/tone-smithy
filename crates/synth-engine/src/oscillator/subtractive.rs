@@ -48,6 +48,32 @@ pub enum Waveform {
     Triangle,
 }
 
+impl Waveform {
+    /// Returns the zero-based index used when serialising waveform to a preset.
+    /// Order: Sine=0, Saw=1, Square=2, Triangle=3.
+    #[must_use]
+    pub fn index(self) -> usize {
+        match self {
+            Waveform::Sine => 0,
+            Waveform::Saw => 1,
+            Waveform::Square => 2,
+            Waveform::Triangle => 3,
+        }
+    }
+
+    /// Converts a zero-based index back to a `Waveform`. Indices outside 0..=3 return `Sine`.
+    #[must_use]
+    pub fn from_index(i: usize) -> Self {
+        match i {
+            0 => Waveform::Sine,
+            1 => Waveform::Saw,
+            2 => Waveform::Square,
+            3 => Waveform::Triangle,
+            _ => Waveform::Sine,
+        }
+    }
+}
+
 /// A single-shape phase-accumulating oscillator.
 ///
 /// Carries no state about pitch beyond `phase_increment`. The caller
