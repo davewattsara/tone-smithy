@@ -41,8 +41,9 @@ pub const GROUP_GAP: f32 = 12.0;
 pub const HEADER_HEIGHT: f32 = 40.0;
 /// Height of the tab bar.
 pub const TAB_BAR_HEIGHT: f32 = 32.0;
-/// Height of the virtual keyboard strip.
-pub const KEYBOARD_HEIGHT: f32 = 80.0;
+/// Height of the virtual keyboard strip. Must be at least as tall as
+/// `keyboard::WHITE_KEY_HEIGHT` (120 px) plus a few pixels of padding.
+pub const KEYBOARD_HEIGHT: f32 = 128.0;
 /// Height of the status footer.
 pub const FOOTER_HEIGHT: f32 = 24.0;
 
