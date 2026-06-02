@@ -2,14 +2,14 @@ use eframe::egui;
 use synth_engine::{EngineEvent, ParamId, Waveform};
 
 use crate::app::{
-    FM_OP_ENV_MAX_SECS, FM_OP_ENV_MIN_SECS, FM_RATIO_FINE_MAX, OSC_DETUNE_MAX_CENTS, OSC_LEVEL_MAX, ToneSmithyApp,
-    UNISON_DETUNE_MAX_CENTS, UNISON_VOICES_MAX, secs_format,
+    FM_OP_ENV_MAX_SECS, FM_OP_ENV_MIN_SECS, FM_RATIO_FINE_MAX, ModDisplay, OSC_DETUNE_MAX_CENTS, OSC_LEVEL_MAX,
+    ToneSmithyApp, UNISON_DETUNE_MAX_CENTS, UNISON_VOICES_MAX, secs_format,
 };
 use crate::knob::Knob;
 use crate::theme;
 
 impl ToneSmithyApp {
-    pub(crate) fn osc_tab(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn osc_tab(&mut self, ui: &mut egui::Ui, md: ModDisplay) {
         ui.add_space(theme::PANEL_PADDING);
 
         // Waveform selector applies to all three main oscillators
@@ -43,17 +43,17 @@ impl ToneSmithyApp {
             cols[0].vertical(|ui| {
                 ui.add_space(theme::PANEL_PADDING);
                 theme::section_label(ui, "OSC 1");
-                self.osc_controls(ui, 0);
+                self.osc_controls(ui, 0, Some(md));
             });
             cols[1].vertical(|ui| {
                 ui.add_space(theme::PANEL_PADDING);
                 theme::section_label(ui, "OSC 2");
-                self.osc_controls(ui, 1);
+                self.osc_controls(ui, 1, None);
             });
             cols[2].vertical(|ui| {
                 ui.add_space(theme::PANEL_PADDING);
                 theme::section_label(ui, "OSC 3 + Sub");
-                self.osc_controls(ui, 2);
+                self.osc_controls(ui, 2, None);
                 ui.add_space(theme::GROUP_GAP);
                 theme::subtle_separator(ui);
                 ui.add_space(4.0);
@@ -70,7 +70,9 @@ impl ToneSmithyApp {
     }
 
     /// Renders level/detune/pan + unison knobs for main oscillator `idx` (0, 1, or 2).
-    fn osc_controls(&mut self, ui: &mut egui::Ui, idx: usize) {
+    /// `md` is `Some` only for osc 0 (osc1), which is the only oscillator currently
+    /// addressable as a mod matrix destination.
+    fn osc_controls(&mut self, ui: &mut egui::Ui, idx: usize, md: Option<ModDisplay>) {
         let (level_id, detune_id, pan_id, uv_id, ud_id, us_id) = match idx {
             0 => (
                 ParamId::Osc1Level,
@@ -120,6 +122,7 @@ impl ToneSmithyApp {
                         "Detune",
                     )
                     .default_value(0.0)
+                    .mod_offset(md.map_or(0.0, |m| m.osc1_detune))
                     .format(|v| format!("{:+.1} ct", v)),
                 )
                 .changed()
@@ -133,6 +136,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.osc_pan[idx], -1.0..=1.0, "Pan")
                         .default_value(0.0)
+                        .mod_offset(md.map_or(0.0, |m| m.osc1_pan))
                         .format(|v| {
                             if v < -0.01 {
                                 format!("L{:.0}", v.abs() * 100.0)

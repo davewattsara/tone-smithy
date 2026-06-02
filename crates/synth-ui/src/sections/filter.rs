@@ -1,12 +1,12 @@
 use eframe::egui;
 use synth_engine::{EngineEvent, FilterMode, ParamId};
 
-use crate::app::{CUTOFF_MAX_HZ, CUTOFF_MIN_HZ, ToneSmithyApp};
+use crate::app::{CUTOFF_MAX_HZ, CUTOFF_MIN_HZ, ModDisplay, ToneSmithyApp};
 use crate::knob::Knob;
 use crate::theme;
 
 impl ToneSmithyApp {
-    pub(crate) fn filter_tab(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn filter_tab(&mut self, ui: &mut egui::Ui, md: ModDisplay) {
         ui.add_space(theme::PANEL_PADDING);
         ui.add_space(theme::PANEL_PADDING);
         theme::section_label(ui, "FILTER");
@@ -44,6 +44,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.filter_cutoff_hz, CUTOFF_MIN_HZ..=CUTOFF_MAX_HZ, "Cutoff")
                         .default_value(8_000.0)
+                        .mod_offset(md.cutoff)
                         .format(|v| {
                             if v >= 1_000.0 {
                                 format!("{:.1} kHz", v / 1000.0)
@@ -63,6 +64,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.filter_resonance, 0.0..=1.0, "Res")
                         .default_value(0.0)
+                        .mod_offset(md.resonance)
                         .format(|v| format!("{:.2}", v)),
                 )
                 .changed()

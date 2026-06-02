@@ -1,12 +1,12 @@
 use eframe::egui;
 use synth_engine::{EngineEvent, ParamId, ParamSnapshot};
 
-use crate::app::{BPM_MAX, BPM_MIN, PITCH_OFFSET_RANGE, ToneSmithyApp};
+use crate::app::{BPM_MAX, BPM_MIN, ModDisplay, PITCH_OFFSET_RANGE, ToneSmithyApp};
 use crate::knob::Knob;
 use crate::theme;
 
 impl ToneSmithyApp {
-    pub(crate) fn master_tab(&mut self, ui: &mut egui::Ui, snapshot: &ParamSnapshot) {
+    pub(crate) fn master_tab(&mut self, ui: &mut egui::Ui, snapshot: &ParamSnapshot, md: ModDisplay) {
         ui.add_space(theme::PANEL_PADDING);
         ui.add_space(theme::PANEL_PADDING);
         theme::section_label(ui, "MASTER");
@@ -17,6 +17,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.master_volume, 0.0..=1.0, "Volume")
                         .default_value(0.8)
+                        .mod_offset(md.volume)
                         .format(|v| format!("{:.0}%", v * 100.0)),
                 )
                 .changed()
@@ -34,6 +35,7 @@ impl ToneSmithyApp {
                         "Pitch",
                     )
                     .default_value(0.0)
+                    .mod_offset(md.pitch)
                     .format(|v| format!("{:+.0} st", v)),
                 )
                 .changed()
