@@ -151,5 +151,6 @@ pub fn section_label(ui: &mut egui::Ui, text: &str) {
 pub fn subtle_separator(ui: &mut egui::Ui) {
     let color = FG2.gamma_multiply(0.4);
     let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 1.0), egui::Sense::hover());
-    ui.painter().line_segment([rect.left_center(), rect.right_center()], Stroke::new(1.0, color));
+    ui.painter()
+        .line_segment([rect.left_center(), rect.right_center()], Stroke::new(1.0, color));
 }

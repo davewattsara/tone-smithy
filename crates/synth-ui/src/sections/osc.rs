@@ -2,8 +2,8 @@ use eframe::egui;
 use synth_engine::{EngineEvent, ParamId, Waveform};
 
 use crate::app::{
-    FM_OP_ENV_MAX_SECS, FM_OP_ENV_MIN_SECS, FM_RATIO_FINE_MAX, OSC_DETUNE_MAX_CENTS,
-    OSC_LEVEL_MAX, UNISON_DETUNE_MAX_CENTS, UNISON_VOICES_MAX, ToneSmithyApp, secs_format,
+    FM_OP_ENV_MAX_SECS, FM_OP_ENV_MIN_SECS, FM_RATIO_FINE_MAX, OSC_DETUNE_MAX_CENTS, OSC_LEVEL_MAX, ToneSmithyApp,
+    UNISON_DETUNE_MAX_CENTS, UNISON_VOICES_MAX, secs_format,
 };
 use crate::knob::Knob;
 use crate::theme;
@@ -30,8 +30,9 @@ impl ToneSmithyApp {
                 }
             }
             if changed {
-                self.events
-                    .send(EngineEvent::SetOscillatorWaveform { waveform: self.waveform });
+                self.events.send(EngineEvent::SetOscillatorWaveform {
+                    waveform: self.waveform,
+                });
             }
         });
 
@@ -130,7 +131,15 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.osc_pan[idx], -1.0..=1.0, "Pan")
                         .default_value(0.0)
-                        .format(pan_format),
+                        .format(|v| {
+                            if v < -0.01 {
+                                format!("L{:.0}", v.abs() * 100.0)
+                            } else if v > 0.01 {
+                                format!("R{:.0}", v * 100.0)
+                            } else {
+                                "C".to_string()
+                            }
+                        }),
                 )
                 .changed()
             {
@@ -210,7 +219,15 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.sub_pan, -1.0..=1.0, "Pan")
                         .default_value(0.0)
-                        .format(pan_format),
+                        .format(|v| {
+                            if v < -0.01 {
+                                format!("L{:.0}", v.abs() * 100.0)
+                            } else if v > 0.01 {
+                                format!("R{:.0}", v * 100.0)
+                            } else {
+                                "C".to_string()
+                            }
+                        }),
                 )
                 .changed()
             {
@@ -266,7 +283,15 @@ impl ToneSmithyApp {
                             .add(
                                 Knob::new(&mut self.slot_pan[slot_idx], -1.0..=1.0, "Pan")
                                     .default_value(0.0)
-                                    .format(pan_format),
+                                    .format(|v| {
+                                        if v < -0.01 {
+                                            format!("L{:.0}", v.abs() * 100.0)
+                                        } else if v > 0.01 {
+                                            format!("R{:.0}", v * 100.0)
+                                        } else {
+                                            "C".to_string()
+                                        }
+                                    }),
                             )
                             .changed()
                         {
@@ -296,11 +321,7 @@ impl ToneSmithyApp {
                                 .show_ui(ui, |ui| {
                                     for (idx, &label) in ALG_LABELS.iter().enumerate() {
                                         if ui
-                                            .selectable_value(
-                                                &mut self.fm_algorithm[slot_idx],
-                                                idx as u8,
-                                                label,
-                                            )
+                                            .selectable_value(&mut self.fm_algorithm[slot_idx], idx as u8, label)
                                             .changed()
                                         {
                                             self.events.send(EngineEvent::ParameterChange {
@@ -332,14 +353,9 @@ impl ToneSmithyApp {
                                     let packed = ((slot_idx as u8) << 4) | (op as u8);
                                     ui.label(format!("Op {}", op + 1));
 
-                                    let mut ratio_int =
-                                        self.fm_op_ratio_integer[slot_idx][op] as i32;
+                                    let mut ratio_int = self.fm_op_ratio_integer[slot_idx][op] as i32;
                                     if ui
-                                        .add(
-                                            egui::DragValue::new(&mut ratio_int)
-                                                .range(1..=15)
-                                                .speed(0.1),
-                                        )
+                                        .add(egui::DragValue::new(&mut ratio_int).range(1..=15).speed(0.1))
                                         .changed()
                                     {
                                         self.fm_op_ratio_integer[slot_idx][op] = ratio_int as u8;
@@ -351,12 +367,10 @@ impl ToneSmithyApp {
 
                                     if ui
                                         .add(
-                                            egui::DragValue::new(
-                                                &mut self.fm_op_ratio_fine[slot_idx][op],
-                                            )
-                                            .range(-FM_RATIO_FINE_MAX..=FM_RATIO_FINE_MAX)
-                                            .speed(0.5)
-                                            .suffix(" ct"),
+                                            egui::DragValue::new(&mut self.fm_op_ratio_fine[slot_idx][op])
+                                                .range(-FM_RATIO_FINE_MAX..=FM_RATIO_FINE_MAX)
+                                                .speed(0.5)
+                                                .suffix(" ct"),
                                         )
                                         .changed()
                                     {
@@ -368,13 +382,9 @@ impl ToneSmithyApp {
 
                                     if ui
                                         .add(
-                                            Knob::new(
-                                                &mut self.fm_op_level[slot_idx][op],
-                                                0.0..=1.0,
-                                                "Lv",
-                                            )
-                                            .default_value(1.0)
-                                            .format(|v| format!("{:.2}", v)),
+                                            Knob::new(&mut self.fm_op_level[slot_idx][op], 0.0..=1.0, "Lv")
+                                                .default_value(1.0)
+                                                .format(|v| format!("{:.2}", v)),
                                         )
                                         .changed()
                                     {
@@ -384,67 +394,77 @@ impl ToneSmithyApp {
                                         });
                                     }
 
-                                    for (env_val, env_id, env_def) in [
-                                        (
-                                            &mut self.fm_op_attack_secs[slot_idx][op],
-                                            ParamId::FmOpAttackSecs(packed),
-                                            0.010_f32,
-                                        ),
-                                        (
-                                            &mut self.fm_op_decay_secs[slot_idx][op],
-                                            ParamId::FmOpDecaySecs(packed),
-                                            0.200,
-                                        ),
-                                        (
-                                            &mut self.fm_op_sustain_level[slot_idx][op],
-                                            ParamId::FmOpSustainLevel(packed),
-                                            0.800,
-                                        ),
-                                        (
-                                            &mut self.fm_op_release_secs[slot_idx][op],
-                                            ParamId::FmOpReleaseSecs(packed),
-                                            0.200,
-                                        ),
-                                    ] {
-                                        let range = if matches!(
-                                            env_id,
-                                            ParamId::FmOpSustainLevel(_)
-                                        ) {
-                                            0.0..=1.0
-                                        } else {
-                                            FM_OP_ENV_MIN_SECS..=FM_OP_ENV_MAX_SECS
-                                        };
-                                        let fmt: Box<dyn Fn(f32) -> String> =
-                                            if matches!(env_id, ParamId::FmOpSustainLevel(_)) {
-                                                Box::new(|v: f32| format!("{:.2}", v))
-                                            } else {
-                                                Box::new(secs_format)
-                                            };
-                                        if ui
-                                            .add(
-                                                Knob::new(env_val, range, "")
-                                                    .default_value(env_def)
-                                                    .format(fmt),
+                                    if ui
+                                        .add(
+                                            Knob::new(
+                                                &mut self.fm_op_attack_secs[slot_idx][op],
+                                                FM_OP_ENV_MIN_SECS..=FM_OP_ENV_MAX_SECS,
+                                                "",
                                             )
-                                            .changed()
-                                        {
-                                            self.events.send(EngineEvent::ParameterChange {
-                                                id: env_id,
-                                                value: *env_val,
-                                            });
-                                        }
+                                            .default_value(0.010)
+                                            .format(secs_format),
+                                        )
+                                        .changed()
+                                    {
+                                        self.events.send(EngineEvent::ParameterChange {
+                                            id: ParamId::FmOpAttackSecs(packed),
+                                            value: self.fm_op_attack_secs[slot_idx][op],
+                                        });
+                                    }
+                                    if ui
+                                        .add(
+                                            Knob::new(
+                                                &mut self.fm_op_decay_secs[slot_idx][op],
+                                                FM_OP_ENV_MIN_SECS..=FM_OP_ENV_MAX_SECS,
+                                                "",
+                                            )
+                                            .default_value(0.200)
+                                            .format(secs_format),
+                                        )
+                                        .changed()
+                                    {
+                                        self.events.send(EngineEvent::ParameterChange {
+                                            id: ParamId::FmOpDecaySecs(packed),
+                                            value: self.fm_op_decay_secs[slot_idx][op],
+                                        });
+                                    }
+                                    if ui
+                                        .add(
+                                            Knob::new(&mut self.fm_op_sustain_level[slot_idx][op], 0.0..=1.0, "")
+                                                .default_value(0.800)
+                                                .format(|v| format!("{:.2}", v)),
+                                        )
+                                        .changed()
+                                    {
+                                        self.events.send(EngineEvent::ParameterChange {
+                                            id: ParamId::FmOpSustainLevel(packed),
+                                            value: self.fm_op_sustain_level[slot_idx][op],
+                                        });
+                                    }
+                                    if ui
+                                        .add(
+                                            Knob::new(
+                                                &mut self.fm_op_release_secs[slot_idx][op],
+                                                FM_OP_ENV_MIN_SECS..=FM_OP_ENV_MAX_SECS,
+                                                "",
+                                            )
+                                            .default_value(0.200)
+                                            .format(secs_format),
+                                        )
+                                        .changed()
+                                    {
+                                        self.events.send(EngineEvent::ParameterChange {
+                                            id: ParamId::FmOpReleaseSecs(packed),
+                                            value: self.fm_op_release_secs[slot_idx][op],
+                                        });
                                     }
 
                                     if op == 3 {
                                         if ui
                                             .add(
-                                                Knob::new(
-                                                    &mut self.fm_op_feedback[slot_idx][op],
-                                                    -1.0..=1.0,
-                                                    "FB",
-                                                )
-                                                .default_value(0.0)
-                                                .format(|v| format!("{:.2}", v)),
+                                                Knob::new(&mut self.fm_op_feedback[slot_idx][op], -1.0..=1.0, "FB")
+                                                    .default_value(0.0)
+                                                    .format(|v| format!("{:.2}", v)),
                                             )
                                             .changed()
                                         {
@@ -463,15 +483,5 @@ impl ToneSmithyApp {
                     }
                 });
         }
-    }
-}
-
-fn pan_format(v: f32) -> String {
-    if v < -0.01 {
-        format!("L{:.0}", v.abs() * 100.0)
-    } else if v > 0.01 {
-        format!("R{:.0}", v * 100.0)
-    } else {
-        "C".to_string()
     }
 }

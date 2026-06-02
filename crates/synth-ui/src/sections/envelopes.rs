@@ -2,8 +2,8 @@ use eframe::egui;
 use synth_engine::{EngineEvent, ParamId, ParamSnapshot};
 
 use crate::app::{
-    ENV2_CURVE_RANGE, ENV_ATTACK_MAX_SECS, ENV_DECAY_MAX_SECS, ENV_MIN_SECS, ENV_RELEASE_MAX_SECS,
-    LFO_RATE_MAX_HZ, LFO_RATE_MIN_HZ, ToneSmithyApp, secs_format,
+    ENV_ATTACK_MAX_SECS, ENV_DECAY_MAX_SECS, ENV_MIN_SECS, ENV_RELEASE_MAX_SECS, ENV2_CURVE_RANGE, LFO_RATE_MAX_HZ,
+    LFO_RATE_MIN_HZ, ToneSmithyApp, secs_format,
 };
 use crate::knob::Knob;
 use crate::theme;
@@ -214,14 +214,36 @@ impl ToneSmithyApp {
                 ParamId::Lfo2SyncDivision,
             )
         };
-        let mut rate_hz = if lfo_num == 1 { self.lfo1_rate_hz } else { self.lfo2_rate_hz };
-        let mut shape_index = if lfo_num == 1 { self.lfo1_shape_index } else { self.lfo2_shape_index };
-        let mut reset_on_note_on =
-            if lfo_num == 1 { self.lfo1_reset_on_note_on } else { self.lfo2_reset_on_note_on };
-        let mut sync_enabled = if lfo_num == 1 { self.lfo1_sync_enabled } else { self.lfo2_sync_enabled };
-        let mut div_index =
-            if lfo_num == 1 { self.lfo1_sync_division_index } else { self.lfo2_sync_division_index };
-        let live_out = if lfo_num == 1 { snapshot.lfo1_out } else { snapshot.lfo2_out };
+        let mut rate_hz = if lfo_num == 1 {
+            self.lfo1_rate_hz
+        } else {
+            self.lfo2_rate_hz
+        };
+        let mut shape_index = if lfo_num == 1 {
+            self.lfo1_shape_index
+        } else {
+            self.lfo2_shape_index
+        };
+        let mut reset_on_note_on = if lfo_num == 1 {
+            self.lfo1_reset_on_note_on
+        } else {
+            self.lfo2_reset_on_note_on
+        };
+        let mut sync_enabled = if lfo_num == 1 {
+            self.lfo1_sync_enabled
+        } else {
+            self.lfo2_sync_enabled
+        };
+        let mut div_index = if lfo_num == 1 {
+            self.lfo1_sync_division_index
+        } else {
+            self.lfo2_sync_division_index
+        };
+        let live_out = if lfo_num == 1 {
+            snapshot.lfo1_out
+        } else {
+            snapshot.lfo2_out
+        };
         let events = self.events.clone();
 
         const SHAPE_LABELS: [&str; 7] = ["Sin", "Tri", "Saw+", "Saw-", "Sq", "S&H", "Rnd"];
@@ -230,7 +252,10 @@ impl ToneSmithyApp {
             for (i, label) in SHAPE_LABELS.iter().enumerate() {
                 if ui.selectable_label(shape_index == i, *label).clicked() {
                     shape_index = i;
-                    events.send(EngineEvent::ParameterChange { id: shape_id, value: i as f32 });
+                    events.send(EngineEvent::ParameterChange {
+                        id: shape_id,
+                        value: i as f32,
+                    });
                 }
             }
         });
@@ -247,7 +272,10 @@ impl ToneSmithyApp {
                     )
                     .changed()
             {
-                events.send(EngineEvent::ParameterChange { id: rate_id, value: rate_hz });
+                events.send(EngineEvent::ParameterChange {
+                    id: rate_id,
+                    value: rate_hz,
+                });
             }
             if ui.selectable_label(reset_on_note_on, "Reset").clicked() {
                 reset_on_note_on = !reset_on_note_on;
@@ -272,7 +300,10 @@ impl ToneSmithyApp {
                 for (i, label) in DIV_LABELS.iter().enumerate() {
                     if ui.selectable_label(div_index == i, *label).clicked() {
                         div_index = i;
-                        events.send(EngineEvent::ParameterChange { id: div_id, value: i as f32 });
+                        events.send(EngineEvent::ParameterChange {
+                            id: div_id,
+                            value: i as f32,
+                        });
                     }
                 }
             }

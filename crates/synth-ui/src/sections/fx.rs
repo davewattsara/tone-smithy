@@ -4,6 +4,7 @@ use synth_engine::{EngineEvent, ParamId};
 use crate::app::{ToneSmithyApp, secs_format};
 use crate::knob::Knob;
 use crate::theme;
+use crate::toggle::Toggle;
 
 impl ToneSmithyApp {
     pub(crate) fn fx_tab(&mut self, ui: &mut egui::Ui) {
@@ -21,7 +22,7 @@ impl ToneSmithyApp {
     }
 
     fn eq_section(&mut self, ui: &mut egui::Ui) {
-        if ui.checkbox(&mut self.fx_eq_enabled, "EQ").changed() {
+        if ui.add(Toggle::new(&mut self.fx_eq_enabled, "EQ")).changed() {
             self.events.send(EngineEvent::ParameterChange {
                 id: ParamId::FxEqEnabled,
                 value: if self.fx_eq_enabled { 1.0 } else { 0.0 },
@@ -126,7 +127,7 @@ impl ToneSmithyApp {
     }
 
     fn drive_section(&mut self, ui: &mut egui::Ui) {
-        if ui.checkbox(&mut self.fx_drive_enabled, "Drive").changed() {
+        if ui.add(Toggle::new(&mut self.fx_drive_enabled, "Drive")).changed() {
             self.events.send(EngineEvent::ParameterChange {
                 id: ParamId::FxDriveEnabled,
                 value: if self.fx_drive_enabled { 1.0 } else { 0.0 },
@@ -163,7 +164,7 @@ impl ToneSmithyApp {
     }
 
     fn chorus_section(&mut self, ui: &mut egui::Ui) {
-        if ui.checkbox(&mut self.fx_chorus_enabled, "Chorus").changed() {
+        if ui.add(Toggle::new(&mut self.fx_chorus_enabled, "Chorus")).changed() {
             self.events.send(EngineEvent::ParameterChange {
                 id: ParamId::FxChorusEnabled,
                 value: if self.fx_chorus_enabled { 1.0 } else { 0.0 },
@@ -226,7 +227,7 @@ impl ToneSmithyApp {
     }
 
     fn delay_section(&mut self, ui: &mut egui::Ui) {
-        if ui.checkbox(&mut self.fx_delay_enabled, "Delay").changed() {
+        if ui.add(Toggle::new(&mut self.fx_delay_enabled, "Delay")).changed() {
             self.events.send(EngineEvent::ParameterChange {
                 id: ParamId::FxDelayEnabled,
                 value: if self.fx_delay_enabled { 1.0 } else { 0.0 },
@@ -285,7 +286,7 @@ impl ToneSmithyApp {
                     value: self.fx_delay_lowcut_hz,
                 });
             }
-            if ui.checkbox(&mut self.fx_delay_ping_pong, "Ping-pong").changed() {
+            if ui.add(Toggle::new(&mut self.fx_delay_ping_pong, "Ping-pong")).changed() {
                 self.events.send(EngineEvent::ParameterChange {
                     id: ParamId::FxDelayPingPong,
                     value: if self.fx_delay_ping_pong { 1.0 } else { 0.0 },
@@ -295,7 +296,7 @@ impl ToneSmithyApp {
     }
 
     fn reverb_section(&mut self, ui: &mut egui::Ui) {
-        if ui.checkbox(&mut self.fx_reverb_enabled, "Reverb").changed() {
+        if ui.add(Toggle::new(&mut self.fx_reverb_enabled, "Reverb")).changed() {
             self.events.send(EngineEvent::ParameterChange {
                 id: ParamId::FxReverbEnabled,
                 value: if self.fx_reverb_enabled { 1.0 } else { 0.0 },

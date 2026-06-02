@@ -4,6 +4,7 @@ use synth_engine::{EngineEvent, ParamId};
 use crate::app::ToneSmithyApp;
 use crate::knob::Knob;
 use crate::theme;
+use crate::toggle::Toggle;
 
 impl ToneSmithyApp {
     pub(crate) fn arp_tab(&mut self, ui: &mut egui::Ui) {
@@ -11,16 +12,12 @@ impl ToneSmithyApp {
         ui.add_space(theme::PANEL_PADDING);
         theme::section_label(ui, "ARPEGGIATOR");
 
-        ui.horizontal(|ui| {
-            let prev_enabled = self.arp_enabled;
-            ui.checkbox(&mut self.arp_enabled, "On");
-            if self.arp_enabled != prev_enabled {
-                self.events.send(EngineEvent::ParameterChange {
-                    id: ParamId::ArpEnabled,
-                    value: if self.arp_enabled { 1.0 } else { 0.0 },
-                });
-            }
-        });
+        if ui.add(Toggle::new(&mut self.arp_enabled, "Enabled")).changed() {
+            self.events.send(EngineEvent::ParameterChange {
+                id: ParamId::ArpEnabled,
+                value: if self.arp_enabled { 1.0 } else { 0.0 },
+            });
+        }
 
         ui.add_space(theme::GROUP_GAP);
 

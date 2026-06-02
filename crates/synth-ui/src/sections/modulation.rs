@@ -3,6 +3,7 @@ use synth_engine::{EngineEvent, ParamId};
 
 use crate::app::{MOD_AMOUNT_RANGES, MOD_DEST_LABELS, MOD_SOURCE_LABELS, ToneSmithyApp};
 use crate::theme;
+use crate::toggle::Toggle;
 
 impl ToneSmithyApp {
     pub(crate) fn modulation_tab(&mut self, ui: &mut egui::Ui) {
@@ -19,12 +20,13 @@ impl ToneSmithyApp {
             ui.end_row();
 
             for i in 0..8usize {
-                let mut enabled = self.mod_slot_enabled[i];
-                if ui.checkbox(&mut enabled, format!("Slot {}", i + 1)).changed() {
-                    self.mod_slot_enabled[i] = enabled;
+                if ui
+                    .add(Toggle::new(&mut self.mod_slot_enabled[i], &format!("{}", i + 1)))
+                    .changed()
+                {
                     self.events.send(EngineEvent::ParameterChange {
                         id: ParamId::ModSlotEnabled(i as u8),
-                        value: if enabled { 1.0 } else { 0.0 },
+                        value: if self.mod_slot_enabled[i] { 1.0 } else { 0.0 },
                     });
                 }
 

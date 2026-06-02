@@ -43,8 +43,7 @@ pub(crate) const FM_OP_ENV_MAX_SECS: f32 = 10.0;
 pub(crate) const MOD_SOURCE_LABELS: &[&str] = &[
     "Off", "LFO1", "LFO2", "Env2", "AmpEnv", "Vel", "Key", "ModWhl", "AfterT", "Bend",
 ];
-pub(crate) const MOD_DEST_LABELS: &[&str] =
-    &["Cutoff", "Reso", "Pitch", "Vol", "Osc1Det", "Osc1Pan"];
+pub(crate) const MOD_DEST_LABELS: &[&str] = &["Cutoff", "Reso", "Pitch", "Vol", "Osc1Det", "Osc1Pan"];
 pub(crate) const MOD_AMOUNT_RANGES: &[f32] = &[
     10_000.0, // FilterCutoffHz
     1.0,      // FilterResonance
@@ -378,16 +377,14 @@ impl eframe::App for ToneSmithyApp {
             });
 
         // Central panel — active tab content
-        egui::CentralPanel::default().show(ctx, |ui| {
-            match self.active_tab {
-                Tab::Osc => self.osc_tab(ui),
-                Tab::Filter => self.filter_tab(ui),
-                Tab::Envelopes => self.envelopes_tab(ui, &snapshot),
-                Tab::Modulation => self.modulation_tab(ui),
-                Tab::Arp => self.arp_tab(ui),
-                Tab::Fx => self.fx_tab(ui),
-                Tab::Master => self.master_tab(ui, &snapshot),
-            }
+        egui::CentralPanel::default().show(ctx, |ui| match self.active_tab {
+            Tab::Osc => self.osc_tab(ui),
+            Tab::Filter => self.filter_tab(ui),
+            Tab::Envelopes => self.envelopes_tab(ui, &snapshot),
+            Tab::Modulation => self.modulation_tab(ui),
+            Tab::Arp => self.arp_tab(ui),
+            Tab::Fx => self.fx_tab(ui),
+            Tab::Master => self.master_tab(ui, &snapshot),
         });
 
         ctx.request_repaint_after(std::time::Duration::from_millis(33));
@@ -443,7 +440,11 @@ impl ToneSmithyApp {
             for &(tab, label) in Tab::ALL {
                 let selected = self.active_tab == tab;
                 let text = egui::RichText::new(label).font(theme::font_body());
-                let text = if selected { text.color(theme::ACCENT) } else { text.color(theme::FG1) };
+                let text = if selected {
+                    text.color(theme::ACCENT)
+                } else {
+                    text.color(theme::FG1)
+                };
                 if ui.selectable_label(selected, text).clicked() {
                     self.active_tab = tab;
                 }
@@ -469,8 +470,9 @@ impl ToneSmithyApp {
                         .show_value(false),
                 );
                 if pb_r.changed() {
-                    self.events
-                        .send(EngineEvent::PitchBend { value_normalised: self.pitch_bend });
+                    self.events.send(EngineEvent::PitchBend {
+                        value_normalised: self.pitch_bend,
+                    });
                 }
                 if !pb_r.is_pointer_button_down_on() && self.pitch_bend != 0.0 {
                     self.pitch_bend = 0.0;
@@ -502,17 +504,18 @@ impl ToneSmithyApp {
             // Sustain pedal
             ui.vertical(|ui| {
                 ui.label(
-                    egui::RichText::new("Sustain").color(theme::FG2).font(theme::font_micro()),
+                    egui::RichText::new("Sustain")
+                        .color(theme::FG2)
+                        .font(theme::font_micro()),
                 );
                 if ui
-                    .selectable_label(
-                        self.sustain_held,
-                        if self.sustain_held { "ON " } else { "OFF" },
-                    )
+                    .selectable_label(self.sustain_held, if self.sustain_held { "ON " } else { "OFF" })
                     .clicked()
                 {
                     self.sustain_held = !self.sustain_held;
-                    self.events.send(EngineEvent::Sustain { held: self.sustain_held });
+                    self.events.send(EngineEvent::Sustain {
+                        held: self.sustain_held,
+                    });
                 }
             });
 
@@ -643,8 +646,7 @@ impl ToneSmithyApp {
         preset.parameters = snapshot_to_map(&snapshot);
 
         let default_filename = format!("{}.tsmith", self.patch_name);
-        let start_dir =
-            synth_presets::user_presets_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+        let start_dir = synth_presets::user_presets_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
 
         if let Some(path) = rfd::FileDialog::new()
             .set_title("Save Preset")
@@ -662,8 +664,7 @@ impl ToneSmithyApp {
     }
 
     fn load_preset(&mut self) {
-        let start_dir =
-            synth_presets::user_presets_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+        let start_dir = synth_presets::user_presets_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
 
         if let Some(path) = rfd::FileDialog::new()
             .set_title("Load Preset")

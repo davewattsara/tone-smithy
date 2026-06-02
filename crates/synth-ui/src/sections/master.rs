@@ -96,7 +96,11 @@ impl ToneSmithyApp {
             ui.vertical(|ui| {
                 ui.label(egui::RichText::new("Mod Wheel").color(theme::FG1));
                 if ui
-                    .add(egui::Slider::new(&mut self.mod_wheel, 0.0..=1.0).show_value(false).vertical())
+                    .add(
+                        egui::Slider::new(&mut self.mod_wheel, 0.0..=1.0)
+                            .show_value(false)
+                            .vertical(),
+                    )
                     .changed()
                 {
                     self.events.send(EngineEvent::ControlChange {
@@ -111,7 +115,9 @@ impl ToneSmithyApp {
                 let label = if self.sustain_held { "ON" } else { "OFF" };
                 if ui.button(label).clicked() {
                     self.sustain_held = !self.sustain_held;
-                    self.events.send(EngineEvent::Sustain { held: self.sustain_held });
+                    self.events.send(EngineEvent::Sustain {
+                        held: self.sustain_held,
+                    });
                 }
             });
         });

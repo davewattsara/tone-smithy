@@ -14,3 +14,4 @@ pub mod keyboard;
 pub mod knob;
 pub mod sections;
 pub mod theme;
+pub mod toggle;
