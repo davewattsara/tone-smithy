@@ -231,35 +231,22 @@ M11 is large enough to warrant sequential phases rather than one monolithic pass
 
 1. **Osc 2 and osc 3** — yes, expose all three in the Osc tab.
 2. **Layout** — tabs (not stacked scroll).
-3. **Palette** — to be finalised before Phase A starts (see below).
+3. **Palette** — use the design-doc placeholder values to start; adjust after visual review.
 4. **Font** — egui built-in for v1; custom font deferred to v1.1.
 
-## Palette — pending sign-off
+## Palette (provisional — adjust after visual review)
 
-The backgrounds and neutrals are straightforward; the choices that matter most visually are the accent and modulation colours.
-
-### Background / neutral (same across all options)
 ```
-bg0  #0E1013  window background (near-black, blue-tinted)
-bg1  #171A1F  panel background
-bg2  #1F232A  control well / inset
-fg0  #E6E8EB  primary text
-fg1  #8A929E  secondary text / labels
-fg2  #525964  muted / units
-warn #E0795B  clip indicator, destructive actions
+bg0      #0E1013   window background
+bg1      #171A1F   panel background
+bg2      #1F232A   control well / inset
+fg0      #E6E8EB   primary text
+fg1      #8A929E   secondary text / labels
+fg2      #525964   muted / units
+accent   #5BC8DE   knob arcs, selection, focus rings
+warn     #E0795B   clip indicator, destructive actions
+mod_pos  #4DC97A   modulation ring — positive direction
+mod_neg  #D45CA0   modulation ring — negative direction
 ```
 
-### Accent colour (the most visible colour in the UI — knob arcs, selection, focus rings)
-| Option | Hex | Character |
-|---|---|---|
-| A — Cyan | `#5BC8DE` | Cool, clinical — Serum / Vital style |
-| B — Teal | `#3DBFA8` | Slightly warmer, still clean |
-| C — Amber | `#F0A830` | Warm, analogue-flavoured — Massive X style |
-| D — Violet | `#9B7FE8` | Purple/indigo — Pigments style |
-
-### Modulation colours (bipolar ring on modulated knobs: positive / negative)
-| Option | Positive | Negative | Character |
-|---|---|---|---|
-| 1 — Green / Magenta | `#4DC97A` | `#D45CA0` | High contrast, classic |
-| 2 — Accent / Orange | matches accent | `#E07840` | Coordinated with accent |
-| 3 — White / Orange | `#D8DCE0` | `#E07840` | Minimal, subtle |
+All values subject to change once the UI is running and visible.
