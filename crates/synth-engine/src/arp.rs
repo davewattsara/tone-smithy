@@ -219,12 +219,25 @@ impl ArpEngine {
         if let Some(pos) = self.held[..self.held_count].iter().position(|&n| n == midi_note) {
             self.held.copy_within(pos + 1..self.held_count, pos);
             self.held_count -= 1;
-            // Keep step_index in range
-            if self.held_count > 0 {
+            // Keep step_index in range, but only when it holds a real index —
+            // usize::MAX is the "not started" sentinel and must not be touched.
+            if self.held_count > 0 && self.step_index != usize::MAX {
                 let seq_len = self.held_count * self.octaves as usize;
                 self.step_index %= seq_len;
             }
         }
+    }
+
+    /// Reset the arp clock so the next `process()` call fires the first step
+    /// immediately with a canonical fresh-start position.
+    ///
+    /// Called by the engine whenever the arp is toggled on, to clear any stale
+    /// phase or gate state from when it was disabled.
+    pub fn reset_clock(&mut self) {
+        self.phase = 1.0;
+        self.step_index = usize::MAX;
+        self.gate_open = false;
+        self.even_step = true;
     }
 
     // ── Audio-thread process ───────────────────────────────────────────────

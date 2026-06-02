@@ -311,10 +311,19 @@ impl Engine {
                         );
                     }
                     ParamId::ArpEnabled => {
-                        self.arp.enabled = value >= 0.5;
-                        if !self.arp.enabled {
-                            // Kill any sounding arp note when disabled
+                        let new_enabled = value >= 0.5;
+                        if new_enabled != self.arp.enabled {
+                            self.arp.enabled = new_enabled;
+                            // Kill any sounding voices on both transitions:
+                            //   disable → stops arp-controlled notes
+                            //   enable  → stops direct notes so arp takes over
                             self.voices.all_notes_off();
+                            if new_enabled {
+                                // Reset clock so the first step fires on the
+                                // very next process() call rather than waiting
+                                // a full step to accumulate phase.
+                                self.arp.reset_clock();
+                            }
                         }
                     }
                     ParamId::ArpMode => self.arp.mode = ArpMode::from_f32(value),
