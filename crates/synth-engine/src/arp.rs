@@ -181,6 +181,7 @@ impl ArpEngine {
         if self.held_count >= MAX_HELD {
             return;
         }
+        let was_empty = self.held_count == 0;
         if self.mode == ArpMode::Played {
             self.held[self.held_count] = midi_note;
             self.held_count += 1;
@@ -193,6 +194,13 @@ impl ArpEngine {
             }
             self.held[pos] = midi_note;
             self.held_count += 1;
+        }
+        // First note pressed into an empty arp: push phase to 1.0 so the step
+        // boundary fires on the very next process() call instead of waiting a
+        // full step duration before the first NoteOn.
+        if was_empty {
+            self.phase = 1.0;
+            self.step_index = usize::MAX;
         }
     }
 
