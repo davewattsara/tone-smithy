@@ -1,7 +1,7 @@
 # M9 — Arpeggiator
 
 Branch: `milestone/m09-arpeggiator`
-Status: **In progress**
+Status: **Complete** (tag `m09`)
 
 ## Goal
 
