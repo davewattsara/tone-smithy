@@ -38,9 +38,8 @@ impl ToneSmithyApp {
 
         ui.add_space(theme::GROUP_GAP);
 
-        // Three oscillator columns + compact slot controls in the 4th column.
-        // The FM operator grid is too wide for a column — it renders full-width below.
-        ui.columns(4, |cols| {
+        // Three oscillator columns
+        ui.columns(3, |cols| {
             cols[0].vertical(|ui| {
                 ui.add_space(theme::PANEL_PADDING);
                 theme::section_label(ui, "OSC 1");
@@ -60,26 +59,14 @@ impl ToneSmithyApp {
                 ui.add_space(4.0);
                 self.sub_controls(ui);
             });
-            cols[3].vertical(|ui| {
-                ui.add_space(theme::PANEL_PADDING);
-                theme::section_label(ui, "SLOTS");
-                self.fm_slot_headers(ui);
-            });
         });
 
-        // FM operator grids — full width, one per slot that is in FM mode.
-        let any_fm = self.slot_mode[0] == 1 || self.slot_mode[1] == 1;
-        if any_fm {
-            ui.add_space(theme::GROUP_GAP);
-            theme::subtle_separator(ui);
-            ui.add_space(theme::GROUP_GAP);
-            for slot_idx in 0..2usize {
-                if self.slot_mode[slot_idx] == 1 {
-                    self.fm_op_grid(ui, slot_idx);
-                    ui.add_space(theme::GROUP_GAP);
-                }
-            }
-        }
+        // Slots / FM section — full width below the oscillator columns
+        ui.add_space(theme::GROUP_GAP);
+        theme::subtle_separator(ui);
+        ui.add_space(theme::GROUP_GAP);
+        theme::section_label(ui, "SLOTS / FM");
+        self.fm_slots_section(ui);
     }
 
     /// Renders level/detune/pan + unison knobs for main oscillator `idx` (0, 1, or 2).
@@ -257,12 +244,12 @@ impl ToneSmithyApp {
     /// Compact per-slot controls shown in the 4th column: mode toggle, level,
     /// pan, and (when FM) algorithm. The operator grid is separate — see
     /// [`fm_op_grid`].
-    fn fm_slot_headers(&mut self, ui: &mut egui::Ui) {
+    fn fm_slots_section(&mut self, ui: &mut egui::Ui) {
         for slot_idx in 0..2usize {
             let mode_tag = if self.slot_mode[slot_idx] == 0 { "Sub" } else { "FM" };
             let slot_label = format!("Slot {} ({})", slot_idx + 1, mode_tag);
             egui::CollapsingHeader::new(slot_label)
-                .id_salt(format!("fm_slot_hdr_{slot_idx}"))
+                .id_salt(format!("fm_slot_{slot_idx}"))
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         let is_sub = self.slot_mode[slot_idx] == 0;
@@ -350,24 +337,11 @@ impl ToneSmithyApp {
                                     }
                                 });
                         });
-                        ui.label(
-                            egui::RichText::new("(operators below)")
-                                .color(theme::FG2)
-                                .font(theme::font_micro()),
-                        );
 
-                        // Operator grid is rendered full-width outside the column layout.
-                        // Placeholder so the slot label indicates FM is active.
-                        let _ = egui::Grid::new(format!("fm_ops_placeholder_{slot_idx}")).show(ui, |_ui| {});
-                    }
-                });
-        }
-    }
-
-    /// Renders the FM operator grid for `slot_idx` at full width.
-    /// Only call when `self.slot_mode[slot_idx] == 1`.
-    pub(crate) fn fm_op_grid(&mut self, ui: &mut egui::Ui, slot_idx: usize) {
-        theme::section_label(ui, &format!("FM OPERATORS — SLOT {}", slot_idx + 1));
+                        ui.add_space(4.0);
+                        // Operator grid — full width is available here since this section
+                        // is outside the narrow oscillator columns.
+                        egui::ScrollArea::horizontal().id_salt(format!("fm_ops_scroll_{slot_idx}")).show(ui, |ui| {
 
         egui::Grid::new(format!("fm_ops_{slot_idx}"))
             .striped(true)
@@ -514,6 +488,10 @@ impl ToneSmithyApp {
 
                                     ui.end_row();
                                 }
-                            });
+                            }); // Grid
+                        }); // ScrollArea
+                    } // if FM mode
+                }); // CollapsingHeader
+        } // for slot_idx
     }
 }
