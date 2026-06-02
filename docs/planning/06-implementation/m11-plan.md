@@ -89,9 +89,10 @@ Implement the proper chrome:
 ┌──────────────────────────────────────────────────────────────────┐
 │ HEADER  48px  — preset name | Save | Load | [modified indicator] │
 ├──────────────────────────────────────────────────────────────────┤
+│ TABS  — Osc | Filter | Envelopes | Modulation | Arp | FX | Master│
+├──────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  MAIN AREA  (ScrollArea, stacked sections — tabs in a later      │
-│              milestone when the section count justifies it)      │
+│  MAIN AREA  (one panel per tab, fills remaining height)          │
 │                                                                  │
 ├──────────────────────────────────────────────────────────────────┤
 │ VIRTUAL KEYBOARD  ~80px                                          │
@@ -100,10 +101,23 @@ Implement the proper chrome:
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-- Header and footer are `TopBottomPanel` (already partially true for footer).
+- Header and footer are `TopBottomPanel`.
 - Virtual keyboard is a `TopBottomPanel` immediately above the footer.
-- Central panel holds the scrollable section stack.
+- Tab bar sits at the top of the central panel area.
+- Each tab renders its section into the remaining space (no scroll needed since each section fits at 1280×720).
 - Minimum 1280×720 already enforced.
+
+**Tab sections:**
+
+| Tab | Contents |
+|---|---|
+| Osc | Oscillators 1, 2, 3 (all three); sub osc; waveform; unison |
+| Filter | Filter type, cutoff, resonance |
+| Envelopes | Amp envelope (ADSR); Env2 (ADSR + curves); LFO 1; LFO 2 |
+| Modulation | Mod matrix (8 slots) |
+| Arp | Arpeggiator controls |
+| FX | EQ → Drive → Chorus → Delay → Reverb |
+| Master | Master volume, pitch offset, BPM, VU meter |
 
 ### 4. Knob enhancements
 The existing knob is 80% of the way there. Additions:
@@ -131,22 +145,19 @@ Wraps `egui::ComboBox` with theme-aware styling. Used for waveform selector, fil
 Peak + RMS, vertical bars, `warn` colour flash on clip. Placed in the master section and footer.
 
 ### 6. Panel polish
-For each section, a single focused pass:
+One focused pass per tab:
 
-| Section | Current state | M11 changes |
+| Tab | Current state | M11 changes |
 |---|---|---|
-| Osc 1 | Knobs + waveform buttons | Styled section header; osc 2 & 3 visible (they exist in the engine but the UI only shows osc 1); unison controls grouped |
-| Filter | Knobs + mode buttons | Section header; LP/HP/BP/Notch as a Toggle group |
-| Amp Envelope | ADSR knobs | Section header; curve display hint (simple) |
-| LFO 1 / LFO 2 | Knobs + shape | Section headers; shape as Dropdown; sync controls cleaner |
-| Env2 | Knobs | Section header; curve knobs grouped separately |
-| Mod Matrix | Table rows | Each row uses the custom Dropdown widget; amount knob uses themed Knob |
-| FM | Slot tabs + op grid | Already reasonably structured; section header polish |
-| Arp | Knobs + mode | Section header; mode as Dropdown |
-| FX | Per-stage sections | Enable toggles use custom Toggle; section headers |
-| Master | Knobs | VU meter added |
+| Osc | Only osc 1 visible | All three main oscs + sub in a column layout; waveform as Dropdown; unison grouped |
+| Filter | Knobs + mode buttons | Mode as Toggle group; themed knobs |
+| Envelopes | Separate panels, vertically stacked | Single tab: amp ADSR + Env2 side by side; LFO1 and LFO2 below; shape as Dropdown |
+| Modulation | Table rows | Dropdown widgets for source/dest/via; themed amount knob |
+| Arp | Knobs | Mode as Dropdown |
+| FX | Per-stage panels | Enable toggles use custom Toggle; each stage collapsible or always visible |
+| Master | Volume + pitch + BPM row | VU meter added; cleaner layout |
 
-**Osc 2 and 3** — the engine supports them fully (levels, detune, pan, unison) but the current UI only exposes osc 1. M11 adds osc 2 and 3 controls.
+FM is currently presented in its own panel inline. It moves into the **Osc** tab as a slot-mode option (Slot 1 and Slot 2 can each be Subtractive or FM), so the operator grid appears conditionally when a slot is in FM mode.
 
 ### 7. Modulation visualisation
 Each knob that is the destination of an active mod slot gets its modulation ring drawn. The current snapshot already carries `mod_slot_*` arrays. The approach:
@@ -216,12 +227,39 @@ M11 is large enough to warrant sequential phases rather than one monolithic pass
 
 ---
 
-## Open questions for Dave
+## Confirmed decisions
 
-1. **Osc 2 and osc 3** — the engine has them fully wired but the UI only shows osc 1. Should M11 expose all three in the oscillator panel? (Recommended: yes — they're a core feature.)
+1. **Osc 2 and osc 3** — yes, expose all three in the Osc tab.
+2. **Layout** — tabs (not stacked scroll).
+3. **Palette** — to be finalised before Phase A starts (see below).
+4. **Font** — egui built-in for v1; custom font deferred to v1.1.
 
-2. **Section tabs vs. stacked scroll** — the design doc mentions tabs for narrow windows. For M11 at the fixed 1280 width, stacked-and-scrollable is simpler and the design doc allows it. OK to defer tabs?
+## Palette — pending sign-off
 
-3. **Palette** — the design doc lists specific hex values as "placeholder candidates". Should I use them as-is (`#0E1013`, `#5BC8DE`, etc.) or do you want to review/adjust the palette before it gets locked?
+The backgrounds and neutrals are straightforward; the choices that matter most visually are the accent and modulation colours.
 
-4. **Font** — design doc recommends Inter but notes "system UI sans" as a fallback. egui ships with its own font (not Inter). Loading a custom font (bundling Inter) adds complexity. Should M11 use egui's built-in font for now and treat font as a v1.1 improvement, or is Inter a v1.0 requirement?
+### Background / neutral (same across all options)
+```
+bg0  #0E1013  window background (near-black, blue-tinted)
+bg1  #171A1F  panel background
+bg2  #1F232A  control well / inset
+fg0  #E6E8EB  primary text
+fg1  #8A929E  secondary text / labels
+fg2  #525964  muted / units
+warn #E0795B  clip indicator, destructive actions
+```
+
+### Accent colour (the most visible colour in the UI — knob arcs, selection, focus rings)
+| Option | Hex | Character |
+|---|---|---|
+| A — Cyan | `#5BC8DE` | Cool, clinical — Serum / Vital style |
+| B — Teal | `#3DBFA8` | Slightly warmer, still clean |
+| C — Amber | `#F0A830` | Warm, analogue-flavoured — Massive X style |
+| D — Violet | `#9B7FE8` | Purple/indigo — Pigments style |
+
+### Modulation colours (bipolar ring on modulated knobs: positive / negative)
+| Option | Positive | Negative | Character |
+|---|---|---|---|
+| 1 — Green / Magenta | `#4DC97A` | `#D45CA0` | High contrast, classic |
+| 2 — Accent / Orange | matches accent | `#E07840` | Coordinated with accent |
+| 3 — White / Orange | `#D8DCE0` | `#E07840` | Minimal, subtle |
