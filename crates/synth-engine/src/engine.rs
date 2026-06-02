@@ -107,10 +107,18 @@ impl Engine {
             EngineEvent::NoteOn { note_midi, velocity } => {
                 // Tell the arp about held notes regardless of arp state so
                 // enabling the arp mid-hold still has something to step through.
-                self.arp.note_on(note_midi);
+                let is_first = self.arp.note_on(note_midi);
                 if !self.arp.enabled {
                     self.params.snap_for_note_on();
                     self.voices.note_on(note_midi, velocity);
+                } else if is_first {
+                    // Fire the very first arp note immediately — before
+                    // process_stereo() — so there is no extra-block delay
+                    // regardless of gate setting. The arp already set
+                    // gate_open=true / phase=0.0 so process() handles
+                    // gate-off and subsequent steps normally.
+                    self.params.snap_for_note_on();
+                    self.voices.note_on(self.arp.current_note, velocity);
                 }
             }
             EngineEvent::NoteOff { note_midi } => {

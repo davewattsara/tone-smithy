@@ -139,7 +139,7 @@ pub struct ArpEngine {
     /// Whether the gate is currently open (NoteOn sent, NoteOff not yet).
     gate_open: bool,
     /// Currently sounding MIDI note (for sending the NoteOff).
-    current_note: u8,
+    pub current_note: u8,
     /// Direction flag for UpDown mode (true = going up).
     going_up: bool,
     /// Whether this is an even step in the pair (for swing).
@@ -177,9 +177,15 @@ impl ArpEngine {
     // ── Note list ──────────────────────────────────────────────────────────
 
     /// Record a held note. Maintains sorted order for Up/Down/UpDown; appends for Played.
-    pub fn note_on(&mut self, midi_note: u8) {
+    ///
+    /// Returns `true` if this is the first note into a previously-empty arp.
+    /// When `true` the caller should fire a `NoteOn` immediately (before the
+    /// next `process()` call) so there is no extra-block delay on the first
+    /// step. The arp sets `gate_open = true` and `phase = 0.0` so subsequent
+    /// `process()` calls handle gate-off and the next step boundary normally.
+    pub fn note_on(&mut self, midi_note: u8) -> bool {
         if self.held_count >= MAX_HELD {
-            return;
+            return false;
         }
         let was_empty = self.held_count == 0;
         if self.mode == ArpMode::Played {
@@ -195,13 +201,16 @@ impl ArpEngine {
             self.held[pos] = midi_note;
             self.held_count += 1;
         }
-        // First note pressed into an empty arp: push phase to 1.0 so the step
-        // boundary fires on the very next process() call instead of waiting a
-        // full step duration before the first NoteOn.
         if was_empty {
-            self.phase = 1.0;
-            self.step_index = usize::MAX;
+            // Advance to the canonical first step so process() knows which
+            // note is sounding, then open the gate at phase=0 so the caller
+            // can fire NoteOn immediately and process() handles gate-off and
+            // subsequent step boundaries without any special-casing.
+            self.advance_step();
+            self.gate_open = true;
+            self.phase = 0.0;
         }
+        was_empty
     }
 
     /// Remove a released note.
@@ -385,11 +394,15 @@ mod tests {
     }
 
     /// Collect the NoteOn pitches fired over `steps` step-boundaries.
+    ///
+    /// The first note is taken from `arp.current_note` directly — it was
+    /// already dispatched by the engine in the same block as the key press.
+    /// Subsequent notes come from `process()` calls.
     fn collect_notes(arp: &mut ArpEngine, steps: usize) -> Vec<u8> {
         // Step duration at 120 BPM, 1/8 note = 0.5 beats = 0.25 s = 12000 samples
         let step_samples = 12_000usize;
-        let mut notes = Vec::new();
-        for _ in 0..steps {
+        let mut notes = vec![arp.current_note];
+        for _ in 1..steps {
             let evs = arp.process(step_samples);
             for ev in evs.iter() {
                 if let ArpEvent::NoteOn { note, .. } = *ev {
@@ -411,7 +424,9 @@ mod tests {
     fn down_mode_descends_then_wraps() {
         let mut a = make_arp(ArpMode::Down, 1, &[60, 64, 67]);
         let notes = collect_notes(&mut a, 6);
-        assert_eq!(notes, vec![67, 64, 60, 67, 64, 60]);
+        // First note is the key that was pressed (60, direct dispatch). The arp
+        // then wraps to the top (67) and descends from there.
+        assert_eq!(notes, vec![60, 67, 64, 60, 67, 64]);
     }
 
     #[test]
