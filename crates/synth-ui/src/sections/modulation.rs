@@ -2,6 +2,7 @@ use eframe::egui;
 use synth_engine::{EngineEvent, ParamId};
 
 use crate::app::{MOD_AMOUNT_RANGES, MOD_DEST_LABELS, MOD_SOURCE_LABELS, ToneSmithyApp};
+use crate::knob::Knob;
 use crate::theme;
 use crate::toggle::Toggle;
 
@@ -70,9 +71,15 @@ impl ToneSmithyApp {
                     let range = MOD_AMOUNT_RANGES.get(self.mod_slot_dest[i]).copied().unwrap_or(1.0);
                     if ui
                         .add(
-                            egui::DragValue::new(&mut self.mod_slot_amount[i])
-                                .range(-range..=range)
-                                .speed(range / 100.0),
+                            Knob::new(&mut self.mod_slot_amount[i], -range..=range, "")
+                                .default_value(0.0)
+                                .format(move |v| {
+                                    if range >= 100.0 {
+                                        format!("{:+.0}", v)
+                                    } else {
+                                        format!("{:+.2}", v)
+                                    }
+                                }),
                         )
                         .changed()
                     {
