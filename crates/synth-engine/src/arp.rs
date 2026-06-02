@@ -201,7 +201,7 @@ impl ArpEngine {
             self.held[pos] = midi_note;
             self.held_count += 1;
         }
-        if was_empty {
+        if was_empty && self.enabled {
             // Advance to the canonical first step so process() knows which
             // note is sounding, then open the gate at phase=0 so the caller
             // can fire NoteOn immediately and process() handles gate-off and
@@ -209,8 +209,9 @@ impl ArpEngine {
             self.advance_step();
             self.gate_open = true;
             self.phase = 0.0;
+            return true;
         }
-        was_empty
+        false
     }
 
     /// Remove a released note.
