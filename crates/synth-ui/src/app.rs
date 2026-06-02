@@ -369,7 +369,22 @@ impl eframe::App for ToneSmithyApp {
                 self.header_bar(ui);
             });
 
-        // Tab bar — sits below the header
+        // Error bar — only present when a preset error is active
+        if self.preset_error.is_some() {
+            egui::TopBottomPanel::top("error_bar").show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.add_space(theme::PANEL_PADDING);
+                    if let Some(ref err) = self.preset_error.clone() {
+                        ui.colored_label(theme::WARN, err);
+                    }
+                    if ui.small_button("x").clicked() {
+                        self.preset_error = None;
+                    }
+                });
+            });
+        }
+
+        // Tab bar — sits below the header (and error bar if visible)
         egui::TopBottomPanel::top("tab_bar")
             .exact_height(theme::TAB_BAR_HEIGHT)
             .show(ctx, |ui| {
@@ -423,15 +438,6 @@ impl ToneSmithyApp {
                     .font(theme::font_micro()),
             );
         });
-        if let Some(ref err) = self.preset_error.clone() {
-            ui.horizontal(|ui| {
-                ui.add_space(theme::PANEL_PADDING);
-                ui.colored_label(theme::WARN, err);
-                if ui.small_button("x").clicked() {
-                    self.preset_error = None;
-                }
-            });
-        }
     }
 
     fn tab_bar(&mut self, ui: &mut egui::Ui) {
