@@ -181,6 +181,13 @@ impl VoiceManager {
         }
     }
 
+    /// Releases `note_midi` immediately, bypassing the sustain pedal.
+    /// Used by the arpeggiator so its gate-off events are not deferred.
+    pub fn release_note_immediate(&mut self, note_midi: u8) {
+        self.deferred_note_offs[note_midi as usize] = false;
+        self.release_note(note_midi);
+    }
+
     /// Releases the voice holding `note_midi` immediately, without
     /// consulting the sustain state. The `note_off` path goes through
     /// this after the sustain check.

@@ -1141,7 +1141,9 @@ impl ParameterTree {
     /// for a CC that does not have its own typed `ParamId`. Values are
     /// available to the mod matrix (M6) via the parameter snapshot.
     pub fn set_cc(&mut self, cc: u8, value_normalised: f32) {
-        self.cc_values[cc as usize] = value_normalised;
+        if (cc as usize) < self.cc_values.len() {
+            self.cc_values[cc as usize] = value_normalised;
+        }
     }
 
     /// Sets the oscillator waveform. Discrete: takes effect at the next

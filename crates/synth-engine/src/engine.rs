@@ -381,7 +381,9 @@ impl Engine {
                     self.voices.note_on(note, velocity);
                 }
                 ArpEvent::NoteOff { note } => {
-                    self.voices.note_off(note);
+                    // Bypass sustain-pedal deferral: the arp controls gate
+                    // timing explicitly and must not have its note-offs held.
+                    self.voices.release_note_immediate(note);
                 }
             }
         }
