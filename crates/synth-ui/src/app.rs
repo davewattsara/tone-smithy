@@ -391,15 +391,18 @@ impl eframe::App for ToneSmithyApp {
                 self.tab_bar(ui);
             });
 
-        // Central panel — active tab content
-        egui::CentralPanel::default().show(ctx, |ui| match self.active_tab {
-            Tab::Osc => self.osc_tab(ui),
-            Tab::Filter => self.filter_tab(ui),
-            Tab::Envelopes => self.envelopes_tab(ui, &snapshot),
-            Tab::Modulation => self.modulation_tab(ui),
-            Tab::Arp => self.arp_tab(ui),
-            Tab::Fx => self.fx_tab(ui),
-            Tab::Master => self.master_tab(ui, &snapshot),
+        // Central panel — active tab content, scrollable so tall sections
+        // (e.g. expanded FM operator grid) are not clipped by the keyboard strip.
+        egui::CentralPanel::default().show(ctx, |ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| match self.active_tab {
+                Tab::Osc => self.osc_tab(ui),
+                Tab::Filter => self.filter_tab(ui),
+                Tab::Envelopes => self.envelopes_tab(ui, &snapshot),
+                Tab::Modulation => self.modulation_tab(ui),
+                Tab::Arp => self.arp_tab(ui),
+                Tab::Fx => self.fx_tab(ui),
+                Tab::Master => self.master_tab(ui, &snapshot),
+            });
         });
 
         ctx.request_repaint_after(std::time::Duration::from_millis(33));
