@@ -12,3 +12,5 @@ pub mod app;
 pub mod computer_keyboard;
 pub mod keyboard;
 pub mod knob;
+pub mod sections;
+pub mod theme;
