@@ -9,6 +9,7 @@
 //! [`ParameterTree`]: crate::params::ParameterTree
 //! [`VoiceManager`]: crate::voice_manager::VoiceManager
 
+use crate::arp::{ArpEngine, ArpEvent, ArpMode, ArpRate};
 use crate::events::EngineEvent;
 use crate::fx::FxChain;
 use crate::lfo::LfoShape;
@@ -48,6 +49,9 @@ pub struct Engine {
 
     /// Post-mix effects chain: EQ → Drive → Chorus → Delay → Reverb.
     fx: FxChain,
+
+    /// Arpeggiator — clocks NoteOn/NoteOff into the voice pool each block.
+    arp: ArpEngine,
 }
 
 impl Engine {
@@ -86,6 +90,7 @@ impl Engine {
             params,
             voices,
             fx: FxChain::new(sample_rate_hz),
+            arp: ArpEngine::new(sample_rate_hz),
         }
     }
 
@@ -100,13 +105,27 @@ impl Engine {
     pub fn handle(&mut self, event: EngineEvent) {
         match event {
             EngineEvent::NoteOn { note_midi, velocity } => {
-                // Snap smoothed per-voice params so the first sample of
-                // the new note plays exactly at the current target.
-                self.params.snap_for_note_on();
-                self.voices.note_on(note_midi, velocity);
+                // Tell the arp about held notes regardless of arp state so
+                // enabling the arp mid-hold still has something to step through.
+                let is_first = self.arp.note_on(note_midi);
+                if !self.arp.enabled {
+                    self.params.snap_for_note_on();
+                    self.voices.note_on(note_midi, velocity);
+                } else if is_first {
+                    // Fire the very first arp note immediately — before
+                    // process_stereo() — so there is no extra-block delay
+                    // regardless of gate setting. The arp already set
+                    // gate_open=true / phase=0.0 so process() handles
+                    // gate-off and subsequent steps normally.
+                    self.params.snap_for_note_on();
+                    self.voices.note_on(self.arp.current_note, velocity);
+                }
             }
             EngineEvent::NoteOff { note_midi } => {
-                self.voices.note_off(note_midi);
+                self.arp.note_off(note_midi);
+                if !self.arp.enabled {
+                    self.voices.note_off(note_midi);
+                }
             }
             EngineEvent::SetOscillatorWaveform { waveform } => {
                 self.params.set_waveform(waveform);
@@ -291,6 +310,28 @@ impl Engine {
                             s.fx_reverb_mix,
                         );
                     }
+                    ParamId::ArpEnabled => {
+                        let new_enabled = value >= 0.5;
+                        if new_enabled != self.arp.enabled {
+                            self.arp.enabled = new_enabled;
+                            // Kill any sounding voices on both transitions:
+                            //   disable → stops arp-controlled notes
+                            //   enable  → stops direct notes so arp takes over
+                            self.voices.all_notes_off();
+                            if new_enabled {
+                                // Reset clock so the first step fires on the
+                                // very next process() call rather than waiting
+                                // a full step to accumulate phase.
+                                self.arp.reset_clock();
+                            }
+                        }
+                    }
+                    ParamId::ArpMode => self.arp.mode = ArpMode::from_f32(value),
+                    ParamId::ArpOctaves => self.arp.octaves = (value as u8).clamp(1, 4),
+                    ParamId::ArpRate => self.arp.rate = ArpRate::from_f32(value),
+                    ParamId::ArpBpm => self.arp.bpm = value.clamp(20.0, 300.0),
+                    ParamId::ArpGate => self.arp.gate = value.clamp(0.01, 1.0),
+                    ParamId::ArpSwing => self.arp.swing = value.clamp(0.5, 0.75),
                     _ => {}
                 }
             }
@@ -330,6 +371,22 @@ impl Engine {
         // Advance block-rate modulators (LFOs and Env2) once per block
         // before the per-sample loop.
         self.voices.advance_modulators(frames);
+
+        // Tick the arpeggiator and dispatch any NoteOn/NoteOff it generates.
+        let arp_events = self.arp.process(frames);
+        for ev in arp_events.iter() {
+            match *ev {
+                ArpEvent::NoteOn { note, velocity } => {
+                    self.params.snap_for_note_on();
+                    self.voices.note_on(note, velocity);
+                }
+                ArpEvent::NoteOff { note } => {
+                    // Bypass sustain-pedal deferral: the arp controls gate
+                    // timing explicitly and must not have its note-offs held.
+                    self.voices.release_note_immediate(note);
+                }
+            }
+        }
 
         for frame_index in 0..frames {
             let smoothed = self.params.next_sample();

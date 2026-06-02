@@ -148,6 +148,13 @@ impl VoiceManager {
         }
     }
 
+    /// Release all currently sounding voices immediately (used when the arp is disabled).
+    pub fn all_notes_off(&mut self) {
+        for note in 0u8..=127 {
+            self.release_note(note);
+        }
+    }
+
     /// Updates the sustain-pedal state. When `held` transitions to
     /// `false` all deferred note-offs are fired in MIDI-note order.
     pub fn set_sustain(&mut self, held: bool) {
@@ -172,6 +179,13 @@ impl VoiceManager {
                 }
             }
         }
+    }
+
+    /// Releases `note_midi` immediately, bypassing the sustain pedal.
+    /// Used by the arpeggiator so its gate-off events are not deferred.
+    pub fn release_note_immediate(&mut self, note_midi: u8) {
+        self.deferred_note_offs[note_midi as usize] = false;
+        self.release_note(note_midi);
     }
 
     /// Releases the voice holding `note_midi` immediately, without

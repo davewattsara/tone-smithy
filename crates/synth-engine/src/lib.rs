@@ -54,6 +54,7 @@ pub use crate::voice_manager::VoiceManager;
 pub mod fx;
 pub mod param_bus;
 
+mod arp;
 mod engine;
 mod envelope;
 mod events;
