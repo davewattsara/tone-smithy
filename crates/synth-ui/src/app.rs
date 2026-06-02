@@ -17,7 +17,8 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use eframe::egui;
 use synth_engine::param_bus::{EngineEventSender, SnapshotSlot, load_snapshot};
-use synth_engine::{EngineEvent, FilterMode, ParamId, Waveform};
+use synth_engine::{EngineEvent, FilterMode, ParamId, ParamSnapshot, Waveform};
+use synth_presets::{Preset, map_to_events, map_to_snapshot, snapshot_to_map};
 
 use crate::computer_keyboard::ComputerKeyboard;
 use crate::keyboard::VirtualKeyboard;
@@ -210,6 +211,12 @@ pub struct ToneSmithyApp {
 
     /// CPU load arc from the audio thread (f32 bits stored as u32).
     cpu_load: Arc<AtomicU32>,
+
+    // ── Preset ───────────────────────────────────────────────────────────────
+    /// Current patch name shown in the header bar.
+    patch_name: String,
+    /// Last preset error string, shown to the user until dismissed.
+    preset_error: Option<String>,
 }
 
 impl ToneSmithyApp {
@@ -318,6 +325,155 @@ impl ToneSmithyApp {
             mod_wheel: snap.mod_wheel,
             sustain_held: false,
             cpu_load,
+            patch_name: "Untitled".into(),
+            preset_error: None,
+        }
+    }
+
+    /// Copies all saveable fields from `snap` into the UI's local mirror state.
+    /// Call this immediately after pushing a batch of preset load events so the
+    /// controls show the new values before the engine snapshot catches up.
+    fn sync_from_snapshot(&mut self, snap: &ParamSnapshot) {
+        self.waveform = snap.waveform;
+        self.filter_mode = snap.filter_mode;
+        self.filter_cutoff_hz = snap.filter_cutoff_hz;
+        self.filter_resonance = snap.filter_resonance;
+        self.osc1_level = snap.osc_main_levels[0];
+        self.osc1_detune_cents = snap.osc_main_detune_cents[0];
+        self.osc1_pan = snap.osc_main_pans[0];
+        self.osc1_unison_voices = snap.osc_main_unison_voices[0];
+        self.osc1_unison_detune_cents = snap.osc_main_unison_detune_cents[0];
+        self.osc1_unison_spread = snap.osc_main_unison_spreads[0];
+        self.amp_attack_secs = snap.amp_attack_secs;
+        self.amp_decay_secs = snap.amp_decay_secs;
+        self.amp_sustain_level = snap.amp_sustain_level;
+        self.amp_release_secs = snap.amp_release_secs;
+        self.lfo1_rate_hz = snap.lfo1_rate_hz;
+        self.lfo1_shape_index = snap.lfo1_shape_index;
+        self.lfo1_reset_on_note_on = snap.lfo1_reset_on_note_on;
+        self.lfo1_sync_enabled = snap.lfo1_sync_enabled;
+        self.lfo1_sync_division_index = snap.lfo1_sync_division_index;
+        self.lfo2_rate_hz = snap.lfo2_rate_hz;
+        self.lfo2_shape_index = snap.lfo2_shape_index;
+        self.lfo2_reset_on_note_on = snap.lfo2_reset_on_note_on;
+        self.lfo2_sync_enabled = snap.lfo2_sync_enabled;
+        self.lfo2_sync_division_index = snap.lfo2_sync_division_index;
+        self.env2_attack_secs = snap.env2_attack_secs;
+        self.env2_decay_secs = snap.env2_decay_secs;
+        self.env2_sustain_level = snap.env2_sustain_level;
+        self.env2_release_secs = snap.env2_release_secs;
+        self.env2_attack_curve = snap.env2_attack_curve;
+        self.env2_decay_curve = snap.env2_decay_curve;
+        self.env2_release_curve = snap.env2_release_curve;
+        self.mod_slot_enabled = snap.mod_slot_enabled;
+        self.mod_slot_source = snap.mod_slot_source.map(|v| v as usize);
+        self.mod_slot_dest = snap.mod_slot_dest.map(|v| v as usize);
+        self.mod_slot_amount = snap.mod_slot_amount;
+        self.mod_slot_via = snap.mod_slot_via.map(|v| v as usize);
+        self.slot_mode = snap.slot_mode;
+        self.slot_level = snap.slot_level;
+        self.slot_pan = snap.slot_pan;
+        self.fm_algorithm = snap.fm_algorithm;
+        self.fm_op_ratio_integer = snap.fm_op_ratio_integer;
+        self.fm_op_ratio_fine = snap.fm_op_ratio_fine_cents;
+        self.fm_op_level = snap.fm_op_level;
+        self.fm_op_attack_secs = snap.fm_op_attack_secs;
+        self.fm_op_decay_secs = snap.fm_op_decay_secs;
+        self.fm_op_sustain_level = snap.fm_op_sustain_level;
+        self.fm_op_release_secs = snap.fm_op_release_secs;
+        self.fm_op_feedback = snap.fm_op_feedback;
+        self.fx_eq_enabled = snap.fx_eq_enabled;
+        self.fx_eq_low_gain_db = snap.fx_eq_low_gain_db;
+        self.fx_eq_low_freq_hz = snap.fx_eq_low_freq_hz;
+        self.fx_eq_mid_gain_db = snap.fx_eq_mid_gain_db;
+        self.fx_eq_mid_freq_hz = snap.fx_eq_mid_freq_hz;
+        self.fx_eq_mid_q = snap.fx_eq_mid_q;
+        self.fx_eq_high_gain_db = snap.fx_eq_high_gain_db;
+        self.fx_eq_high_freq_hz = snap.fx_eq_high_freq_hz;
+        self.fx_drive_enabled = snap.fx_drive_enabled;
+        self.fx_drive_drive = snap.fx_drive_drive;
+        self.fx_drive_asymmetry = snap.fx_drive_asymmetry;
+        self.fx_chorus_enabled = snap.fx_chorus_enabled;
+        self.fx_chorus_rate_hz = snap.fx_chorus_rate_hz;
+        self.fx_chorus_depth_ms = snap.fx_chorus_depth_ms;
+        self.fx_chorus_mix = snap.fx_chorus_mix;
+        self.fx_chorus_spread = snap.fx_chorus_spread;
+        self.fx_delay_enabled = snap.fx_delay_enabled;
+        self.fx_delay_time_secs = snap.fx_delay_time_secs;
+        self.fx_delay_feedback = snap.fx_delay_feedback;
+        self.fx_delay_mix = snap.fx_delay_mix;
+        self.fx_delay_lowcut_hz = snap.fx_delay_lowcut_hz;
+        self.fx_delay_ping_pong = snap.fx_delay_ping_pong;
+        self.fx_reverb_enabled = snap.fx_reverb_enabled;
+        self.fx_reverb_predelay_ms = snap.fx_reverb_predelay_ms;
+        self.fx_reverb_decay_secs = snap.fx_reverb_decay_secs;
+        self.fx_reverb_size = snap.fx_reverb_size;
+        self.fx_reverb_damping = snap.fx_reverb_damping;
+        self.fx_reverb_mix = snap.fx_reverb_mix;
+        self.arp_enabled = snap.arp_enabled;
+        self.arp_mode = snap.arp_mode;
+        self.arp_octaves = snap.arp_octaves;
+        self.arp_rate = snap.arp_rate;
+        self.arp_bpm = snap.arp_bpm;
+        self.arp_gate = snap.arp_gate;
+        self.arp_swing = snap.arp_swing;
+        self.pitch_offset_semis = snap.pitch_offset_semis;
+        self.master_volume = snap.master_volume;
+        self.bpm = snap.bpm;
+    }
+
+    /// Saves the current patch state to a file chosen via a native dialog.
+    fn save_preset(&mut self) {
+        let snapshot = load_snapshot(&self.snapshot_slot);
+        let mut preset = Preset::new(self.patch_name.clone());
+        preset.parameters = snapshot_to_map(&snapshot);
+
+        let default_filename = format!("{}.tsmith", self.patch_name);
+        let start_dir = synth_presets::user_presets_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+
+        let result = rfd::FileDialog::new()
+            .set_title("Save Preset")
+            .set_file_name(&default_filename)
+            .add_filter("Tone Smithy Preset", &["tsmith"])
+            .set_directory(&start_dir)
+            .save_file();
+
+        if let Some(path) = result {
+            if let Err(e) = synth_presets::save(&path, &preset) {
+                self.preset_error = Some(format!("Save failed: {e}"));
+            } else {
+                self.preset_error = None;
+            }
+        }
+    }
+
+    /// Loads a preset from a file chosen via a native dialog.
+    fn load_preset(&mut self) {
+        let start_dir = synth_presets::user_presets_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+
+        let result = rfd::FileDialog::new()
+            .set_title("Load Preset")
+            .add_filter("Tone Smithy Preset", &["tsmith"])
+            .set_directory(&start_dir)
+            .pick_file();
+
+        if let Some(path) = result {
+            match synth_presets::load(&path) {
+                Ok(preset) => {
+                    // Push all param events to the engine
+                    for event in map_to_events(&preset.parameters) {
+                        self.events.send(event);
+                    }
+                    // Immediately sync UI local fields from preset data
+                    let snap = map_to_snapshot(&preset.parameters);
+                    self.sync_from_snapshot(&snap);
+                    self.patch_name = preset.metadata.name.clone();
+                    self.preset_error = None;
+                }
+                Err(e) => {
+                    self.preset_error = Some(format!("Load failed: {e}"));
+                }
+            }
         }
     }
 }
@@ -334,13 +490,35 @@ impl eframe::App for ToneSmithyApp {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
-                // Title row
+                // Title + preset bar
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {
                     ui.heading("Tone Smithy");
                     ui.separator();
+                    ui.label("Patch:");
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.patch_name)
+                            .desired_width(160.0)
+                            .hint_text("Untitled"),
+                    );
+                    if ui.button("Save").clicked() {
+                        self.save_preset();
+                    }
+                    if ui.button("Load").clicked() {
+                        self.load_preset();
+                    }
+                    ui.separator();
                     ui.label(&self.audio_status);
                 });
+                if let Some(ref err) = self.preset_error.clone() {
+                    ui.add_space(2.0);
+                    ui.horizontal(|ui| {
+                        ui.colored_label(egui::Color32::RED, err);
+                        if ui.small_button("x").clicked() {
+                            self.preset_error = None;
+                        }
+                    });
+                }
                 ui.add_space(4.0);
                 ui.separator();
                 ui.add_space(8.0);

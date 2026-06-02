@@ -59,6 +59,32 @@ pub enum FilterMode {
     Notch,
 }
 
+impl FilterMode {
+    /// Returns the zero-based index used when serialising filter mode to a preset.
+    /// Order: LowPass=0, HighPass=1, BandPass=2, Notch=3.
+    #[must_use]
+    pub fn index(self) -> usize {
+        match self {
+            FilterMode::LowPass => 0,
+            FilterMode::HighPass => 1,
+            FilterMode::BandPass => 2,
+            FilterMode::Notch => 3,
+        }
+    }
+
+    /// Converts a zero-based index back to a `FilterMode`. Indices outside 0..=3 return `LowPass`.
+    #[must_use]
+    pub fn from_index(i: usize) -> Self {
+        match i {
+            0 => FilterMode::LowPass,
+            1 => FilterMode::HighPass,
+            2 => FilterMode::BandPass,
+            3 => FilterMode::Notch,
+            _ => FilterMode::LowPass,
+        }
+    }
+}
+
 /// A single TPT state-variable filter instance.
 ///
 /// Owns the integrator state and the precomputed coefficients. A

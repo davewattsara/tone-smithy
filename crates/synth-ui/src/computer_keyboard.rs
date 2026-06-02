@@ -116,6 +116,18 @@ impl ComputerKeyboard {
     /// events into `sender`. Call once per frame from the eframe
     /// update loop.
     pub fn handle_input(&mut self, ctx: &egui::Context, sender: &EngineEventSender) {
+        // When any text field has keyboard focus, suppress all note
+        // input so typing doesn't play notes. Any currently held notes
+        // are released immediately to prevent stuck voices.
+        if ctx.wants_keyboard_input() {
+            for held in &mut self.held_notes {
+                if let Some(note) = held.take() {
+                    sender.send(EngineEvent::NoteOff { note_midi: note });
+                }
+            }
+            return;
+        }
+
         ctx.input(|input| {
             // Octave shifts are edge-triggered so holding Z or X
             // doesn't drift the octave by one per frame.
