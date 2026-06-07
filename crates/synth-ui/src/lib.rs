@@ -12,6 +12,7 @@ pub mod app;
 pub mod computer_keyboard;
 pub mod keyboard;
 pub mod knob;
+pub mod meter;
 pub mod sections;
 pub mod theme;
 pub mod toggle;

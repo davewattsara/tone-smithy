@@ -3,6 +3,7 @@ use synth_engine::{EngineEvent, ParamId, ParamSnapshot};
 
 use crate::app::{BPM_MAX, BPM_MIN, ModDisplay, PITCH_OFFSET_RANGE, ToneSmithyApp};
 use crate::knob::Knob;
+use crate::meter::VuMeter;
 use crate::theme;
 
 impl ToneSmithyApp {
@@ -11,6 +12,17 @@ impl ToneSmithyApp {
         ui.add_space(theme::PANEL_PADDING);
         theme::section_label(ui, "MASTER");
 
+        // VU meter + main controls side by side
+        ui.horizontal(|ui| {
+            ui.add(VuMeter::new(snapshot.vu_peak_left, snapshot.vu_peak_right));
+            ui.add_space(theme::GROUP_GAP);
+            ui.vertical(|ui| {
+                self.master_knobs(ui, snapshot, md);
+            });
+        });
+    }
+
+    fn master_knobs(&mut self, ui: &mut egui::Ui, snapshot: &ParamSnapshot, md: ModDisplay) {
         // Main controls row
         ui.horizontal(|ui| {
             if ui
