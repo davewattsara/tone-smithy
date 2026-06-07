@@ -141,199 +141,7 @@ impl Engine {
                 // transitions, so push the new value to the consumer
                 // immediately; smoothed params are sampled per frame
                 // from the tree and need no fan-out here.
-                match id {
-                    ParamId::AmpAttackSecs => self.voices.set_attack_secs(value),
-                    ParamId::AmpDecaySecs => self.voices.set_decay_secs(value),
-                    ParamId::AmpSustainLevel => self.voices.set_sustain_level(value),
-                    ParamId::AmpReleaseSecs => self.voices.set_release_secs(value),
-                    ParamId::Lfo1RateHz | ParamId::Lfo1SyncEnabled | ParamId::Lfo1SyncDivision | ParamId::Bpm => {
-                        // Re-derive LFO1 rate whenever anything that affects it changes.
-                        self.voices.set_lfo1_rate_hz(self.params.lfo1_effective_rate_hz());
-                        // Bpm also affects LFO2 if it's synced.
-                        if id == ParamId::Bpm {
-                            self.voices.set_lfo2_rate_hz(self.params.lfo2_effective_rate_hz());
-                        }
-                    }
-                    ParamId::Lfo1Shape => {
-                        self.voices.set_lfo1_shape(LfoShape::from_index(value as usize));
-                    }
-                    ParamId::Lfo1ResetOnNoteOn => {
-                        self.voices.set_lfo1_reset_on_note_on(value >= 0.5);
-                    }
-                    ParamId::Lfo2RateHz | ParamId::Lfo2SyncEnabled | ParamId::Lfo2SyncDivision => {
-                        self.voices.set_lfo2_rate_hz(self.params.lfo2_effective_rate_hz());
-                    }
-                    ParamId::Lfo2Shape => {
-                        self.voices.set_lfo2_shape(LfoShape::from_index(value as usize));
-                    }
-                    ParamId::Lfo2ResetOnNoteOn => {
-                        self.voices.set_lfo2_reset_on_note_on(value >= 0.5);
-                    }
-                    ParamId::Env2AttackSecs => self.voices.set_env2_attack_secs(value),
-                    ParamId::Env2DecaySecs => self.voices.set_env2_decay_secs(value),
-                    ParamId::Env2SustainLevel => self.voices.set_env2_sustain_level(value),
-                    ParamId::Env2ReleaseSecs => self.voices.set_env2_release_secs(value),
-                    ParamId::Env2AttackCurve => self.voices.set_env2_attack_curve(value),
-                    ParamId::Env2DecayCurve => self.voices.set_env2_decay_curve(value),
-                    ParamId::Env2ReleaseCurve => self.voices.set_env2_release_curve(value),
-                    ParamId::ModSlotEnabled(i) => {
-                        self.voices.set_mod_slot_enabled(i as usize, value >= 0.5);
-                    }
-                    ParamId::ModSlotSource(i) => {
-                        let src = ModSource::from_index(value as u8).unwrap_or_default();
-                        self.voices.set_mod_slot_source(i as usize, src);
-                    }
-                    ParamId::ModSlotDest(i) => {
-                        if let Some(dest) = ModDest::from_index(value as u8) {
-                            self.voices.set_mod_slot_dest(i as usize, dest);
-                        }
-                    }
-                    ParamId::ModSlotAmount(i) => {
-                        self.voices.set_mod_slot_amount(i as usize, value);
-                    }
-                    ParamId::ModSlotVia(i) => {
-                        let via = ModSource::from_index(value as u8).unwrap_or_default();
-                        self.voices.set_mod_slot_via(i as usize, via);
-                    }
-                    ParamId::SlotMode(i) => {
-                        let mode = if value >= 0.5 {
-                            SlotMode::Fm
-                        } else {
-                            SlotMode::Subtractive
-                        };
-                        self.voices.set_slot_mode(i as usize, mode);
-                    }
-                    ParamId::SlotLevel(i) => self.voices.set_slot_level(i as usize, value),
-                    ParamId::SlotPan(i) => self.voices.set_slot_pan(i as usize, value),
-                    ParamId::FmAlgorithm(i) => self.voices.set_fm_algorithm(i as usize, value as u8),
-                    ParamId::FmOpRatioInteger(packed) => {
-                        let slot = ((packed >> 4) & 0x0F) as usize;
-                        let op = (packed & 0x0F) as usize;
-                        self.voices.set_fm_op_ratio_integer(slot, op, value as u8);
-                    }
-                    ParamId::FmOpRatioFine(packed) => {
-                        let slot = ((packed >> 4) & 0x0F) as usize;
-                        let op = (packed & 0x0F) as usize;
-                        self.voices.set_fm_op_ratio_fine(slot, op, value);
-                    }
-                    ParamId::FmOpLevel(packed) => {
-                        let slot = ((packed >> 4) & 0x0F) as usize;
-                        let op = (packed & 0x0F) as usize;
-                        self.voices.set_fm_op_level(slot, op, value);
-                    }
-                    ParamId::FmOpAttackSecs(packed) => {
-                        let slot = ((packed >> 4) & 0x0F) as usize;
-                        let op = (packed & 0x0F) as usize;
-                        self.voices.set_fm_op_attack_secs(slot, op, value);
-                    }
-                    ParamId::FmOpDecaySecs(packed) => {
-                        let slot = ((packed >> 4) & 0x0F) as usize;
-                        let op = (packed & 0x0F) as usize;
-                        self.voices.set_fm_op_decay_secs(slot, op, value);
-                    }
-                    ParamId::FmOpSustainLevel(packed) => {
-                        let slot = ((packed >> 4) & 0x0F) as usize;
-                        let op = (packed & 0x0F) as usize;
-                        self.voices.set_fm_op_sustain_level(slot, op, value);
-                    }
-                    ParamId::FmOpReleaseSecs(packed) => {
-                        let slot = ((packed >> 4) & 0x0F) as usize;
-                        let op = (packed & 0x0F) as usize;
-                        self.voices.set_fm_op_release_secs(slot, op, value);
-                    }
-                    ParamId::FmOpFeedback(packed) => {
-                        let slot = ((packed >> 4) & 0x0F) as usize;
-                        let op = (packed & 0x0F) as usize;
-                        self.voices.set_fm_op_feedback(slot, op, value);
-                    }
-                    // FX chain — push to FxChain directly; ParameterTree
-                    // stores the value for snapshot mirroring.
-                    ParamId::FxEqEnabled => self.fx.set_eq_enabled(value >= 0.5),
-                    ParamId::FxEqLowGainDb | ParamId::FxEqLowFreqHz => self.fx.set_eq_low(
-                        self.params.snapshot().fx_eq_low_freq_hz,
-                        self.params.snapshot().fx_eq_low_gain_db,
-                    ),
-                    ParamId::FxEqMidGainDb | ParamId::FxEqMidFreqHz | ParamId::FxEqMidQ => {
-                        let s = self.params.snapshot();
-                        self.fx
-                            .set_eq_mid(s.fx_eq_mid_freq_hz, s.fx_eq_mid_gain_db, s.fx_eq_mid_q);
-                    }
-                    ParamId::FxEqHighGainDb | ParamId::FxEqHighFreqHz => self.fx.set_eq_high(
-                        self.params.snapshot().fx_eq_high_freq_hz,
-                        self.params.snapshot().fx_eq_high_gain_db,
-                    ),
-                    ParamId::FxDriveEnabled => self.fx.set_drive_enabled(value >= 0.5),
-                    ParamId::FxDriveDrive | ParamId::FxDriveAsymmetry => {
-                        let s = self.params.snapshot();
-                        self.fx.set_drive_params(s.fx_drive_drive, s.fx_drive_asymmetry);
-                    }
-                    ParamId::FxChorusEnabled => self.fx.set_chorus_enabled(value >= 0.5),
-                    ParamId::FxChorusRateHz
-                    | ParamId::FxChorusDepthMs
-                    | ParamId::FxChorusMix
-                    | ParamId::FxChorusSpread => {
-                        let s = self.params.snapshot();
-                        self.fx.set_chorus_params(
-                            s.fx_chorus_rate_hz,
-                            s.fx_chorus_depth_ms,
-                            s.fx_chorus_mix,
-                            s.fx_chorus_spread,
-                        );
-                    }
-                    ParamId::FxDelayEnabled => self.fx.set_delay_enabled(value >= 0.5),
-                    ParamId::FxDelayTimeSecs
-                    | ParamId::FxDelayFeedback
-                    | ParamId::FxDelayMix
-                    | ParamId::FxDelayLowcutHz
-                    | ParamId::FxDelayPingPong => {
-                        let s = self.params.snapshot();
-                        self.fx.set_delay_params(
-                            s.fx_delay_time_secs,
-                            s.fx_delay_feedback,
-                            s.fx_delay_mix,
-                            s.fx_delay_lowcut_hz,
-                            s.fx_delay_ping_pong,
-                        );
-                    }
-                    ParamId::FxReverbEnabled => self.fx.set_reverb_enabled(value >= 0.5),
-                    ParamId::FxReverbPredelayMs
-                    | ParamId::FxReverbDecaySecs
-                    | ParamId::FxReverbSize
-                    | ParamId::FxReverbDamping
-                    | ParamId::FxReverbMix => {
-                        let s = self.params.snapshot();
-                        self.fx.set_reverb_params(
-                            s.fx_reverb_predelay_ms,
-                            s.fx_reverb_decay_secs,
-                            s.fx_reverb_size,
-                            s.fx_reverb_damping,
-                            s.fx_reverb_mix,
-                        );
-                    }
-                    ParamId::ArpEnabled => {
-                        let new_enabled = value >= 0.5;
-                        if new_enabled != self.arp.enabled {
-                            self.arp.enabled = new_enabled;
-                            // Kill any sounding voices on both transitions:
-                            //   disable → stops arp-controlled notes
-                            //   enable  → stops direct notes so arp takes over
-                            self.voices.all_notes_off();
-                            if new_enabled {
-                                // Reset clock so the first step fires on the
-                                // very next process() call rather than waiting
-                                // a full step to accumulate phase.
-                                self.arp.reset_clock();
-                            }
-                        }
-                    }
-                    ParamId::ArpMode => self.arp.mode = ArpMode::from_f32(value),
-                    ParamId::ArpOctaves => self.arp.octaves = (value as u8).clamp(1, 4),
-                    ParamId::ArpRate => self.arp.rate = ArpRate::from_f32(value),
-                    ParamId::ArpBpm => self.arp.bpm = value.clamp(20.0, 300.0),
-                    ParamId::ArpGate => self.arp.gate = value.clamp(0.01, 1.0),
-                    ParamId::ArpSwing => self.arp.swing = value.clamp(0.5, 0.75),
-                    _ => {}
-                }
+                self.fan_out_param(id, value);
             }
             EngineEvent::PitchBend { value_normalised } => {
                 let semis = value_normalised * PITCH_BEND_RANGE_SEMIS;
@@ -356,6 +164,219 @@ impl Engine {
                 // M6's mod matrix can address any controller.
                 self.params.set_cc(cc, value_normalised);
             }
+        }
+    }
+
+    /// Routes a parameter change to the appropriate DSP consumer after
+    /// the tree has already been updated. Called by `handle()` for every
+    /// `ParameterChange` event. Smoothed params need no fan-out here
+    /// (the audio path samples them per frame from the tree); only
+    /// stepped params that have live DSP consumers are dispatched.
+    fn fan_out_param(&mut self, id: ParamId, value: f32) {
+        match id {
+            // ── Amp envelope ────────────────────────────────────────────────
+            ParamId::AmpAttackSecs => self.voices.set_attack_secs(value),
+            ParamId::AmpDecaySecs => self.voices.set_decay_secs(value),
+            ParamId::AmpSustainLevel => self.voices.set_sustain_level(value),
+            ParamId::AmpReleaseSecs => self.voices.set_release_secs(value),
+
+            // ── LFO 1 ───────────────────────────────────────────────────────
+            ParamId::Lfo1RateHz | ParamId::Lfo1SyncEnabled | ParamId::Lfo1SyncDivision | ParamId::Bpm => {
+                // Re-derive LFO1 rate whenever anything that affects it changes.
+                self.voices.set_lfo1_rate_hz(self.params.lfo1_effective_rate_hz());
+                // Bpm also affects LFO2 if it's synced.
+                if id == ParamId::Bpm {
+                    self.voices.set_lfo2_rate_hz(self.params.lfo2_effective_rate_hz());
+                }
+            }
+            ParamId::Lfo1Shape => {
+                self.voices.set_lfo1_shape(LfoShape::from_index(value as usize));
+            }
+            ParamId::Lfo1ResetOnNoteOn => {
+                self.voices.set_lfo1_reset_on_note_on(value >= 0.5);
+            }
+
+            // ── LFO 2 ───────────────────────────────────────────────────────
+            ParamId::Lfo2RateHz | ParamId::Lfo2SyncEnabled | ParamId::Lfo2SyncDivision => {
+                self.voices.set_lfo2_rate_hz(self.params.lfo2_effective_rate_hz());
+            }
+            ParamId::Lfo2Shape => {
+                self.voices.set_lfo2_shape(LfoShape::from_index(value as usize));
+            }
+            ParamId::Lfo2ResetOnNoteOn => {
+                self.voices.set_lfo2_reset_on_note_on(value >= 0.5);
+            }
+
+            // ── Env2 ────────────────────────────────────────────────────────
+            ParamId::Env2AttackSecs => self.voices.set_env2_attack_secs(value),
+            ParamId::Env2DecaySecs => self.voices.set_env2_decay_secs(value),
+            ParamId::Env2SustainLevel => self.voices.set_env2_sustain_level(value),
+            ParamId::Env2ReleaseSecs => self.voices.set_env2_release_secs(value),
+            ParamId::Env2AttackCurve => self.voices.set_env2_attack_curve(value),
+            ParamId::Env2DecayCurve => self.voices.set_env2_decay_curve(value),
+            ParamId::Env2ReleaseCurve => self.voices.set_env2_release_curve(value),
+
+            // ── Mod matrix ──────────────────────────────────────────────────
+            ParamId::ModSlotEnabled(i) => {
+                self.voices.set_mod_slot_enabled(i as usize, value >= 0.5);
+            }
+            ParamId::ModSlotSource(i) => {
+                let src = ModSource::from_index(value as u8).unwrap_or_default();
+                self.voices.set_mod_slot_source(i as usize, src);
+            }
+            ParamId::ModSlotDest(i) => {
+                if let Some(dest) = ModDest::from_index(value as u8) {
+                    self.voices.set_mod_slot_dest(i as usize, dest);
+                }
+            }
+            ParamId::ModSlotAmount(i) => {
+                self.voices.set_mod_slot_amount(i as usize, value);
+            }
+            ParamId::ModSlotVia(i) => {
+                let via = ModSource::from_index(value as u8).unwrap_or_default();
+                self.voices.set_mod_slot_via(i as usize, via);
+            }
+
+            // ── FM synthesis ────────────────────────────────────────────────
+            ParamId::SlotMode(i) => {
+                let mode = if value >= 0.5 {
+                    SlotMode::Fm
+                } else {
+                    SlotMode::Subtractive
+                };
+                self.voices.set_slot_mode(i as usize, mode);
+            }
+            ParamId::SlotLevel(i) => self.voices.set_slot_level(i as usize, value),
+            ParamId::SlotPan(i) => self.voices.set_slot_pan(i as usize, value),
+            ParamId::FmAlgorithm(i) => self.voices.set_fm_algorithm(i as usize, value as u8),
+            ParamId::FmOpRatioInteger(packed) => {
+                let slot = ((packed >> 4) & 0x0F) as usize;
+                let op = (packed & 0x0F) as usize;
+                self.voices.set_fm_op_ratio_integer(slot, op, value as u8);
+            }
+            ParamId::FmOpRatioFine(packed) => {
+                let slot = ((packed >> 4) & 0x0F) as usize;
+                let op = (packed & 0x0F) as usize;
+                self.voices.set_fm_op_ratio_fine(slot, op, value);
+            }
+            ParamId::FmOpLevel(packed) => {
+                let slot = ((packed >> 4) & 0x0F) as usize;
+                let op = (packed & 0x0F) as usize;
+                self.voices.set_fm_op_level(slot, op, value);
+            }
+            ParamId::FmOpAttackSecs(packed) => {
+                let slot = ((packed >> 4) & 0x0F) as usize;
+                let op = (packed & 0x0F) as usize;
+                self.voices.set_fm_op_attack_secs(slot, op, value);
+            }
+            ParamId::FmOpDecaySecs(packed) => {
+                let slot = ((packed >> 4) & 0x0F) as usize;
+                let op = (packed & 0x0F) as usize;
+                self.voices.set_fm_op_decay_secs(slot, op, value);
+            }
+            ParamId::FmOpSustainLevel(packed) => {
+                let slot = ((packed >> 4) & 0x0F) as usize;
+                let op = (packed & 0x0F) as usize;
+                self.voices.set_fm_op_sustain_level(slot, op, value);
+            }
+            ParamId::FmOpReleaseSecs(packed) => {
+                let slot = ((packed >> 4) & 0x0F) as usize;
+                let op = (packed & 0x0F) as usize;
+                self.voices.set_fm_op_release_secs(slot, op, value);
+            }
+            ParamId::FmOpFeedback(packed) => {
+                let slot = ((packed >> 4) & 0x0F) as usize;
+                let op = (packed & 0x0F) as usize;
+                self.voices.set_fm_op_feedback(slot, op, value);
+            }
+
+            // ── FX chain — push to FxChain directly; ParameterTree ──────────
+            // stores the value for snapshot mirroring.
+            ParamId::FxEqEnabled => self.fx.set_eq_enabled(value >= 0.5),
+            ParamId::FxEqLowGainDb | ParamId::FxEqLowFreqHz => self.fx.set_eq_low(
+                self.params.snapshot().fx_eq_low_freq_hz,
+                self.params.snapshot().fx_eq_low_gain_db,
+            ),
+            ParamId::FxEqMidGainDb | ParamId::FxEqMidFreqHz | ParamId::FxEqMidQ => {
+                let s = self.params.snapshot();
+                self.fx
+                    .set_eq_mid(s.fx_eq_mid_freq_hz, s.fx_eq_mid_gain_db, s.fx_eq_mid_q);
+            }
+            ParamId::FxEqHighGainDb | ParamId::FxEqHighFreqHz => self.fx.set_eq_high(
+                self.params.snapshot().fx_eq_high_freq_hz,
+                self.params.snapshot().fx_eq_high_gain_db,
+            ),
+            ParamId::FxDriveEnabled => self.fx.set_drive_enabled(value >= 0.5),
+            ParamId::FxDriveDrive | ParamId::FxDriveAsymmetry => {
+                let s = self.params.snapshot();
+                self.fx.set_drive_params(s.fx_drive_drive, s.fx_drive_asymmetry);
+            }
+            ParamId::FxChorusEnabled => self.fx.set_chorus_enabled(value >= 0.5),
+            ParamId::FxChorusRateHz | ParamId::FxChorusDepthMs | ParamId::FxChorusMix | ParamId::FxChorusSpread => {
+                let s = self.params.snapshot();
+                self.fx.set_chorus_params(
+                    s.fx_chorus_rate_hz,
+                    s.fx_chorus_depth_ms,
+                    s.fx_chorus_mix,
+                    s.fx_chorus_spread,
+                );
+            }
+            ParamId::FxDelayEnabled => self.fx.set_delay_enabled(value >= 0.5),
+            ParamId::FxDelayTimeSecs
+            | ParamId::FxDelayFeedback
+            | ParamId::FxDelayMix
+            | ParamId::FxDelayLowcutHz
+            | ParamId::FxDelayPingPong => {
+                let s = self.params.snapshot();
+                self.fx.set_delay_params(
+                    s.fx_delay_time_secs,
+                    s.fx_delay_feedback,
+                    s.fx_delay_mix,
+                    s.fx_delay_lowcut_hz,
+                    s.fx_delay_ping_pong,
+                );
+            }
+            ParamId::FxReverbEnabled => self.fx.set_reverb_enabled(value >= 0.5),
+            ParamId::FxReverbPredelayMs
+            | ParamId::FxReverbDecaySecs
+            | ParamId::FxReverbSize
+            | ParamId::FxReverbDamping
+            | ParamId::FxReverbMix => {
+                let s = self.params.snapshot();
+                self.fx.set_reverb_params(
+                    s.fx_reverb_predelay_ms,
+                    s.fx_reverb_decay_secs,
+                    s.fx_reverb_size,
+                    s.fx_reverb_damping,
+                    s.fx_reverb_mix,
+                );
+            }
+
+            // ── Arpeggiator ─────────────────────────────────────────────────
+            ParamId::ArpEnabled => {
+                let new_enabled = value >= 0.5;
+                if new_enabled != self.arp.enabled {
+                    self.arp.enabled = new_enabled;
+                    // Kill any sounding voices on both transitions:
+                    //   disable → stops arp-controlled notes
+                    //   enable  → stops direct notes so arp takes over
+                    self.voices.all_notes_off();
+                    if new_enabled {
+                        // Reset clock so the first step fires on the
+                        // very next process() call rather than waiting
+                        // a full step to accumulate phase.
+                        self.arp.reset_clock();
+                    }
+                }
+            }
+            ParamId::ArpMode => self.arp.mode = ArpMode::from_f32(value),
+            ParamId::ArpOctaves => self.arp.octaves = (value as u8).clamp(1, 4),
+            ParamId::ArpRate => self.arp.rate = ArpRate::from_f32(value),
+            ParamId::ArpBpm => self.arp.bpm = value.clamp(20.0, 300.0),
+            ParamId::ArpGate => self.arp.gate = value.clamp(0.01, 1.0),
+            ParamId::ArpSwing => self.arp.swing = value.clamp(0.5, 0.75),
+
+            _ => {}
         }
     }
 
@@ -388,6 +409,8 @@ impl Engine {
             }
         }
 
+        let mut peak_l: f32 = 0.0;
+        let mut peak_r: f32 = 0.0;
         for frame_index in 0..frames {
             let smoothed = self.params.next_sample();
             let (left, right) = self.voices.next_sample(&smoothed);
@@ -396,15 +419,18 @@ impl Engine {
             let (out_l, out_r) = self.fx.process(scaled_l, scaled_r);
             output[frame_index * 2] = out_l;
             output[frame_index * 2 + 1] = out_r;
+            peak_l = peak_l.max(out_l.abs());
+            peak_r = peak_r.max(out_r.abs());
         }
 
-        // Mirror the post-block voice count and modulator outputs into
-        // the tree so the next snapshot reflects what just played.
+        // Mirror the post-block voice count, modulator outputs, and VU peak
+        // into the tree so the next snapshot reflects what just played.
         #[allow(clippy::cast_possible_truncation)]
         let count = self.voices.active_count() as u8;
         self.params.set_active_voice_count(count);
         let (lfo1, lfo2, env2) = self.voices.first_active_modulator_outputs();
         self.params.set_modulator_outputs(lfo1, lfo2, env2);
+        self.params.set_vu_peak(peak_l, peak_r);
     }
 
     /// Returns the current parameter snapshot by value, without
