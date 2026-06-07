@@ -1,4 +1,4 @@
-//! The engine's parameter tree and outward-facing snapshot.
+//! The engine's typed parameter tree.
 //!
 //! The tree is the single source of truth for sound-affecting state, per
 //! `docs/planning/03-architecture/design-patterns.md` §1.3. The UI never
@@ -31,654 +31,64 @@ use crate::oscillator::Waveform;
 use crate::slot::SlotMode;
 use crate::smoothing::SmoothedParam;
 
+use super::ids::ParamId;
+use super::snapshot::{ParamSnapshot, SampleParams};
+
+// ── Default constants ─────────────────────────────────────────────────────────
+
 /// Default amp envelope attack time, in seconds.
-const DEFAULT_AMP_ATTACK_SECS: f32 = 0.010;
+pub(super) const DEFAULT_AMP_ATTACK_SECS: f32 = 0.010;
 
 /// Default amp envelope decay time, in seconds.
-const DEFAULT_AMP_DECAY_SECS: f32 = 0.200;
+pub(super) const DEFAULT_AMP_DECAY_SECS: f32 = 0.200;
 
 /// Default amp envelope sustain level, on the 0..=1 scale.
-const DEFAULT_AMP_SUSTAIN_LEVEL: f32 = 0.8;
+pub(super) const DEFAULT_AMP_SUSTAIN_LEVEL: f32 = 0.8;
 
 /// Default amp envelope release time, in seconds.
-const DEFAULT_AMP_RELEASE_SECS: f32 = 0.200;
+pub(super) const DEFAULT_AMP_RELEASE_SECS: f32 = 0.200;
 
 /// Default master output volume, on the 0..=1 scale. Leaves headroom
 /// for the polyphony summing that accumulates before M8's limiter.
-const DEFAULT_MASTER_VOLUME: f32 = 0.8;
+pub(super) const DEFAULT_MASTER_VOLUME: f32 = 0.8;
 
 /// Default filter cutoff frequency, in Hz. Sits well above the
 /// fundamental of every playable MIDI note, so a fresh patch is
 /// effectively wide open until the user turns the knob down.
-const DEFAULT_FILTER_CUTOFF_HZ: f32 = 8_000.0;
+pub(super) const DEFAULT_FILTER_CUTOFF_HZ: f32 = 8_000.0;
 
 /// Default filter resonance, on the 0..=1 user-facing scale. Zero is
 /// the maximally damped end of the range — no peak at all.
-const DEFAULT_FILTER_RESONANCE: f32 = 0.0;
+pub(super) const DEFAULT_FILTER_RESONANCE: f32 = 0.0;
 
 /// Default per-oscillator level. All four oscillators arrive at unity;
 /// the slot mixer's headroom scale handles the worst-case in-phase
 /// sum without clipping.
-const DEFAULT_OSC_LEVEL: f32 = 1.0;
+pub(super) const DEFAULT_OSC_LEVEL: f32 = 1.0;
 
 /// Default per-oscillator detune, in cents. Zero detune = exactly on
 /// pitch with the held note.
-const DEFAULT_OSC_DETUNE_CENTS: f32 = 0.0;
+pub(super) const DEFAULT_OSC_DETUNE_CENTS: f32 = 0.0;
 
 /// Default per-oscillator pan position. Centered.
-const DEFAULT_OSC_PAN: f32 = 0.0;
+pub(super) const DEFAULT_OSC_PAN: f32 = 0.0;
 
 /// Default unison voice count per main oscillator. `1` means unison
 /// is effectively off — the bank behaves like a single oscillator
 /// and unison detune / spread are inert.
-const DEFAULT_UNISON_VOICES: f32 = 1.0;
+pub(super) const DEFAULT_UNISON_VOICES: f32 = 1.0;
 
 /// Default unison detune in cents. Subtle enough not to be obvious if
 /// the user enables unison without touching the detune knob, but
 /// large enough to actually beat audibly between voices.
-const DEFAULT_UNISON_DETUNE_CENTS: f32 = 10.0;
+pub(super) const DEFAULT_UNISON_DETUNE_CENTS: f32 = 10.0;
 
 /// Default unison stereo spread (0..=1). Half spread is musical when
 /// the user first enables unison without dialling in the width
 /// explicitly.
-const DEFAULT_UNISON_SPREAD: f32 = 0.5;
+pub(super) const DEFAULT_UNISON_SPREAD: f32 = 0.5;
 
-/// Identifies a continuous parameter for [`EngineEvent::ParameterChange`].
-///
-/// Discrete parameters (e.g. waveform, filter mode) have their own
-/// typed `EngineEvent` variants so the value type is checked at
-/// compile time rather than reinterpreted from `f32`.
-///
-/// Ids are stable: once shipped in a preset, a variant's discriminant
-/// and meaning do not change. New parameters get new variants
-/// appended.
-///
-/// [`EngineEvent::ParameterChange`]: crate::EngineEvent::ParameterChange
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ParamId {
-    /// Pitch offset applied on top of held MIDI note, in semitones.
-    /// Range -24..=24 by convention; the engine does not clamp.
-    PitchOffsetSemis,
-
-    /// Amp envelope release time, in seconds. Range 0.001..=10.0 by
-    /// convention; the envelope clamps below one sample period.
-    AmpReleaseSecs,
-
-    /// Filter cutoff frequency, in Hz. Range 20..=~Nyquist; the SVF
-    /// clamps internally.
-    FilterCutoffHz,
-
-    /// Filter resonance on a 0..=1 scale, mapped internally to a
-    /// musically useful Q range. Values outside 0..=1 are clamped.
-    FilterResonance,
-
-    /// Main oscillator 1 level (0..=1).
-    Osc1Level,
-    /// Main oscillator 2 level (0..=1).
-    Osc2Level,
-    /// Main oscillator 3 level (0..=1).
-    Osc3Level,
-    /// Sub oscillator level (0..=1).
-    SubLevel,
-
-    /// Main oscillator 1 detune, in cents (±100 = one semitone).
-    Osc1DetuneCents,
-    /// Main oscillator 2 detune, in cents.
-    Osc2DetuneCents,
-    /// Main oscillator 3 detune, in cents.
-    Osc3DetuneCents,
-
-    /// Main oscillator 1 pan position (-1 = full left, +1 = full
-    /// right). Equal-power.
-    Osc1Pan,
-    /// Main oscillator 2 pan position.
-    Osc2Pan,
-    /// Main oscillator 3 pan position.
-    Osc3Pan,
-    /// Sub oscillator pan position.
-    SubPan,
-
-    /// Main oscillator 1 unison voice count, treated as an integer
-    /// 1..=MAX_UNISON_VOICES (rounded and clamped when consumed).
-    Osc1UnisonVoices,
-    /// Main oscillator 2 unison voice count.
-    Osc2UnisonVoices,
-    /// Main oscillator 3 unison voice count.
-    Osc3UnisonVoices,
-
-    /// Main oscillator 1 unison detune width, in cents. Voices spread
-    /// across `[-detune, +detune]`.
-    Osc1UnisonDetuneCents,
-    /// Main oscillator 2 unison detune width, in cents.
-    Osc2UnisonDetuneCents,
-    /// Main oscillator 3 unison detune width, in cents.
-    Osc3UnisonDetuneCents,
-
-    /// Main oscillator 1 unison stereo spread (0..=1). Voices spread
-    /// across the stereo field around the per-osc pan.
-    Osc1UnisonSpread,
-    /// Main oscillator 2 unison stereo spread (0..=1).
-    Osc2UnisonSpread,
-    /// Main oscillator 3 unison stereo spread (0..=1).
-    Osc3UnisonSpread,
-
-    /// Amp envelope attack time, in seconds. Range 0.001..=10.0 by
-    /// convention; the envelope clamps below one sample period.
-    AmpAttackSecs,
-
-    /// Amp envelope decay time, in seconds. Same range as attack.
-    AmpDecaySecs,
-
-    /// Amp envelope sustain level, 0..=1.
-    AmpSustainLevel,
-
-    /// Master output volume, 0..=1. Smoothed to prevent clicks when
-    /// the user moves the knob. Applied after polyphony summing.
-    MasterVolume,
-
-    /// Pitch-bend wheel position converted to semitones. The engine
-    /// scales the normalised -1..1 wheel value by
-    /// [`crate::engine::PITCH_BEND_RANGE_SEMIS`] before writing here.
-    PitchBendSemis,
-
-    /// Mod wheel (MIDI CC #1), normalised 0..=1. Not yet wired to a
-    /// destination; stored so M6 can route it without an API change.
-    ModWheel,
-
-    /// Channel aftertouch, normalised 0..=1. Same M6 rationale as
-    /// `ModWheel`.
-    ChannelAftertouch,
-
-    // ── LFO 1 ──────────────────────────────────────────────────────────
-    /// LFO1 rate in Hz when sync is off. Range 0.01..=20.0. Stepped.
-    Lfo1RateHz,
-    /// LFO1 waveform shape; value is the zero-based `LfoShape` index.
-    Lfo1Shape,
-    /// LFO1 phase-reset on note-on; 0.0 = off, 1.0 = on. Stepped.
-    Lfo1ResetOnNoteOn,
-    /// LFO1 BPM-sync enable; 0.0 = free, 1.0 = synced. Stepped.
-    Lfo1SyncEnabled,
-    /// LFO1 BPM-sync division; value is the zero-based `SyncDivision`
-    /// index. Only used when sync is enabled.
-    Lfo1SyncDivision,
-
-    // ── LFO 2 ──────────────────────────────────────────────────────────
-    /// LFO2 rate in Hz when sync is off.
-    Lfo2RateHz,
-    /// LFO2 waveform shape index.
-    Lfo2Shape,
-    /// LFO2 phase-reset on note-on.
-    Lfo2ResetOnNoteOn,
-    /// LFO2 BPM-sync enable.
-    Lfo2SyncEnabled,
-    /// LFO2 BPM-sync division index.
-    Lfo2SyncDivision,
-
-    // ── Env2 (modulation envelope) ─────────────────────────────────────
-    /// Env2 attack time, in seconds.
-    Env2AttackSecs,
-    /// Env2 decay time, in seconds.
-    Env2DecaySecs,
-    /// Env2 sustain level, 0..=1.
-    Env2SustainLevel,
-    /// Env2 release time, in seconds.
-    Env2ReleaseSecs,
-    /// Env2 Attack stage curve, -1..=1.
-    Env2AttackCurve,
-    /// Env2 Decay stage curve, -1..=1.
-    Env2DecayCurve,
-    /// Env2 Release stage curve, -1..=1.
-    Env2ReleaseCurve,
-
-    // ── Global ─────────────────────────────────────────────────────────
-    /// Global tempo in BPM. Used for BPM-sync LFO rate computation.
-    /// Range 20..=300. Stepped.
-    Bpm,
-
-    // ── Mod matrix (8 slots, indexed 0..=7) ────────────────────────────
-    /// Enable flag for slot `i`. 0.0 = off, 1.0 = on.
-    ModSlotEnabled(u8),
-    /// Source index for slot `i`. Cast to [`ModSource`] via
-    /// [`ModSource::from_index`].
-    ModSlotSource(u8),
-    /// Destination index for slot `i`. Cast to [`ModDest`] via
-    /// [`ModDest::from_index`].
-    ModSlotDest(u8),
-    /// Signed amount for slot `i`, in destination-natural units.
-    ModSlotAmount(u8),
-    /// Via-source index for slot `i`. `ModSource::Off` (index 0) means
-    /// no via scaling.
-    ModSlotVia(u8),
-
-    // ── FM synthesis (M7.3) ────────────────────────────────────────────────
-    /// Slot synthesis mode. Slot index 0..=1; value 0.0 = Subtractive,
-    /// 1.0 = FM.
-    SlotMode(u8),
-    /// Per-slot mix level, 0..=1. Slot index 0..=1.
-    SlotLevel(u8),
-    /// Per-slot mix pan, -1..=1. Slot index 0..=1.
-    SlotPan(u8),
-    /// FM algorithm for a slot. Slot index 0..=1; value 0.0..=7.0.
-    FmAlgorithm(u8),
-    /// FM operator integer ratio. Packed `(slot << 4) | op`. Value 0.0..=15.0.
-    FmOpRatioInteger(u8),
-    /// FM operator fine ratio in cents. Packed `(slot << 4) | op`. Value -100.0..=100.0.
-    FmOpRatioFine(u8),
-    /// FM operator output level, 0..=1. Packed `(slot << 4) | op`.
-    FmOpLevel(u8),
-    /// FM operator envelope attack, seconds. Packed `(slot << 4) | op`.
-    FmOpAttackSecs(u8),
-    /// FM operator envelope decay, seconds. Packed `(slot << 4) | op`.
-    FmOpDecaySecs(u8),
-    /// FM operator envelope sustain level, 0..=1. Packed `(slot << 4) | op`.
-    FmOpSustainLevel(u8),
-    /// FM operator envelope release, seconds. Packed `(slot << 4) | op`.
-    FmOpReleaseSecs(u8),
-    /// FM operator self-feedback, -1..=1. Packed `(slot << 4) | op`.
-    /// Only meaningful for op 3 in the 8 starter algorithms.
-    FmOpFeedback(u8),
-
-    // ── FX chain (M8) ─────────────────────────────────────────────────────
-    /// EQ stage enabled; 0.0 = off, 1.0 = on.
-    FxEqEnabled,
-    /// EQ low-shelf gain, -15..=15 dB.
-    FxEqLowGainDb,
-    /// EQ low-shelf frequency, 20..=2000 Hz.
-    FxEqLowFreqHz,
-    /// EQ mid-peak gain, -15..=15 dB.
-    FxEqMidGainDb,
-    /// EQ mid-peak frequency, 200..=8000 Hz.
-    FxEqMidFreqHz,
-    /// EQ mid-peak Q, 0.1..=10.
-    FxEqMidQ,
-    /// EQ high-shelf gain, -15..=15 dB.
-    FxEqHighGainDb,
-    /// EQ high-shelf frequency, 2000..=20000 Hz.
-    FxEqHighFreqHz,
-    /// Drive stage enabled; 0.0 = off, 1.0 = on.
-    FxDriveEnabled,
-    /// Drive pre-clip gain, 1..=20.
-    FxDriveDrive,
-    /// Drive asymmetry, -1..=1.
-    FxDriveAsymmetry,
-    /// Chorus stage enabled; 0.0 = off, 1.0 = on.
-    FxChorusEnabled,
-    /// Chorus LFO rate, 0.1..=8 Hz.
-    FxChorusRateHz,
-    /// Chorus modulation depth, 0..=15 ms.
-    FxChorusDepthMs,
-    /// Chorus dry/wet mix, 0..=1.
-    FxChorusMix,
-    /// Chorus stereo spread, 0..=1.
-    FxChorusSpread,
-    /// Delay stage enabled; 0.0 = off, 1.0 = on.
-    FxDelayEnabled,
-    /// Delay time in seconds, 0.001..=2.0.
-    FxDelayTimeSecs,
-    /// Delay feedback, 0..=0.95.
-    FxDelayFeedback,
-    /// Delay dry/wet mix, 0..=1.
-    FxDelayMix,
-    /// Delay feedback low-cut frequency, 20..=2000 Hz.
-    FxDelayLowcutHz,
-    /// Delay ping-pong mode; 0.0 = off, 1.0 = on.
-    FxDelayPingPong,
-    /// Reverb stage enabled; 0.0 = off, 1.0 = on.
-    FxReverbEnabled,
-    /// Reverb pre-delay, 0..=50 ms.
-    FxReverbPredelayMs,
-    /// Reverb decay time, 0.1..=30 s.
-    FxReverbDecaySecs,
-    /// Reverb room size, 0.1..=1.0.
-    FxReverbSize,
-    /// Reverb HF damping, 0..=1.
-    FxReverbDamping,
-    /// Reverb dry/wet mix, 0..=1.
-    FxReverbMix,
-
-    // ── Arpeggiator ────────────────────────────────────────────────────────
-    /// Arp on/off, 0.0 = off, 1.0 = on.
-    ArpEnabled,
-    /// Arp mode: 0=Up 1=Down 2=UpDown 3=Random 4=Played.
-    ArpMode,
-    /// Octave range, 1–4.
-    ArpOctaves,
-    /// Step rate: 0=1/32 1=1/16 2=1/8 3=1/4 4=1/2.
-    ArpRate,
-    /// Internal BPM, 20–300.
-    ArpBpm,
-    /// Gate fraction of step duration, 0.01–1.0.
-    ArpGate,
-    /// Swing fraction, 0.5–0.75.
-    ArpSwing,
-}
-
-/// An immutable snapshot of the engine's outward-facing parameter
-/// state, published once per audio block.
-///
-/// Built by [`ParameterTree::snapshot`] without allocating. The audio
-/// callback is responsible for wrapping it in an `Arc` and storing in
-/// the snapshot slot — the recycled-pool optimisation from
-/// `docs/planning/03-architecture/design-patterns.md` §2.5 is a later
-/// milestone.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ParamSnapshot {
-    /// Current pitch offset, in semitones.
-    pub pitch_offset_semis: f32,
-
-    /// Current amp attack time, in seconds.
-    pub amp_attack_secs: f32,
-
-    /// Current amp decay time, in seconds.
-    pub amp_decay_secs: f32,
-
-    /// Current amp sustain level, 0..=1.
-    pub amp_sustain_level: f32,
-
-    /// Current amp release time, in seconds.
-    pub amp_release_secs: f32,
-
-    /// Current master output volume, 0..=1.
-    pub master_volume: f32,
-
-    /// Current oscillator waveform (applied to all three main
-    /// oscillators; the sub is always sine).
-    pub waveform: Waveform,
-
-    /// Current filter cutoff frequency, in Hz.
-    pub filter_cutoff_hz: f32,
-
-    /// Current filter resonance on the 0..=1 user scale.
-    pub filter_resonance: f32,
-
-    /// Current filter output mode.
-    pub filter_mode: FilterMode,
-
-    /// Per-main-oscillator levels (0..=1), indexed as the voice
-    /// indexes its main oscillators.
-    pub osc_main_levels: [f32; MAIN_OSCILLATOR_COUNT],
-    /// Sub oscillator level (0..=1).
-    pub sub_level: f32,
-
-    /// Per-main-oscillator detune in cents.
-    pub osc_main_detune_cents: [f32; MAIN_OSCILLATOR_COUNT],
-
-    /// Per-main-oscillator pan position (-1..=1).
-    pub osc_main_pans: [f32; MAIN_OSCILLATOR_COUNT],
-    /// Sub oscillator pan position (-1..=1).
-    pub sub_pan: f32,
-
-    /// Per-main-oscillator unison voice count (1..=MAX_UNISON_VOICES,
-    /// stored as f32 because the parameter bus carries f32 values;
-    /// rounded and clamped at the consumer).
-    pub osc_main_unison_voices: [f32; MAIN_OSCILLATOR_COUNT],
-
-    /// Per-main-oscillator unison detune width, in cents.
-    pub osc_main_unison_detune_cents: [f32; MAIN_OSCILLATOR_COUNT],
-
-    /// Per-main-oscillator unison stereo spread (0..=1).
-    pub osc_main_unison_spreads: [f32; MAIN_OSCILLATOR_COUNT],
-
-    /// Number of voices currently producing audio (not idle). Zero means
-    /// the engine is silent. At M2 this is 0 or 1; the voice manager
-    /// at M3 raises the ceiling to 32.
-    pub active_voice_count: u8,
-
-    /// Pitch-bend wheel position in semitones (±[`crate::engine::PITCH_BEND_RANGE_SEMIS`]).
-    pub pitch_bend_semis: f32,
-
-    /// Mod wheel (CC #1) position, 0..=1.
-    pub mod_wheel: f32,
-
-    /// Channel aftertouch pressure, 0..=1.
-    pub channel_aftertouch: f32,
-
-    /// Raw CC values for all 128 controllers, normalised to 0..=1.
-    /// Indexed by CC number. Available for the mod matrix (M6) to read
-    /// as modulation sources without a further API change.
-    pub cc_values: [f32; 128],
-
-    // ── LFO 1 parameter mirrors ────────────────────────────────────────
-    /// LFO1 rate in Hz (free-running).
-    pub lfo1_rate_hz: f32,
-    /// LFO1 waveform shape as a zero-based `LfoShape` index.
-    pub lfo1_shape_index: usize,
-    /// LFO1 phase-reset-on-note-on flag.
-    pub lfo1_reset_on_note_on: bool,
-    /// LFO1 BPM-sync enabled flag.
-    pub lfo1_sync_enabled: bool,
-    /// LFO1 BPM-sync division as a zero-based `SyncDivision` index.
-    pub lfo1_sync_division_index: usize,
-
-    // ── LFO 2 parameter mirrors ────────────────────────────────────────
-    /// LFO2 rate in Hz (free-running).
-    pub lfo2_rate_hz: f32,
-    /// LFO2 waveform shape index.
-    pub lfo2_shape_index: usize,
-    /// LFO2 phase-reset-on-note-on flag.
-    pub lfo2_reset_on_note_on: bool,
-    /// LFO2 BPM-sync enabled flag.
-    pub lfo2_sync_enabled: bool,
-    /// LFO2 BPM-sync division index.
-    pub lfo2_sync_division_index: usize,
-
-    // ── Env2 parameter mirrors ─────────────────────────────────────────
-    /// Env2 attack time, seconds.
-    pub env2_attack_secs: f32,
-    /// Env2 decay time, seconds.
-    pub env2_decay_secs: f32,
-    /// Env2 sustain level, 0..=1.
-    pub env2_sustain_level: f32,
-    /// Env2 release time, seconds.
-    pub env2_release_secs: f32,
-    /// Env2 Attack stage curve, -1..=1.
-    pub env2_attack_curve: f32,
-    /// Env2 Decay stage curve, -1..=1.
-    pub env2_decay_curve: f32,
-    /// Env2 Release stage curve, -1..=1.
-    pub env2_release_curve: f32,
-
-    // ── Global ─────────────────────────────────────────────────────────
-    /// Global tempo in BPM.
-    pub bpm: f32,
-
-    // ── Live modulator outputs ─────────────────────────────────────────
-    /// Most recent LFO1 output from the first active voice, or 0.0.
-    pub lfo1_out: f32,
-    /// Most recent LFO2 output from the first active voice, or 0.0.
-    pub lfo2_out: f32,
-    /// Most recent Env2 output from the first active voice, or 0.0.
-    pub env2_out: f32,
-
-    // ── VU meter (peak per block, written by the engine) ──────────────
-    /// Peak output level for the left channel over the last audio block,
-    /// linear (0..=∞; values above 1.0 indicate clipping).
-    pub vu_peak_left: f32,
-    /// Peak output level for the right channel over the last audio block.
-    pub vu_peak_right: f32,
-
-    // ── Mod matrix mirrors ─────────────────────────────────────────────
-    /// Enable flag for each of the 8 mod slots.
-    pub mod_slot_enabled: [bool; 8],
-    /// Source index for each slot (matches `ModSource::to_index`).
-    pub mod_slot_source: [u8; 8],
-    /// Destination index for each slot (matches `ModDest::to_index`).
-    pub mod_slot_dest: [u8; 8],
-    /// Amount for each slot, in destination-natural units.
-    pub mod_slot_amount: [f32; 8],
-    /// Via-source index for each slot (0 = Off = no scaling).
-    pub mod_slot_via: [u8; 8],
-
-    // ── FM synthesis mirrors ───────────────────────────────────────────
-    /// Slot mode per slot: 0 = Subtractive, 1 = FM.
-    pub slot_mode: [u8; 2],
-    /// Per-slot mix level, 0..=1.
-    pub slot_level: [f32; 2],
-    /// Per-slot mix pan, -1..=1.
-    pub slot_pan: [f32; 2],
-    /// FM algorithm index per slot, 0..=7.
-    pub fm_algorithm: [u8; 2],
-    /// FM operator integer ratio per `[slot][op]`, 0..=15.
-    pub fm_op_ratio_integer: [[u8; OPERATOR_COUNT]; 2],
-    /// FM operator fine ratio in cents per `[slot][op]`, -100..=100.
-    pub fm_op_ratio_fine_cents: [[f32; OPERATOR_COUNT]; 2],
-    /// FM operator output level per `[slot][op]`, 0..=1.
-    pub fm_op_level: [[f32; OPERATOR_COUNT]; 2],
-    /// FM operator envelope attack in seconds per `[slot][op]`.
-    pub fm_op_attack_secs: [[f32; OPERATOR_COUNT]; 2],
-    /// FM operator envelope decay in seconds per `[slot][op]`.
-    pub fm_op_decay_secs: [[f32; OPERATOR_COUNT]; 2],
-    /// FM operator envelope sustain level per `[slot][op]`, 0..=1.
-    pub fm_op_sustain_level: [[f32; OPERATOR_COUNT]; 2],
-    /// FM operator envelope release in seconds per `[slot][op]`.
-    pub fm_op_release_secs: [[f32; OPERATOR_COUNT]; 2],
-    /// FM operator self-feedback amount per `[slot][op]`, -1..=1.
-    pub fm_op_feedback: [[f32; OPERATOR_COUNT]; 2],
-
-    // ── FX chain mirrors (M8) ──────────────────────────────────────────────
-    pub fx_eq_enabled: bool,
-    pub fx_eq_low_gain_db: f32,
-    pub fx_eq_low_freq_hz: f32,
-    pub fx_eq_mid_gain_db: f32,
-    pub fx_eq_mid_freq_hz: f32,
-    pub fx_eq_mid_q: f32,
-    pub fx_eq_high_gain_db: f32,
-    pub fx_eq_high_freq_hz: f32,
-    pub fx_drive_enabled: bool,
-    pub fx_drive_drive: f32,
-    pub fx_drive_asymmetry: f32,
-    pub fx_chorus_enabled: bool,
-    pub fx_chorus_rate_hz: f32,
-    pub fx_chorus_depth_ms: f32,
-    pub fx_chorus_mix: f32,
-    pub fx_chorus_spread: f32,
-    pub fx_delay_enabled: bool,
-    pub fx_delay_time_secs: f32,
-    pub fx_delay_feedback: f32,
-    pub fx_delay_mix: f32,
-    pub fx_delay_lowcut_hz: f32,
-    pub fx_delay_ping_pong: bool,
-    pub fx_reverb_enabled: bool,
-    pub fx_reverb_predelay_ms: f32,
-    pub fx_reverb_decay_secs: f32,
-    pub fx_reverb_size: f32,
-    pub fx_reverb_damping: f32,
-    pub fx_reverb_mix: f32,
-
-    // ── Arpeggiator ──────────────────────────────────────────────────────
-    pub arp_enabled: bool,
-    pub arp_mode: u8,
-    pub arp_octaves: u8,
-    pub arp_rate: u8,
-    pub arp_bpm: f32,
-    pub arp_gate: f32,
-    pub arp_swing: f32,
-}
-
-impl Default for ParamSnapshot {
-    fn default() -> Self {
-        Self {
-            pitch_offset_semis: 0.0,
-            amp_attack_secs: DEFAULT_AMP_ATTACK_SECS,
-            amp_decay_secs: DEFAULT_AMP_DECAY_SECS,
-            amp_sustain_level: DEFAULT_AMP_SUSTAIN_LEVEL,
-            amp_release_secs: DEFAULT_AMP_RELEASE_SECS,
-            master_volume: DEFAULT_MASTER_VOLUME,
-            waveform: Waveform::Saw,
-            filter_cutoff_hz: DEFAULT_FILTER_CUTOFF_HZ,
-            filter_resonance: DEFAULT_FILTER_RESONANCE,
-            filter_mode: FilterMode::LowPass,
-            osc_main_levels: [DEFAULT_OSC_LEVEL; MAIN_OSCILLATOR_COUNT],
-            sub_level: DEFAULT_OSC_LEVEL,
-            osc_main_detune_cents: [DEFAULT_OSC_DETUNE_CENTS; MAIN_OSCILLATOR_COUNT],
-            osc_main_pans: [DEFAULT_OSC_PAN; MAIN_OSCILLATOR_COUNT],
-            sub_pan: DEFAULT_OSC_PAN,
-            osc_main_unison_voices: [DEFAULT_UNISON_VOICES; MAIN_OSCILLATOR_COUNT],
-            osc_main_unison_detune_cents: [DEFAULT_UNISON_DETUNE_CENTS; MAIN_OSCILLATOR_COUNT],
-            osc_main_unison_spreads: [DEFAULT_UNISON_SPREAD; MAIN_OSCILLATOR_COUNT],
-            active_voice_count: 0,
-            pitch_bend_semis: 0.0,
-            mod_wheel: 0.0,
-            channel_aftertouch: 0.0,
-            cc_values: [0.0; 128],
-            lfo1_rate_hz: 1.0,
-            lfo1_shape_index: 0,
-            lfo1_reset_on_note_on: false,
-            lfo1_sync_enabled: false,
-            lfo1_sync_division_index: 5, // 1 bar
-            lfo2_rate_hz: 1.0,
-            lfo2_shape_index: 0,
-            lfo2_reset_on_note_on: false,
-            lfo2_sync_enabled: false,
-            lfo2_sync_division_index: 5,
-            env2_attack_secs: 0.010,
-            env2_decay_secs: 0.200,
-            env2_sustain_level: 0.8,
-            env2_release_secs: 0.200,
-            env2_attack_curve: 0.0,
-            env2_decay_curve: 0.0,
-            env2_release_curve: 0.0,
-            bpm: 120.0,
-            lfo1_out: 0.0,
-            lfo2_out: 0.0,
-            vu_peak_left: 0.0,
-            vu_peak_right: 0.0,
-            env2_out: 0.0,
-            mod_slot_enabled: [false; 8],
-            mod_slot_source: [0; 8],
-            mod_slot_dest: [0; 8],
-            mod_slot_amount: [0.0; 8],
-            mod_slot_via: [0; 8],
-            slot_mode: [0; 2],
-            slot_level: [1.0, 0.0],
-            slot_pan: [0.0; 2],
-            fm_algorithm: [0; 2],
-            fm_op_ratio_integer: [[1; OPERATOR_COUNT]; 2],
-            fm_op_ratio_fine_cents: [[0.0; OPERATOR_COUNT]; 2],
-            fm_op_level: [[1.0; OPERATOR_COUNT]; 2],
-            fm_op_attack_secs: [[DEFAULT_AMP_ATTACK_SECS; OPERATOR_COUNT]; 2],
-            fm_op_decay_secs: [[DEFAULT_AMP_DECAY_SECS; OPERATOR_COUNT]; 2],
-            fm_op_sustain_level: [[DEFAULT_AMP_SUSTAIN_LEVEL; OPERATOR_COUNT]; 2],
-            fm_op_release_secs: [[DEFAULT_AMP_RELEASE_SECS; OPERATOR_COUNT]; 2],
-            fm_op_feedback: [[0.0; OPERATOR_COUNT]; 2],
-            fx_eq_enabled: false,
-            fx_eq_low_gain_db: 0.0,
-            fx_eq_low_freq_hz: 200.0,
-            fx_eq_mid_gain_db: 0.0,
-            fx_eq_mid_freq_hz: 1_000.0,
-            fx_eq_mid_q: 0.7,
-            fx_eq_high_gain_db: 0.0,
-            fx_eq_high_freq_hz: 6_000.0,
-            fx_drive_enabled: false,
-            fx_drive_drive: 1.0,
-            fx_drive_asymmetry: 0.0,
-            fx_chorus_enabled: false,
-            fx_chorus_rate_hz: 0.5,
-            fx_chorus_depth_ms: 3.0,
-            fx_chorus_mix: 0.5,
-            fx_chorus_spread: 0.5,
-            fx_delay_enabled: false,
-            fx_delay_time_secs: 0.375,
-            fx_delay_feedback: 0.35,
-            fx_delay_mix: 0.30,
-            fx_delay_lowcut_hz: 200.0,
-            fx_delay_ping_pong: false,
-            fx_reverb_enabled: false,
-            fx_reverb_predelay_ms: 10.0,
-            fx_reverb_decay_secs: 2.0,
-            fx_reverb_size: 0.7,
-            fx_reverb_damping: 0.5,
-            fx_reverb_mix: 0.25,
-            arp_enabled: false,
-            arp_mode: 0,
-            arp_octaves: 1,
-            arp_rate: 2, // 1/8
-            arp_bpm: 120.0,
-            arp_gate: 0.5,
-            arp_swing: 0.5,
-        }
-    }
-}
+// ── ParameterTree ─────────────────────────────────────────────────────────────
 
 /// The engine's typed parameter tree.
 ///
@@ -693,142 +103,142 @@ impl Default for ParamSnapshot {
 /// that adding a new parameter is one match arm rather than a new
 /// engine field.
 pub struct ParameterTree {
-    pitch_offset_semis: SmoothedParam,
-    filter_cutoff_hz: SmoothedParam,
-    filter_resonance: SmoothedParam,
+    pub(super) pitch_offset_semis: SmoothedParam,
+    pub(super) filter_cutoff_hz: SmoothedParam,
+    pub(super) filter_resonance: SmoothedParam,
 
-    osc_main_levels: [SmoothedParam; MAIN_OSCILLATOR_COUNT],
-    sub_level: SmoothedParam,
+    pub(super) osc_main_levels: [SmoothedParam; MAIN_OSCILLATOR_COUNT],
+    pub(super) sub_level: SmoothedParam,
 
-    osc_main_detune_cents: [SmoothedParam; MAIN_OSCILLATOR_COUNT],
+    pub(super) osc_main_detune_cents: [SmoothedParam; MAIN_OSCILLATOR_COUNT],
 
-    osc_main_pans: [SmoothedParam; MAIN_OSCILLATOR_COUNT],
-    sub_pan: SmoothedParam,
+    pub(super) osc_main_pans: [SmoothedParam; MAIN_OSCILLATOR_COUNT],
+    pub(super) sub_pan: SmoothedParam,
 
-    osc_main_unison_detune_cents: [SmoothedParam; MAIN_OSCILLATOR_COUNT],
-    osc_main_unison_spreads: [SmoothedParam; MAIN_OSCILLATOR_COUNT],
+    pub(super) osc_main_unison_detune_cents: [SmoothedParam; MAIN_OSCILLATOR_COUNT],
+    pub(super) osc_main_unison_spreads: [SmoothedParam; MAIN_OSCILLATOR_COUNT],
 
     /// Unison voice counts. Stepped (not smoothed) because the
     /// quantised integer values do not benefit from interpolation —
     /// switching from 3 to 4 voices is meant to be instant, not a
     /// glide through 3.4 voices.
-    osc_main_unison_voices: [f32; MAIN_OSCILLATOR_COUNT],
+    pub(super) osc_main_unison_voices: [f32; MAIN_OSCILLATOR_COUNT],
 
     /// Stepped (not smoothed): sampled by the voice at the next
     /// envelope phase transition, not per-sample.
-    amp_attack_secs: f32,
-    amp_decay_secs: f32,
-    amp_sustain_level: f32,
-    amp_release_secs: f32,
+    pub(super) amp_attack_secs: f32,
+    pub(super) amp_decay_secs: f32,
+    pub(super) amp_sustain_level: f32,
+    pub(super) amp_release_secs: f32,
 
     /// Smoothed so moving the volume knob is click-free.
-    master_volume: SmoothedParam,
+    pub(super) master_volume: SmoothedParam,
 
-    waveform: Waveform,
-    filter_mode: FilterMode,
+    pub(super) waveform: Waveform,
+    pub(super) filter_mode: FilterMode,
 
-    active_voice_count: u8,
+    pub(super) active_voice_count: u8,
 
-    pitch_bend_semis: SmoothedParam,
+    pub(super) pitch_bend_semis: SmoothedParam,
     /// Mod wheel and aftertouch are stepped (plain f32) at M3.3 because
     /// they have no per-sample audio consumer until M6 routes them
     /// through the mod matrix. Smoothing can be added then.
-    mod_wheel: f32,
-    channel_aftertouch: f32,
+    pub(super) mod_wheel: f32,
+    pub(super) channel_aftertouch: f32,
     /// CC values for all 128 controllers, normalised 0..=1. Stepped.
-    cc_values: [f32; 128],
+    pub(super) cc_values: [f32; 128],
 
     // ── LFO 1 ──────────────────────────────────────────────────────────
-    lfo1_rate_hz: f32,
-    lfo1_shape_index: usize,
-    lfo1_reset_on_note_on: bool,
-    lfo1_sync_enabled: bool,
-    lfo1_sync_division: SyncDivision,
+    pub(super) lfo1_rate_hz: f32,
+    pub(super) lfo1_shape_index: usize,
+    pub(super) lfo1_reset_on_note_on: bool,
+    pub(super) lfo1_sync_enabled: bool,
+    pub(super) lfo1_sync_division: SyncDivision,
 
     // ── LFO 2 ──────────────────────────────────────────────────────────
-    lfo2_rate_hz: f32,
-    lfo2_shape_index: usize,
-    lfo2_reset_on_note_on: bool,
-    lfo2_sync_enabled: bool,
-    lfo2_sync_division: SyncDivision,
+    pub(super) lfo2_rate_hz: f32,
+    pub(super) lfo2_shape_index: usize,
+    pub(super) lfo2_reset_on_note_on: bool,
+    pub(super) lfo2_sync_enabled: bool,
+    pub(super) lfo2_sync_division: SyncDivision,
 
     // ── Env2 ───────────────────────────────────────────────────────────
-    env2_attack_secs: f32,
-    env2_decay_secs: f32,
-    env2_sustain_level: f32,
-    env2_release_secs: f32,
-    env2_attack_curve: f32,
-    env2_decay_curve: f32,
-    env2_release_curve: f32,
+    pub(super) env2_attack_secs: f32,
+    pub(super) env2_decay_secs: f32,
+    pub(super) env2_sustain_level: f32,
+    pub(super) env2_release_secs: f32,
+    pub(super) env2_attack_curve: f32,
+    pub(super) env2_decay_curve: f32,
+    pub(super) env2_release_curve: f32,
 
     // ── Global ─────────────────────────────────────────────────────────
-    bpm: f32,
+    pub(super) bpm: f32,
 
     // ── Live modulator outputs (written by engine each block) ──────────
-    lfo1_out: f32,
-    lfo2_out: f32,
-    env2_out: f32,
-    vu_peak_left: f32,
-    vu_peak_right: f32,
+    pub(super) lfo1_out: f32,
+    pub(super) lfo2_out: f32,
+    pub(super) env2_out: f32,
+    pub(super) vu_peak_left: f32,
+    pub(super) vu_peak_right: f32,
 
     // ── Mod matrix mirrors ─────────────────────────────────────────────
-    mod_slot_enabled: [bool; 8],
-    mod_slot_source: [u8; 8],
-    mod_slot_dest: [u8; 8],
-    mod_slot_amount: [f32; 8],
-    mod_slot_via: [u8; 8],
+    pub(super) mod_slot_enabled: [bool; 8],
+    pub(super) mod_slot_source: [u8; 8],
+    pub(super) mod_slot_dest: [u8; 8],
+    pub(super) mod_slot_amount: [f32; 8],
+    pub(super) mod_slot_via: [u8; 8],
 
     // ── FM synthesis ───────────────────────────────────────────────────
-    slot_mode: [SlotMode; 2],
-    slot_level: [f32; 2],
-    slot_pan: [f32; 2],
-    fm_algorithm: [u8; 2],
-    fm_op_ratio_integer: [[u8; OPERATOR_COUNT]; 2],
-    fm_op_ratio_fine_cents: [[f32; OPERATOR_COUNT]; 2],
-    fm_op_level: [[f32; OPERATOR_COUNT]; 2],
-    fm_op_attack_secs: [[f32; OPERATOR_COUNT]; 2],
-    fm_op_decay_secs: [[f32; OPERATOR_COUNT]; 2],
-    fm_op_sustain_level: [[f32; OPERATOR_COUNT]; 2],
-    fm_op_release_secs: [[f32; OPERATOR_COUNT]; 2],
-    fm_op_feedback: [[f32; OPERATOR_COUNT]; 2],
+    pub(super) slot_mode: [SlotMode; 2],
+    pub(super) slot_level: [f32; 2],
+    pub(super) slot_pan: [f32; 2],
+    pub(super) fm_algorithm: [u8; 2],
+    pub(super) fm_op_ratio_integer: [[u8; OPERATOR_COUNT]; 2],
+    pub(super) fm_op_ratio_fine_cents: [[f32; OPERATOR_COUNT]; 2],
+    pub(super) fm_op_level: [[f32; OPERATOR_COUNT]; 2],
+    pub(super) fm_op_attack_secs: [[f32; OPERATOR_COUNT]; 2],
+    pub(super) fm_op_decay_secs: [[f32; OPERATOR_COUNT]; 2],
+    pub(super) fm_op_sustain_level: [[f32; OPERATOR_COUNT]; 2],
+    pub(super) fm_op_release_secs: [[f32; OPERATOR_COUNT]; 2],
+    pub(super) fm_op_feedback: [[f32; OPERATOR_COUNT]; 2],
 
     // ── FX chain (M8) ─────────────────────────────────────────────────────
-    fx_eq_enabled: bool,
-    fx_eq_low_gain_db: f32,
-    fx_eq_low_freq_hz: f32,
-    fx_eq_mid_gain_db: f32,
-    fx_eq_mid_freq_hz: f32,
-    fx_eq_mid_q: f32,
-    fx_eq_high_gain_db: f32,
-    fx_eq_high_freq_hz: f32,
-    fx_drive_enabled: bool,
-    fx_drive_drive: f32,
-    fx_drive_asymmetry: f32,
-    fx_chorus_enabled: bool,
-    fx_chorus_rate_hz: f32,
-    fx_chorus_depth_ms: f32,
-    fx_chorus_mix: f32,
-    fx_chorus_spread: f32,
-    fx_delay_enabled: bool,
-    fx_delay_time_secs: f32,
-    fx_delay_feedback: f32,
-    fx_delay_mix: f32,
-    fx_delay_lowcut_hz: f32,
-    fx_delay_ping_pong: bool,
-    fx_reverb_enabled: bool,
-    fx_reverb_predelay_ms: f32,
-    fx_reverb_decay_secs: f32,
-    fx_reverb_size: f32,
-    fx_reverb_damping: f32,
-    fx_reverb_mix: f32,
+    pub(super) fx_eq_enabled: bool,
+    pub(super) fx_eq_low_gain_db: f32,
+    pub(super) fx_eq_low_freq_hz: f32,
+    pub(super) fx_eq_mid_gain_db: f32,
+    pub(super) fx_eq_mid_freq_hz: f32,
+    pub(super) fx_eq_mid_q: f32,
+    pub(super) fx_eq_high_gain_db: f32,
+    pub(super) fx_eq_high_freq_hz: f32,
+    pub(super) fx_drive_enabled: bool,
+    pub(super) fx_drive_drive: f32,
+    pub(super) fx_drive_asymmetry: f32,
+    pub(super) fx_chorus_enabled: bool,
+    pub(super) fx_chorus_rate_hz: f32,
+    pub(super) fx_chorus_depth_ms: f32,
+    pub(super) fx_chorus_mix: f32,
+    pub(super) fx_chorus_spread: f32,
+    pub(super) fx_delay_enabled: bool,
+    pub(super) fx_delay_time_secs: f32,
+    pub(super) fx_delay_feedback: f32,
+    pub(super) fx_delay_mix: f32,
+    pub(super) fx_delay_lowcut_hz: f32,
+    pub(super) fx_delay_ping_pong: bool,
+    pub(super) fx_reverb_enabled: bool,
+    pub(super) fx_reverb_predelay_ms: f32,
+    pub(super) fx_reverb_decay_secs: f32,
+    pub(super) fx_reverb_size: f32,
+    pub(super) fx_reverb_damping: f32,
+    pub(super) fx_reverb_mix: f32,
     // ── Arpeggiator ──────────────────────────────────────────────────────
-    arp_enabled: bool,
-    arp_mode: u8,
-    arp_octaves: u8,
-    arp_rate: u8,
-    arp_bpm: f32,
-    arp_gate: f32,
-    arp_swing: f32,
+    pub(super) arp_enabled: bool,
+    pub(super) arp_mode: u8,
+    pub(super) arp_octaves: u8,
+    pub(super) arp_rate: u8,
+    pub(super) arp_bpm: f32,
+    pub(super) arp_gate: f32,
+    pub(super) arp_swing: f32,
 }
 
 impl ParameterTree {
@@ -1505,63 +915,8 @@ impl ParameterTree {
 /// `[0.01, 20.0]`.
 ///
 /// [`Lfo::set_rate_hz`]: crate::lfo::Lfo::set_rate_hz
-fn sync_rate_hz(bpm: f32, division: SyncDivision) -> f32 {
+pub(super) fn sync_rate_hz(bpm: f32, division: SyncDivision) -> f32 {
     bpm / 60.0 / (4.0 * division.multiplier_bars())
-}
-
-/// Per-sample smoothed parameter values consumed by the audio path.
-///
-/// Returned by [`ParameterTree::next_sample`] once per frame. Grown
-/// field-by-field as new smoothed params land in later milestones —
-/// keeping it a flat struct (vs. a map) means each consumer reads the
-/// exact field it needs with no lookup cost.
-#[derive(Debug, Clone, Copy)]
-pub struct SampleParams {
-    /// Pitch offset to apply on top of any held MIDI note, in
-    /// semitones.
-    pub pitch_offset_semis: f32,
-
-    /// Filter cutoff frequency for this sample, in Hz.
-    pub filter_cutoff_hz: f32,
-
-    /// Filter resonance for this sample, on the 0..=1 user scale.
-    pub filter_resonance: f32,
-
-    /// Per-main-oscillator levels for this sample.
-    pub osc_main_levels: [f32; MAIN_OSCILLATOR_COUNT],
-    /// Sub oscillator level for this sample.
-    pub sub_level: f32,
-
-    /// Per-main-oscillator detune in cents for this sample.
-    pub osc_main_detune_cents: [f32; MAIN_OSCILLATOR_COUNT],
-
-    /// Per-main-oscillator pan positions for this sample.
-    pub osc_main_pans: [f32; MAIN_OSCILLATOR_COUNT],
-    /// Sub oscillator pan position for this sample.
-    pub sub_pan: f32,
-
-    /// Per-main-oscillator unison voice counts. Carried as f32 to
-    /// match the parameter bus; the voice rounds and clamps when
-    /// consuming. Stepped, so this field's value is constant across
-    /// the samples between two `ParameterChange` events.
-    pub osc_main_unison_voices: [f32; MAIN_OSCILLATOR_COUNT],
-
-    /// Per-main-oscillator unison detune width in cents for this
-    /// sample.
-    pub osc_main_unison_detune_cents: [f32; MAIN_OSCILLATOR_COUNT],
-
-    /// Per-main-oscillator unison stereo spread (0..=1) for this
-    /// sample.
-    pub osc_main_unison_spreads: [f32; MAIN_OSCILLATOR_COUNT],
-
-    /// Pitch-bend offset in semitones for this sample. Added to the
-    /// held MIDI note and any per-osc detune in the voice's frequency
-    /// calculation.
-    pub pitch_bend_semis: f32,
-
-    /// Master output volume for this sample, 0..=1. Applied after
-    /// polyphony summing in the engine — the voice does not see it.
-    pub master_volume: f32,
 }
 
 #[cfg(test)]
