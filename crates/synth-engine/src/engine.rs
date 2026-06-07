@@ -388,6 +388,8 @@ impl Engine {
             }
         }
 
+        let mut peak_l: f32 = 0.0;
+        let mut peak_r: f32 = 0.0;
         for frame_index in 0..frames {
             let smoothed = self.params.next_sample();
             let (left, right) = self.voices.next_sample(&smoothed);
@@ -396,15 +398,18 @@ impl Engine {
             let (out_l, out_r) = self.fx.process(scaled_l, scaled_r);
             output[frame_index * 2] = out_l;
             output[frame_index * 2 + 1] = out_r;
+            peak_l = peak_l.max(out_l.abs());
+            peak_r = peak_r.max(out_r.abs());
         }
 
-        // Mirror the post-block voice count and modulator outputs into
-        // the tree so the next snapshot reflects what just played.
+        // Mirror the post-block voice count, modulator outputs, and VU peak
+        // into the tree so the next snapshot reflects what just played.
         #[allow(clippy::cast_possible_truncation)]
         let count = self.voices.active_count() as u8;
         self.params.set_active_voice_count(count);
         let (lfo1, lfo2, env2) = self.voices.first_active_modulator_outputs();
         self.params.set_modulator_outputs(lfo1, lfo2, env2);
+        self.params.set_vu_peak(peak_l, peak_r);
     }
 
     /// Returns the current parameter snapshot by value, without

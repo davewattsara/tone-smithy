@@ -490,6 +490,13 @@ pub struct ParamSnapshot {
     /// Most recent Env2 output from the first active voice, or 0.0.
     pub env2_out: f32,
 
+    // ── VU meter (peak per block, written by the engine) ──────────────
+    /// Peak output level for the left channel over the last audio block,
+    /// linear (0..=∞; values above 1.0 indicate clipping).
+    pub vu_peak_left: f32,
+    /// Peak output level for the right channel over the last audio block.
+    pub vu_peak_right: f32,
+
     // ── Mod matrix mirrors ─────────────────────────────────────────────
     /// Enable flag for each of the 8 mod slots.
     pub mod_slot_enabled: [bool; 8],
@@ -614,6 +621,8 @@ impl Default for ParamSnapshot {
             bpm: 120.0,
             lfo1_out: 0.0,
             lfo2_out: 0.0,
+            vu_peak_left: 0.0,
+            vu_peak_right: 0.0,
             env2_out: 0.0,
             mod_slot_enabled: [false; 8],
             mod_slot_source: [0; 8],
@@ -759,6 +768,8 @@ pub struct ParameterTree {
     lfo1_out: f32,
     lfo2_out: f32,
     env2_out: f32,
+    vu_peak_left: f32,
+    vu_peak_right: f32,
 
     // ── Mod matrix mirrors ─────────────────────────────────────────────
     mod_slot_enabled: [bool; 8],
@@ -878,6 +889,8 @@ impl ParameterTree {
             lfo1_out: 0.0,
             lfo2_out: 0.0,
             env2_out: 0.0,
+            vu_peak_left: 0.0,
+            vu_peak_right: 0.0,
             mod_slot_enabled: [false; 8],
             mod_slot_source: [0; 8],
             mod_slot_dest: [0; 8],
@@ -1308,6 +1321,13 @@ impl ParameterTree {
         self.env2_out = env2;
     }
 
+    /// Stores the per-block peak output level for the VU meter.
+    /// Called by the engine immediately after the per-sample loop.
+    pub fn set_vu_peak(&mut self, left: f32, right: f32) {
+        self.vu_peak_left = left;
+        self.vu_peak_right = right;
+    }
+
     /// Advances all smoothed parameters by one sample and returns the
     /// values the audio path consumes per sample. Called once per
     /// frame inside `Engine::process_stereo`.
@@ -1419,6 +1439,8 @@ impl ParameterTree {
             lfo1_out: self.lfo1_out,
             lfo2_out: self.lfo2_out,
             env2_out: self.env2_out,
+            vu_peak_left: self.vu_peak_left,
+            vu_peak_right: self.vu_peak_right,
             mod_slot_enabled: self.mod_slot_enabled,
             mod_slot_source: self.mod_slot_source,
             mod_slot_dest: self.mod_slot_dest,
