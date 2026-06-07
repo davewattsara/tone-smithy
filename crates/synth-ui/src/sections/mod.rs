@@ -1,4 +1,5 @@
 pub mod arp;
+pub mod browser;
 pub mod envelopes;
 pub mod filter;
 pub mod fm_slots;
