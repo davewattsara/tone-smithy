@@ -1,0 +1,27 @@
+(
+    version: 1,
+    metadata: (
+        name: "Saw Lead",
+        author: "Factory",
+        category: "Lead",
+        tags: ["saw", "lead", "bright"],
+        description: "Classic bright saw lead with fast attack and a touch of resonance.",
+    ),
+    parameters: {
+        "waveform": 1.0,
+        "filter_cutoff_hz": 4000.0,
+        "filter_resonance": 0.3,
+        "amp_attack_secs": 0.005,
+        "amp_decay_secs": 0.1,
+        "amp_sustain_level": 0.9,
+        "amp_release_secs": 0.15,
+        "osc_1_level": 1.0,
+        "osc_1_detune_cents": 0.0,
+        "osc_2_level": 0.6,
+        "osc_2_detune_cents": 7.0,
+        "osc_3_level": 0.3,
+        "osc_3_detune_cents": -7.0,
+        "master_volume": 0.8,
+    },
+    midi_learn: [],
+)
