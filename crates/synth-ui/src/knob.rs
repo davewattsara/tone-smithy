@@ -117,10 +117,11 @@ impl egui::Widget for Knob<'_> {
             response.mark_changed();
         }
 
-        // Right-click context menu. Capture reset/copy intent in locals so
-        // the closure does not borrow `response` a second time.
+        // Right-click context menu. Capture intents in locals so the closure
+        // does not borrow `response` a second time.
         let mut reset_clicked = false;
         let mut copy_clicked = false;
+        let mut paste_clicked = false;
         response.context_menu(|ui| {
             ui.set_min_width(140.0);
             if ui
@@ -134,6 +135,10 @@ impl egui::Widget for Knob<'_> {
                 copy_clicked = true;
                 ui.close_menu();
             }
+            if ui.button("Paste value").clicked() {
+                paste_clicked = true;
+                ui.close_menu();
+            }
             ui.separator();
             ui.add_enabled(false, egui::Button::new("MIDI Learn"));
         });
@@ -144,7 +149,18 @@ impl egui::Widget for Knob<'_> {
             }
         }
         if copy_clicked {
+            // Store the raw value in egui memory so Paste works cross-knob.
+            ui.memory_mut(|mem| {
+                mem.data.insert_temp(egui::Id::new("ts_knob_clip"), *self.value);
+            });
             ui.ctx().copy_text(value_text.clone());
+        }
+        if paste_clicked {
+            let clip: Option<f32> = ui.memory(|mem| mem.data.get_temp(egui::Id::new("ts_knob_clip")));
+            if let Some(v) = clip {
+                *self.value = v.clamp(*self.range.start(), *self.range.end());
+                response.mark_changed();
+            }
         }
 
         // Tooltip: label + formatted value, shown while hovered or dragging.
