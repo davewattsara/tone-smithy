@@ -1,22 +1,12 @@
-//! Top-level [`eframe::App`] implementation.
-//!
-//! `ToneSmithyApp` owns the UI state mirrors, the event sender, and the
-//! snapshot slot. Each synth section lives in its own file under
-//! `sections/`; this file covers the chrome: header bar, tab bar, keyboard
-//! strip, footer, and the `eframe::App::update` loop.
-
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::AtomicU32;
 
-use eframe::egui;
 use synth_engine::ParamSnapshot;
 use synth_engine::param_bus::{EngineEventSender, SnapshotSlot, load_snapshot};
-use synth_engine::{EngineEvent, FilterMode, Waveform};
-use synth_presets::{Preset, map_to_events, map_to_snapshot, snapshot_to_map};
+use synth_engine::{FilterMode, Waveform};
 
 use crate::computer_keyboard::ComputerKeyboard;
 use crate::keyboard::VirtualKeyboard;
-use crate::theme;
 
 // ── Constants used by section files ──────────────────────────────────────────
 
@@ -53,68 +43,6 @@ pub(crate) const MOD_AMOUNT_RANGES: &[f32] = &[
     1.0,      // Osc1Pan
 ];
 
-// ── Modulation display ────────────────────────────────────────────────────────
-
-/// Normalised (-1..=1) modulation offsets for every destination that has a
-/// knob in the UI. Computed once per frame from the engine snapshot and
-/// passed to section panels so they can drive the mod ring on knobs.
-///
-/// Only sources with live values in the snapshot (LFO1, LFO2, Env2) produce
-/// visible rings; the rest are left at 0.0.
-#[derive(Default, Clone, Copy)]
-pub(crate) struct ModDisplay {
-    pub cutoff: f32,
-    pub resonance: f32,
-    pub pitch: f32,
-    pub volume: f32,
-    pub osc1_detune: f32,
-    pub osc1_pan: f32,
-}
-
-impl ModDisplay {
-    /// Derives the display offsets from `snap`.
-    pub(crate) fn from_snapshot(snap: &ParamSnapshot) -> Self {
-        let source_live = |src: u8| -> f32 {
-            match src {
-                1 => snap.lfo1_out,
-                2 => snap.lfo2_out,
-                3 => snap.env2_out,
-                _ => 0.0,
-            }
-        };
-
-        let mut d = ModDisplay::default();
-        for i in 0..8usize {
-            if !snap.mod_slot_enabled[i] {
-                continue;
-            }
-            let live = source_live(snap.mod_slot_source[i]);
-            if live == 0.0 {
-                continue;
-            }
-            let amt = snap.mod_slot_amount[i];
-            // Normalise: contribution in destination-natural units → -1..=1
-            match snap.mod_slot_dest[i] {
-                0 => d.cutoff += live * amt / (CUTOFF_MAX_HZ - CUTOFF_MIN_HZ),
-                1 => d.resonance += live * amt / 1.0,
-                2 => d.pitch += live * amt / (2.0 * PITCH_OFFSET_RANGE),
-                3 => d.volume += live * amt / 1.0,
-                4 => d.osc1_detune += live * amt / (2.0 * OSC_DETUNE_MAX_CENTS),
-                5 => d.osc1_pan += live * amt / 2.0,
-                _ => {}
-            }
-        }
-        // Clamp so the ring never wraps past the knob's endpoints.
-        d.cutoff = d.cutoff.clamp(-1.0, 1.0);
-        d.resonance = d.resonance.clamp(-1.0, 1.0);
-        d.pitch = d.pitch.clamp(-1.0, 1.0);
-        d.volume = d.volume.clamp(-1.0, 1.0);
-        d.osc1_detune = d.osc1_detune.clamp(-1.0, 1.0);
-        d.osc1_pan = d.osc1_pan.clamp(-1.0, 1.0);
-        d
-    }
-}
-
 // ── Tab enum ──────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -130,7 +58,7 @@ pub enum Tab {
 }
 
 impl Tab {
-    const ALL: &'static [(Tab, &'static str)] = &[
+    pub(crate) const ALL: &'static [(Tab, &'static str)] = &[
         (Tab::Osc, "Osc"),
         (Tab::Filter, "Filter"),
         (Tab::Envelopes, "Envelopes"),
@@ -145,12 +73,12 @@ impl Tab {
 
 /// The Tone Smithy application UI.
 pub struct ToneSmithyApp {
-    audio_status: String,
+    pub(crate) audio_status: String,
     pub(crate) events: EngineEventSender,
-    snapshot_slot: SnapshotSlot,
+    pub(crate) snapshot_slot: SnapshotSlot,
 
     // ── Active tab ───────────────────────────────────────────────────────────
-    active_tab: Tab,
+    pub(crate) active_tab: Tab,
 
     // ── Oscillators (3 main + sub) ───────────────────────────────────────────
     pub(crate) waveform: Waveform,
@@ -271,14 +199,14 @@ pub struct ToneSmithyApp {
     pub(crate) bpm: f32,
 
     // ── Input ────────────────────────────────────────────────────────────────
-    keyboard: VirtualKeyboard,
-    computer_keyboard: ComputerKeyboard,
+    pub(crate) keyboard: VirtualKeyboard,
+    pub(crate) computer_keyboard: ComputerKeyboard,
     pub(crate) pitch_bend: f32,
     pub(crate) mod_wheel: f32,
     pub(crate) sustain_held: bool,
 
     /// CPU load arc from the audio thread (f32 bits stored as u32).
-    cpu_load: Arc<AtomicU32>,
+    pub(crate) cpu_load: Arc<AtomicU32>,
 
     // ── Preset ───────────────────────────────────────────────────────────────
     pub(crate) patch_name: String,
@@ -400,228 +328,7 @@ impl ToneSmithyApp {
             preset_error: None,
         }
     }
-}
 
-// ── eframe::App ───────────────────────────────────────────────────────────────
-
-impl eframe::App for ToneSmithyApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        ctx.set_visuals(theme::make_visuals());
-        self.computer_keyboard.handle_input(ctx, &self.events);
-        let snapshot = load_snapshot(&self.snapshot_slot);
-
-        // Footer — must be added before the central panel
-        egui::TopBottomPanel::bottom("footer")
-            .exact_height(theme::FOOTER_HEIGHT)
-            .show(ctx, |ui| {
-                self.footer_bar(ui, &snapshot);
-            });
-
-        // Virtual keyboard strip — sits above the footer
-        egui::TopBottomPanel::bottom("keyboard_strip")
-            .exact_height(theme::KEYBOARD_HEIGHT)
-            .show(ctx, |ui| {
-                self.keyboard_strip(ui);
-            });
-
-        // Header — title + preset controls
-        egui::TopBottomPanel::top("header")
-            .exact_height(theme::HEADER_HEIGHT)
-            .show(ctx, |ui| {
-                self.header_bar(ui);
-            });
-
-        // Error bar — only present when a preset error is active
-        if self.preset_error.is_some() {
-            egui::TopBottomPanel::top("error_bar").show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.add_space(theme::PANEL_PADDING);
-                    if let Some(ref err) = self.preset_error.clone() {
-                        ui.colored_label(theme::WARN, err);
-                    }
-                    if ui.small_button("x").clicked() {
-                        self.preset_error = None;
-                    }
-                });
-            });
-        }
-
-        // Tab bar — sits below the header (and error bar if visible)
-        egui::TopBottomPanel::top("tab_bar")
-            .exact_height(theme::TAB_BAR_HEIGHT)
-            .show(ctx, |ui| {
-                self.tab_bar(ui);
-            });
-
-        // Compute per-frame modulation display offsets from snapshot.
-        let mod_display = ModDisplay::from_snapshot(&snapshot);
-
-        // Central panel — active tab content, scrollable so tall sections
-        // (e.g. expanded FM operator grid) are not clipped by the keyboard strip.
-        egui::CentralPanel::default().show(ctx, |ui| {
-            egui::ScrollArea::vertical().show(ui, |ui| match self.active_tab {
-                Tab::Osc => self.osc_tab(ui, mod_display),
-                Tab::Filter => self.filter_tab(ui, mod_display),
-                Tab::Envelopes => self.envelopes_tab(ui, &snapshot),
-                Tab::Modulation => self.modulation_tab(ui),
-                Tab::Arp => self.arp_tab(ui),
-                Tab::Fx => self.fx_tab(ui),
-                Tab::Master => self.master_tab(ui, &snapshot, mod_display),
-            });
-        });
-
-        ctx.request_repaint_after(std::time::Duration::from_millis(33));
-    }
-}
-
-// ── Chrome panels ─────────────────────────────────────────────────────────────
-
-impl ToneSmithyApp {
-    fn header_bar(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal_centered(|ui| {
-            ui.add_space(theme::PANEL_PADDING);
-            ui.label(
-                egui::RichText::new("Tone Smithy")
-                    .color(theme::FG0)
-                    .font(theme::font_display()),
-            );
-            ui.separator();
-            ui.label(egui::RichText::new("Patch:").color(theme::FG1).font(theme::font_body()));
-            ui.add(
-                egui::TextEdit::singleline(&mut self.patch_name)
-                    .desired_width(180.0)
-                    .hint_text("Untitled")
-                    .font(theme::font_body()),
-            );
-            if ui.button("Save").clicked() {
-                self.save_preset();
-            }
-            if ui.button("Load").clicked() {
-                self.load_preset();
-            }
-            ui.separator();
-            ui.label(
-                egui::RichText::new(&self.audio_status)
-                    .color(theme::FG2)
-                    .font(theme::font_micro()),
-            );
-        });
-    }
-
-    fn tab_bar(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal_centered(|ui| {
-            ui.add_space(theme::PANEL_PADDING);
-            for &(tab, label) in Tab::ALL {
-                let selected = self.active_tab == tab;
-                let text = egui::RichText::new(label).font(theme::font_body());
-                let text = if selected {
-                    text.color(theme::ACCENT)
-                } else {
-                    text.color(theme::FG1)
-                };
-                if ui.selectable_label(selected, text).clicked() {
-                    self.active_tab = tab;
-                }
-                ui.add_space(4.0);
-            }
-        });
-    }
-
-    fn keyboard_strip(&mut self, ui: &mut egui::Ui) {
-        // Keep virtual keyboard range in sync with computer keyboard octave.
-        if let Some(stuck) = self.keyboard.set_start_note(self.computer_keyboard.octave_base()) {
-            self.events.send(EngineEvent::NoteOff { note_midi: stuck });
-        }
-        let kb_notes = self.computer_keyboard.held_notes();
-
-        ui.horizontal(|ui| {
-            // Pitch-bend slider: springs to 0 on release
-            ui.vertical(|ui| {
-                ui.label(egui::RichText::new("PB").color(theme::FG2).font(theme::font_micro()));
-                let pb_r = ui.add(
-                    egui::Slider::new(&mut self.pitch_bend, -1.0..=1.0)
-                        .vertical()
-                        .show_value(false),
-                );
-                if pb_r.changed() {
-                    self.events.send(EngineEvent::PitchBend {
-                        value_normalised: self.pitch_bend,
-                    });
-                }
-                if !pb_r.is_pointer_button_down_on() && self.pitch_bend != 0.0 {
-                    self.pitch_bend = 0.0;
-                    self.events.send(EngineEvent::PitchBend { value_normalised: 0.0 });
-                }
-            });
-
-            // Mod wheel slider: stays where left
-            ui.vertical(|ui| {
-                ui.label(egui::RichText::new("MW").color(theme::FG2).font(theme::font_micro()));
-                if ui
-                    .add(
-                        egui::Slider::new(&mut self.mod_wheel, 0.0..=1.0)
-                            .vertical()
-                            .show_value(false),
-                    )
-                    .changed()
-                {
-                    self.events.send(EngineEvent::ControlChange {
-                        cc: 1,
-                        value_normalised: self.mod_wheel,
-                    });
-                }
-            });
-
-            // Virtual keyboard
-            self.keyboard.show(ui, &self.events, kb_notes);
-
-            // Sustain pedal
-            ui.vertical(|ui| {
-                ui.label(
-                    egui::RichText::new("Sustain")
-                        .color(theme::FG2)
-                        .font(theme::font_micro()),
-                );
-                if ui
-                    .selectable_label(self.sustain_held, if self.sustain_held { "ON " } else { "OFF" })
-                    .clicked()
-                {
-                    self.sustain_held = !self.sustain_held;
-                    self.events.send(EngineEvent::Sustain {
-                        held: self.sustain_held,
-                    });
-                }
-            });
-
-            // Octave hint
-            ui.label(
-                egui::RichText::new(format!(
-                    "Oct: {} ({})",
-                    self.computer_keyboard.octave_base(),
-                    midi_note_label(self.computer_keyboard.octave_base())
-                ))
-                .color(theme::FG2)
-                .font(theme::font_micro()),
-            );
-        });
-    }
-
-    fn footer_bar(&self, ui: &mut egui::Ui, snapshot: &ParamSnapshot) {
-        ui.horizontal_centered(|ui| {
-            ui.add_space(theme::PANEL_PADDING);
-            let cpu = f32::from_bits(self.cpu_load.load(Ordering::Relaxed));
-            let text = format!(
-                "CPU: {cpu:.1}%   Voices: {}   {}",
-                snapshot.active_voice_count, self.audio_status
-            );
-            ui.label(egui::RichText::new(text).color(theme::FG2).font(theme::font_micro()));
-        });
-    }
-}
-
-// ── Preset helpers ────────────────────────────────────────────────────────────
-
-impl ToneSmithyApp {
     /// Copies all saveable fields from `snap` into the UI's local mirror state.
     pub(crate) fn sync_from_snapshot(&mut self, snap: &ParamSnapshot) {
         self.waveform = snap.waveform;
@@ -712,105 +419,5 @@ impl ToneSmithyApp {
         self.pitch_offset_semis = snap.pitch_offset_semis;
         self.master_volume = snap.master_volume;
         self.bpm = snap.bpm;
-    }
-
-    fn save_preset(&mut self) {
-        let snapshot = load_snapshot(&self.snapshot_slot);
-        let mut preset = Preset::new(self.patch_name.clone());
-        preset.parameters = snapshot_to_map(&snapshot);
-
-        let default_filename = format!("{}.tsmith", self.patch_name);
-        let start_dir = synth_presets::user_presets_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
-
-        if let Some(path) = rfd::FileDialog::new()
-            .set_title("Save Preset")
-            .set_file_name(&default_filename)
-            .add_filter("Tone Smithy Preset", &["tsmith"])
-            .set_directory(&start_dir)
-            .save_file()
-        {
-            if let Err(e) = synth_presets::save(&path, &preset) {
-                self.preset_error = Some(format!("Save failed: {e}"));
-            } else {
-                self.preset_error = None;
-            }
-        }
-    }
-
-    fn load_preset(&mut self) {
-        let start_dir = synth_presets::user_presets_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
-
-        if let Some(path) = rfd::FileDialog::new()
-            .set_title("Load Preset")
-            .add_filter("Tone Smithy Preset", &["tsmith"])
-            .set_directory(&start_dir)
-            .pick_file()
-        {
-            match synth_presets::load(&path) {
-                Ok(preset) => {
-                    for event in map_to_events(&preset.parameters) {
-                        self.events.send(event);
-                    }
-                    let snap = map_to_snapshot(&preset.parameters);
-                    self.sync_from_snapshot(&snap);
-                    self.patch_name = preset.metadata.name.clone();
-                    self.preset_error = None;
-                }
-                Err(e) => {
-                    self.preset_error = Some(format!("Load failed: {e}"));
-                }
-            }
-        }
-    }
-}
-
-// ── Utility functions (pub(crate) so section files can use them) ──────────────
-
-/// Formats seconds as `"N ms"` below 1 s or `"N.NN s"` at or above 1 s.
-pub(crate) fn secs_format(v: f32) -> String {
-    if v < 1.0 {
-        format!("{:.0} ms", v * 1000.0)
-    } else {
-        format!("{:.2} s", v)
-    }
-}
-
-/// Formats a MIDI note number as scientific pitch notation (`C4` = 60).
-pub(crate) fn midi_note_label(note_midi: u8) -> String {
-    const NAMES: [&str; 12] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-    let octave = i32::from(note_midi / 12) - 1;
-    let name = NAMES[usize::from(note_midi % 12)];
-    format!("{name}{octave}")
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn midi_60_is_c4() {
-        assert_eq!(midi_note_label(60), "C4");
-    }
-
-    #[test]
-    fn midi_48_is_c3() {
-        assert_eq!(midi_note_label(48), "C3");
-    }
-
-    #[test]
-    fn midi_69_is_a4() {
-        assert_eq!(midi_note_label(69), "A4");
-    }
-
-    #[test]
-    fn secs_format_below_one_second_shows_ms() {
-        assert_eq!(secs_format(0.010), "10 ms");
-        assert_eq!(secs_format(0.200), "200 ms");
-    }
-
-    #[test]
-    fn secs_format_at_or_above_one_second_shows_s() {
-        assert!(secs_format(1.0).contains('s'));
-        assert!(secs_format(3.5).contains('s'));
     }
 }

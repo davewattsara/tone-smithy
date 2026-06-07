@@ -390,5 +390,3 @@ pub struct SampleParams {
     /// polyphony summing in the engine — the voice does not see it.
     pub master_volume: f32,
 }
-,
-}
