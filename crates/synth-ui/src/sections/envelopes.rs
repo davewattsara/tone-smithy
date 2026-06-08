@@ -41,6 +41,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.amp_attack_secs, ENV_MIN_SECS..=ENV_ATTACK_MAX_SECS, "A")
                         .default_value(0.010)
+                        .param_key("amp_attack_secs")
                         .format(secs_format),
                 )
                 .changed()
@@ -54,6 +55,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.amp_decay_secs, ENV_MIN_SECS..=ENV_DECAY_MAX_SECS, "D")
                         .default_value(0.200)
+                        .param_key("amp_decay_secs")
                         .format(secs_format),
                 )
                 .changed()
@@ -67,6 +69,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.amp_sustain_level, 0.0..=1.0, "S")
                         .default_value(0.8)
+                        .param_key("amp_sustain_level")
                         .format(|v| format!("{:.2}", v)),
                 )
                 .changed()
@@ -80,6 +83,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.amp_release_secs, ENV_MIN_SECS..=ENV_RELEASE_MAX_SECS, "R")
                         .default_value(0.200)
+                        .param_key("amp_release_secs")
                         .format(secs_format),
                 )
                 .changed()
@@ -263,11 +267,13 @@ impl ToneSmithyApp {
         ui.add_space(4.0);
 
         ui.horizontal(|ui| {
+            let lfo_rate_key = if lfo_num == 1 { "lfo1_rate_hz" } else { "lfo2_rate_hz" };
             if !sync_enabled
                 && ui
                     .add(
                         Knob::new(&mut rate_hz, LFO_RATE_MIN_HZ..=LFO_RATE_MAX_HZ, "Rate")
                             .default_value(1.0)
+                            .param_key(lfo_rate_key)
                             .format(|v| format!("{:.2} Hz", v)),
                     )
                     .changed()

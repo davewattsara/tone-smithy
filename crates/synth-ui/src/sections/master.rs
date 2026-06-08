@@ -63,6 +63,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.bpm, BPM_MIN..=BPM_MAX, "BPM")
                         .default_value(120.0)
+                        .param_key("bpm")
                         .format(|v| format!("{:.0}", v)),
                 )
                 .changed()

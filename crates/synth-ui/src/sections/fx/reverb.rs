@@ -70,6 +70,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_reverb_mix, 0.0..=1.0, "Mix")
                         .default_value(0.25)
+                        .param_key("fx_reverb_mix")
                         .format(|v| format!("{:.0}%", v * 100.0)),
                 )
                 .changed()

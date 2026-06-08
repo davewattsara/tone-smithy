@@ -99,11 +99,13 @@ impl ToneSmithyApp {
             ),
         };
 
+        let osc_level_key = ["osc_1_level", "osc_2_level", "osc_3_level"][idx];
         ui.horizontal(|ui| {
             if ui
                 .add(
                     Knob::new(&mut self.osc_level[idx], 0.0..=OSC_LEVEL_MAX, "Level")
                         .default_value(1.0)
+                        .param_key(osc_level_key)
                         .format(|v| format!("{:.2}", v)),
                 )
                 .changed()
@@ -211,6 +213,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.sub_level, 0.0..=OSC_LEVEL_MAX, "Level")
                         .default_value(0.0)
+                        .param_key("sub_level")
                         .format(|v| format!("{:.2}", v)),
                 )
                 .changed()
