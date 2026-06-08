@@ -6,13 +6,15 @@
 //! strip, footer, and the `eframe::App::update` loop.
 
 mod chrome;
+mod midi_learn;
 mod mod_display;
 mod preset;
 pub(crate) mod state;
 mod utils;
+mod wizard;
 
 pub(crate) use mod_display::ModDisplay;
-pub use state::{Tab, ToneSmithyApp};
+pub use state::{DeviceChange, Tab, ToneSmithyApp};
 pub(crate) use utils::secs_format;
 
 // Re-export constants used by section files so they can still import from `crate::app`.
@@ -83,8 +85,14 @@ impl eframe::App for ToneSmithyApp {
                 self.tab_bar(ui);
             });
 
+        // MIDI Learn: detect CC movement and bind it, then apply all mappings.
+        self.tick_midi_learn(ctx, &snapshot);
+
         // Compute per-frame modulation display offsets from snapshot.
         let mod_display = ModDisplay::from_snapshot(&snapshot);
+
+        // First-run wizard — modal overlay until dismissed.
+        self.first_run_wizard(ctx);
 
         // Central panel — active tab content, scrollable so tall sections
         // (e.g. expanded FM operator grid) are not clipped by the keyboard strip.
@@ -98,6 +106,7 @@ impl eframe::App for ToneSmithyApp {
                 Tab::Fx => self.fx_tab(ui),
                 Tab::Master => self.master_tab(ui, &snapshot, mod_display),
                 Tab::Presets => self.presets_tab(ui),
+                Tab::Settings => self.settings_tab(ui),
             });
         });
 

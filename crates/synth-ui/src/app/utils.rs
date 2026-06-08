@@ -1,3 +1,33 @@
+use synth_engine::ParamId;
+
+/// Maps a preset parameter key (as used in `snapshot_to_map`) to the
+/// `(ParamId, range_min, range_max)` tuple needed to convert a CC value
+/// (0..=1) to a ParameterChange. Only covers the most common MIDI-learnable
+/// destinations; unlisted keys are silently ignored.
+pub(crate) fn param_range_for_key(key: &str) -> Option<(ParamId, f32, f32)> {
+    Some(match key {
+        "filter_cutoff_hz" => (ParamId::FilterCutoffHz, 20.0, 20_000.0),
+        "filter_resonance" => (ParamId::FilterResonance, 0.0, 1.0),
+        "master_volume" => (ParamId::MasterVolume, 0.0, 1.0),
+        "pitch_offset_semis" => (ParamId::PitchOffsetSemis, -24.0, 24.0),
+        "amp_attack_secs" => (ParamId::AmpAttackSecs, 0.001, 10.0),
+        "amp_decay_secs" => (ParamId::AmpDecaySecs, 0.001, 10.0),
+        "amp_sustain_level" => (ParamId::AmpSustainLevel, 0.0, 1.0),
+        "amp_release_secs" => (ParamId::AmpReleaseSecs, 0.001, 10.0),
+        "osc_1_level" => (ParamId::Osc1Level, 0.0, 1.0),
+        "osc_2_level" => (ParamId::Osc2Level, 0.0, 1.0),
+        "osc_3_level" => (ParamId::Osc3Level, 0.0, 1.0),
+        "sub_level" => (ParamId::SubLevel, 0.0, 1.0),
+        "lfo1_rate_hz" => (ParamId::Lfo1RateHz, 0.01, 20.0),
+        "lfo2_rate_hz" => (ParamId::Lfo2RateHz, 0.01, 20.0),
+        "fx_chorus_mix" => (ParamId::FxChorusMix, 0.0, 1.0),
+        "fx_delay_mix" => (ParamId::FxDelayMix, 0.0, 1.0),
+        "fx_reverb_mix" => (ParamId::FxReverbMix, 0.0, 1.0),
+        "bpm" => (ParamId::Bpm, 20.0, 300.0),
+        _ => return None,
+    })
+}
+
 /// Formats seconds as `"N ms"` below 1 s or `"N.NN s"` at or above 1 s.
 pub(crate) fn secs_format(v: f32) -> String {
     if v < 1.0 {

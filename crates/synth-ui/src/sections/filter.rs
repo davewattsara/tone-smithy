@@ -45,6 +45,7 @@ impl ToneSmithyApp {
                     Knob::new(&mut self.filter_cutoff_hz, CUTOFF_MIN_HZ..=CUTOFF_MAX_HZ, "Cutoff")
                         .default_value(8_000.0)
                         .mod_offset(md.cutoff)
+                        .param_key("filter_cutoff_hz")
                         .format(|v| {
                             if v >= 1_000.0 {
                                 format!("{:.1} kHz", v / 1000.0)
@@ -65,6 +66,7 @@ impl ToneSmithyApp {
                     Knob::new(&mut self.filter_resonance, 0.0..=1.0, "Res")
                         .default_value(0.0)
                         .mod_offset(md.resonance)
+                        .param_key("filter_resonance")
                         .format(|v| format!("{:.2}", v)),
                 )
                 .changed()
