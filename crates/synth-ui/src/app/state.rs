@@ -1,12 +1,16 @@
 use std::sync::Arc;
 use std::sync::atomic::AtomicU32;
+use std::sync::mpsc::Receiver;
 
+use notify::RecommendedWatcher;
 use synth_engine::ParamSnapshot;
 use synth_engine::param_bus::{EngineEventSender, SnapshotSlot, load_snapshot};
 use synth_engine::{FilterMode, Waveform};
+use synth_presets::{PresetEntry, factory_entries, scan_dir, start_watcher, user_presets_dir};
 
 use crate::computer_keyboard::ComputerKeyboard;
 use crate::keyboard::VirtualKeyboard;
+use crate::sections::browser::LoadAction;
 
 // ── Constants used by section files ──────────────────────────────────────────
 
@@ -55,6 +59,7 @@ pub enum Tab {
     Arp,
     Fx,
     Master,
+    Presets,
 }
 
 impl Tab {
@@ -66,6 +71,7 @@ impl Tab {
         (Tab::Arp, "Arp"),
         (Tab::Fx, "FX"),
         (Tab::Master, "Master"),
+        (Tab::Presets, "Presets"),
     ];
 }
 
@@ -211,6 +217,20 @@ pub struct ToneSmithyApp {
     // ── Preset ───────────────────────────────────────────────────────────────
     pub(crate) patch_name: String,
     pub(crate) preset_error: Option<String>,
+
+    // ── Preset browser (M12) ─────────────────────────────────────────────────
+    /// All visible presets (factory + user), refreshed on file-system changes.
+    pub(crate) preset_entries: Vec<PresetEntry>,
+    /// Current search query (empty = no filter).
+    pub(crate) preset_search: String,
+    /// Active category filter (empty string = all categories).
+    pub(crate) preset_category_filter: String,
+    /// Receives a `()` whenever the user preset directory changes on disk.
+    pub(crate) file_watch_rx: Receiver<()>,
+    /// Keeps the file watcher alive for the app's lifetime.
+    _file_watcher: Option<RecommendedWatcher>,
+    /// Deferred actions from browser row rendering (load/delete/save-as).
+    pub(crate) load_actions: Vec<LoadAction>,
 }
 
 // ── Construction ──────────────────────────────────────────────────────────────
@@ -225,7 +245,7 @@ impl ToneSmithyApp {
         cpu_load: Arc<AtomicU32>,
     ) -> Self {
         let snap = load_snapshot(&snapshot_slot);
-        Self {
+        let mut app = Self {
             audio_status,
             events,
             snapshot_slot,
@@ -326,7 +346,36 @@ impl ToneSmithyApp {
             cpu_load,
             patch_name: "Untitled".into(),
             preset_error: None,
-        }
+            preset_entries: Vec::new(),
+            preset_search: String::new(),
+            preset_category_filter: String::new(),
+            file_watch_rx: {
+                // Throw-away receiver; the real one is set below.
+                std::sync::mpsc::channel::<()>().1
+            },
+            _file_watcher: None,
+            load_actions: Vec::new(),
+        };
+        app.init_browser();
+        app
+    }
+
+    /// Starts the file watcher and populates the initial preset list.
+    fn init_browser(&mut self) {
+        let user_dir = user_presets_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+        let (watcher, rx) = start_watcher(&user_dir);
+        self._file_watcher = watcher;
+        self.file_watch_rx = rx;
+        self.refresh_preset_list();
+    }
+
+    /// Rebuilds `preset_entries` from the embedded factory list + the user
+    /// presets directory. Called once at startup and whenever the watcher fires.
+    pub(crate) fn refresh_preset_list(&mut self) {
+        let user_dir = user_presets_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+        let mut entries = factory_entries();
+        entries.extend(scan_dir(&user_dir, false));
+        self.preset_entries = entries;
     }
 
     /// Copies all saveable fields from `snap` into the UI's local mirror state.

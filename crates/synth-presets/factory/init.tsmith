@@ -1,0 +1,12 @@
+(
+    version: 1,
+    metadata: (
+        name: "Init",
+        author: "Factory",
+        category: "Lead",
+        tags: ["init", "default"],
+        description: "Default initialised patch. Start here when programming from scratch.",
+    ),
+    parameters: {},
+    midi_learn: [],
+)

@@ -45,6 +45,9 @@ rfd = "0.15"
 # User data directories
 directories = "5"
 
+# File watching (preset browser auto-refresh)
+notify = "6"
+
 # Errors + logging
 thiserror = "1"
 anyhow = "1"

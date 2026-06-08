@@ -32,6 +32,12 @@ impl eframe::App for ToneSmithyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.set_visuals(theme::make_visuals());
         self.computer_keyboard.handle_input(ctx, &self.events);
+        // Drain file-watcher notifications; refresh preset list if any arrived.
+        if self.file_watch_rx.try_recv().is_ok() {
+            self.refresh_preset_list();
+            // Drain any queued-up duplicates from the same event burst.
+            while self.file_watch_rx.try_recv().is_ok() {}
+        }
         let snapshot = load_snapshot(&self.snapshot_slot);
 
         // Footer — must be added before the central panel
@@ -91,6 +97,7 @@ impl eframe::App for ToneSmithyApp {
                 Tab::Arp => self.arp_tab(ui),
                 Tab::Fx => self.fx_tab(ui),
                 Tab::Master => self.master_tab(ui, &snapshot, mod_display),
+                Tab::Presets => self.presets_tab(ui),
             });
         });
 
