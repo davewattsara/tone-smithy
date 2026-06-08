@@ -8,7 +8,10 @@ use crate::toggle::Toggle;
 
 impl ToneSmithyApp {
     pub(crate) fn eq_section(&mut self, ui: &mut egui::Ui) {
-        if ui.add(Toggle::new(&mut self.fx_eq_enabled, "EQ")).changed() {
+        if ui
+            .add(Toggle::new(&mut self.fx_eq_enabled, "EQ").param_key("fx_eq_enabled"))
+            .changed()
+        {
             self.events.send(EngineEvent::ParameterChange {
                 id: ParamId::FxEqEnabled,
                 value: if self.fx_eq_enabled { 1.0 } else { 0.0 },

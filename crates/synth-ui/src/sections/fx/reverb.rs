@@ -7,7 +7,10 @@ use crate::toggle::Toggle;
 
 impl ToneSmithyApp {
     pub(crate) fn reverb_section(&mut self, ui: &mut egui::Ui) {
-        if ui.add(Toggle::new(&mut self.fx_reverb_enabled, "Reverb")).changed() {
+        if ui
+            .add(Toggle::new(&mut self.fx_reverb_enabled, "Reverb").param_key("fx_reverb_enabled"))
+            .changed()
+        {
             self.events.send(EngineEvent::ParameterChange {
                 id: ParamId::FxReverbEnabled,
                 value: if self.fx_reverb_enabled { 1.0 } else { 0.0 },

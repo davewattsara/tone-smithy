@@ -7,7 +7,10 @@ use crate::toggle::Toggle;
 
 impl ToneSmithyApp {
     pub(crate) fn drive_section(&mut self, ui: &mut egui::Ui) {
-        if ui.add(Toggle::new(&mut self.fx_drive_enabled, "Drive")).changed() {
+        if ui
+            .add(Toggle::new(&mut self.fx_drive_enabled, "Drive").param_key("fx_drive_enabled"))
+            .changed()
+        {
             self.events.send(EngineEvent::ParameterChange {
                 id: ParamId::FxDriveEnabled,
                 value: if self.fx_drive_enabled { 1.0 } else { 0.0 },

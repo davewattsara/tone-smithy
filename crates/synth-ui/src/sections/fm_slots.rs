@@ -3,6 +3,7 @@ use synth_engine::{EngineEvent, ParamId};
 
 use crate::app::{FM_OP_ENV_MAX_SECS, FM_OP_ENV_MIN_SECS, FM_RATIO_FINE_MAX, ToneSmithyApp, secs_format};
 use crate::knob::Knob;
+use crate::midi_learn_ext::attach_learn_menu;
 use crate::theme;
 
 impl ToneSmithyApp {
@@ -135,6 +136,34 @@ impl ToneSmithyApp {
                                         ui.end_row();
 
                                         // Static key tables avoid lifetime issues with format!()
+                                        const FM_OP_RATIO_INT_K: [[&str; 4]; 2] = [
+                                            [
+                                                "fm_op_ratio_integer_0_0",
+                                                "fm_op_ratio_integer_0_1",
+                                                "fm_op_ratio_integer_0_2",
+                                                "fm_op_ratio_integer_0_3",
+                                            ],
+                                            [
+                                                "fm_op_ratio_integer_1_0",
+                                                "fm_op_ratio_integer_1_1",
+                                                "fm_op_ratio_integer_1_2",
+                                                "fm_op_ratio_integer_1_3",
+                                            ],
+                                        ];
+                                        const FM_OP_RATIO_FINE_K: [[&str; 4]; 2] = [
+                                            [
+                                                "fm_op_ratio_fine_0_0",
+                                                "fm_op_ratio_fine_0_1",
+                                                "fm_op_ratio_fine_0_2",
+                                                "fm_op_ratio_fine_0_3",
+                                            ],
+                                            [
+                                                "fm_op_ratio_fine_1_0",
+                                                "fm_op_ratio_fine_1_1",
+                                                "fm_op_ratio_fine_1_2",
+                                                "fm_op_ratio_fine_1_3",
+                                            ],
+                                        ];
                                         const FM_OP_LEVEL_K: [[&str; 4]; 2] = [
                                             [
                                                 "fm_op_level_0_0",
@@ -212,31 +241,42 @@ impl ToneSmithyApp {
                                             ui.label(format!("Op {}", op + 1));
 
                                             let mut ratio_int = self.fm_op_ratio_integer[slot_idx][op] as i32;
-                                            if ui
-                                                .add(egui::DragValue::new(&mut ratio_int).range(1..=15).speed(0.1))
-                                                .changed()
-                                            {
+                                            let mut resp_int =
+                                                ui.add(egui::DragValue::new(&mut ratio_int).range(1..=15).speed(0.1));
+                                            if resp_int.changed() {
                                                 self.fm_op_ratio_integer[slot_idx][op] = ratio_int as u8;
                                                 self.events.send(EngineEvent::ParameterChange {
                                                     id: ParamId::FmOpRatioInteger(packed),
                                                     value: ratio_int as f32,
                                                 });
                                             }
+                                            attach_learn_menu(
+                                                &mut resp_int,
+                                                ui,
+                                                FM_OP_RATIO_INT_K[slot_idx][op],
+                                                1.0,
+                                                15.0,
+                                            );
 
-                                            if ui
-                                                .add(
-                                                    egui::DragValue::new(&mut self.fm_op_ratio_fine[slot_idx][op])
-                                                        .range(-FM_RATIO_FINE_MAX..=FM_RATIO_FINE_MAX)
-                                                        .speed(0.5)
-                                                        .suffix(" ct"),
-                                                )
-                                                .changed()
-                                            {
+                                            let mut resp_fine = ui.add(
+                                                egui::DragValue::new(&mut self.fm_op_ratio_fine[slot_idx][op])
+                                                    .range(-FM_RATIO_FINE_MAX..=FM_RATIO_FINE_MAX)
+                                                    .speed(0.5)
+                                                    .suffix(" ct"),
+                                            );
+                                            if resp_fine.changed() {
                                                 self.events.send(EngineEvent::ParameterChange {
                                                     id: ParamId::FmOpRatioFine(packed),
                                                     value: self.fm_op_ratio_fine[slot_idx][op],
                                                 });
                                             }
+                                            attach_learn_menu(
+                                                &mut resp_fine,
+                                                ui,
+                                                FM_OP_RATIO_FINE_K[slot_idx][op],
+                                                -FM_RATIO_FINE_MAX,
+                                                FM_RATIO_FINE_MAX,
+                                            );
 
                                             if ui
                                                 .add(

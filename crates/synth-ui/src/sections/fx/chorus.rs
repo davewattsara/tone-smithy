@@ -7,7 +7,10 @@ use crate::toggle::Toggle;
 
 impl ToneSmithyApp {
     pub(crate) fn chorus_section(&mut self, ui: &mut egui::Ui) {
-        if ui.add(Toggle::new(&mut self.fx_chorus_enabled, "Chorus")).changed() {
+        if ui
+            .add(Toggle::new(&mut self.fx_chorus_enabled, "Chorus").param_key("fx_chorus_enabled"))
+            .changed()
+        {
             self.events.send(EngineEvent::ParameterChange {
                 id: ParamId::FxChorusEnabled,
                 value: if self.fx_chorus_enabled { 1.0 } else { 0.0 },

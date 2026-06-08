@@ -24,9 +24,23 @@ impl ToneSmithyApp {
                 ui.label(hdr("Via"));
                 ui.end_row();
 
+                const MOD_ENABLED_KEYS: [&str; 8] = [
+                    "mod_slot_enabled_0",
+                    "mod_slot_enabled_1",
+                    "mod_slot_enabled_2",
+                    "mod_slot_enabled_3",
+                    "mod_slot_enabled_4",
+                    "mod_slot_enabled_5",
+                    "mod_slot_enabled_6",
+                    "mod_slot_enabled_7",
+                ];
+                const MOD_SLOT_LABELS: [&str; 8] = ["1", "2", "3", "4", "5", "6", "7", "8"];
                 for i in 0..8usize {
                     if ui
-                        .add(Toggle::new(&mut self.mod_slot_enabled[i], &format!("{}", i + 1)))
+                        .add(
+                            Toggle::new(&mut self.mod_slot_enabled[i], MOD_SLOT_LABELS[i])
+                                .param_key(MOD_ENABLED_KEYS[i]),
+                        )
                         .changed()
                     {
                         self.events.send(EngineEvent::ParameterChange {

@@ -12,7 +12,10 @@ impl ToneSmithyApp {
         ui.add_space(theme::PANEL_PADDING);
         theme::section_label(ui, "ARPEGGIATOR");
 
-        if ui.add(Toggle::new(&mut self.arp_enabled, "Enabled")).changed() {
+        if ui
+            .add(Toggle::new(&mut self.arp_enabled, "Enabled").param_key("arp_enabled"))
+            .changed()
+        {
             self.events.send(EngineEvent::ParameterChange {
                 id: ParamId::ArpEnabled,
                 value: if self.arp_enabled { 1.0 } else { 0.0 },

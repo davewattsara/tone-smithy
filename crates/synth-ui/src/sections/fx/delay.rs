@@ -7,7 +7,10 @@ use crate::toggle::Toggle;
 
 impl ToneSmithyApp {
     pub(crate) fn delay_section(&mut self, ui: &mut egui::Ui) {
-        if ui.add(Toggle::new(&mut self.fx_delay_enabled, "Delay")).changed() {
+        if ui
+            .add(Toggle::new(&mut self.fx_delay_enabled, "Delay").param_key("fx_delay_enabled"))
+            .changed()
+        {
             self.events.send(EngineEvent::ParameterChange {
                 id: ParamId::FxDelayEnabled,
                 value: if self.fx_delay_enabled { 1.0 } else { 0.0 },
@@ -70,7 +73,10 @@ impl ToneSmithyApp {
                     value: self.fx_delay_lowcut_hz,
                 });
             }
-            if ui.add(Toggle::new(&mut self.fx_delay_ping_pong, "Ping-pong")).changed() {
+            if ui
+                .add(Toggle::new(&mut self.fx_delay_ping_pong, "Ping-pong").param_key("fx_delay_ping_pong"))
+                .changed()
+            {
                 self.events.send(EngineEvent::ParameterChange {
                     id: ParamId::FxDelayPingPong,
                     value: if self.fx_delay_ping_pong { 1.0 } else { 0.0 },
