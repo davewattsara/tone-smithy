@@ -18,6 +18,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_delay_time_secs, 0.001..=2.0, "Time")
                         .default_value(0.375)
+                        .param_key("fx_delay_time_secs")
                         .format(secs_format),
                 )
                 .changed()
@@ -31,6 +32,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_delay_feedback, 0.0..=0.95, "Fdbk")
                         .default_value(0.35)
+                        .param_key("fx_delay_feedback")
                         .format(|v| format!("{:.0}%", v * 100.0)),
                 )
                 .changed()

@@ -100,6 +100,8 @@ impl ToneSmithyApp {
         };
 
         let osc_level_key = ["osc_1_level", "osc_2_level", "osc_3_level"][idx];
+        let osc_detune_key = ["osc_1_detune_cents", "osc_2_detune_cents", "osc_3_detune_cents"][idx];
+        let osc_pan_key = ["osc_1_pan", "osc_2_pan", "osc_3_pan"][idx];
         ui.horizontal(|ui| {
             if ui
                 .add(
@@ -124,6 +126,7 @@ impl ToneSmithyApp {
                     )
                     .default_value(0.0)
                     .mod_offset(md.map_or(0.0, |m| m.osc1_detune))
+                    .param_key(osc_detune_key)
                     .format(|v| format!("{:+.1} ct", v)),
                 )
                 .changed()
@@ -138,6 +141,7 @@ impl ToneSmithyApp {
                     Knob::new(&mut self.osc_pan[idx], -1.0..=1.0, "Pan")
                         .default_value(0.0)
                         .mod_offset(md.map_or(0.0, |m| m.osc1_pan))
+                        .param_key(osc_pan_key)
                         .format(|v| {
                             if v < -0.01 {
                                 format!("L{:.0}", v.abs() * 100.0)

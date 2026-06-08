@@ -89,6 +89,7 @@ impl ToneSmithyApp {
                     .add(
                         Knob::new(&mut self.arp_bpm, 20.0..=300.0, "BPM")
                             .default_value(120.0)
+                            .param_key("arp_bpm")
                             .format(|v| format!("{:.0}", v)),
                     )
                     .changed()
@@ -102,6 +103,7 @@ impl ToneSmithyApp {
                     .add(
                         Knob::new(&mut self.arp_gate, 0.01..=1.0, "Gate")
                             .default_value(0.5)
+                            .param_key("arp_gate")
                             .format(|v| format!("{:.0}%", v * 100.0)),
                     )
                     .changed()
@@ -115,6 +117,7 @@ impl ToneSmithyApp {
                     .add(
                         Knob::new(&mut self.arp_swing, 0.5..=0.75, "Swing")
                             .default_value(0.5)
+                            .param_key("arp_swing")
                             .format(|v| format!("{:.0}%", (v - 0.5) / 0.25 * 100.0)),
                     )
                     .changed()

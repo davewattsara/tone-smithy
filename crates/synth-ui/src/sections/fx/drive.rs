@@ -18,6 +18,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_drive_drive, 1.0..=20.0, "Drive")
                         .default_value(1.0)
+                        .param_key("fx_drive_drive")
                         .format(|v| format!("{:.1}x", v)),
                 )
                 .changed()

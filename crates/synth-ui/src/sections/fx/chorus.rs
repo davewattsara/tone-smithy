@@ -18,6 +18,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_chorus_rate_hz, 0.1..=8.0, "Rate")
                         .default_value(0.5)
+                        .param_key("fx_chorus_rate_hz")
                         .format(|v| format!("{:.2} Hz", v)),
                 )
                 .changed()
@@ -31,6 +32,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_chorus_depth_ms, 0.0..=15.0, "Depth")
                         .default_value(3.0)
+                        .param_key("fx_chorus_depth_ms")
                         .format(|v| format!("{:.1} ms", v)),
                 )
                 .changed()

@@ -31,6 +31,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_reverb_decay_secs, 0.1..=30.0, "Decay")
                         .default_value(2.0)
+                        .param_key("fx_reverb_decay_secs")
                         .format(secs_format),
                 )
                 .changed()
@@ -44,6 +45,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_reverb_size, 0.1..=1.0, "Size")
                         .default_value(0.7)
+                        .param_key("fx_reverb_size")
                         .format(|v| format!("{:.2}", v)),
                 )
                 .changed()
@@ -57,6 +59,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_reverb_damping, 0.0..=1.0, "Damp")
                         .default_value(0.5)
+                        .param_key("fx_reverb_damping")
                         .format(|v| format!("{:.0}%", v * 100.0)),
                 )
                 .changed()
