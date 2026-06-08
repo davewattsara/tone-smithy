@@ -69,10 +69,21 @@ impl ToneSmithyApp {
                         });
 
                     let range = MOD_AMOUNT_RANGES.get(self.mod_slot_dest[i]).copied().unwrap_or(1.0);
+                    let mod_amount_key: &'static str = [
+                        "mod_slot_amount_0",
+                        "mod_slot_amount_1",
+                        "mod_slot_amount_2",
+                        "mod_slot_amount_3",
+                        "mod_slot_amount_4",
+                        "mod_slot_amount_5",
+                        "mod_slot_amount_6",
+                        "mod_slot_amount_7",
+                    ][i];
                     if ui
                         .add(
                             Knob::new(&mut self.mod_slot_amount[i], -range..=range, "")
                                 .default_value(0.0)
+                                .param_key(mod_amount_key)
                                 .format(move |v| {
                                     if range >= 100.0 {
                                         format!("{:+.0}", v)

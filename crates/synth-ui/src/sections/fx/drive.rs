@@ -32,6 +32,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_drive_asymmetry, -1.0..=1.0, "Asym")
                         .default_value(0.0)
+                        .param_key("fx_drive_asymmetry")
                         .format(|v| format!("{:+.2}", v)),
                 )
                 .changed()

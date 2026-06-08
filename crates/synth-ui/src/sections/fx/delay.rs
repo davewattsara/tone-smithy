@@ -60,6 +60,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_delay_lowcut_hz, 20.0..=2_000.0, "LoCut")
                         .default_value(200.0)
+                        .param_key("fx_delay_lowcut_hz")
                         .format(|v| format!("{:.0} Hz", v)),
                 )
                 .changed()

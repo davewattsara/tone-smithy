@@ -163,6 +163,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.env2_attack_curve, -ENV2_CURVE_RANGE..=ENV2_CURVE_RANGE, "A")
                         .default_value(0.0)
+                        .param_key("env2_attack_curve")
                         .format(|v| format!("{:+.2}", v)),
                 )
                 .changed()
@@ -176,6 +177,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.env2_decay_curve, -ENV2_CURVE_RANGE..=ENV2_CURVE_RANGE, "D")
                         .default_value(0.0)
+                        .param_key("env2_decay_curve")
                         .format(|v| format!("{:+.2}", v)),
                 )
                 .changed()
@@ -189,6 +191,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.env2_release_curve, -ENV2_CURVE_RANGE..=ENV2_CURVE_RANGE, "R")
                         .default_value(0.0)
+                        .param_key("env2_release_curve")
                         .format(|v| format!("{:+.2}", v)),
                 )
                 .changed()

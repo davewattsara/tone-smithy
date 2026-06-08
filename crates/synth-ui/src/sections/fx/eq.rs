@@ -20,6 +20,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_eq_low_gain_db, -15.0..=15.0, "Gain")
                         .default_value(0.0)
+                        .param_key("fx_eq_low_gain_db")
                         .format(|v| format!("{:+.1} dB", v)),
                 )
                 .changed()
@@ -33,6 +34,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_eq_low_freq_hz, 20.0..=2_000.0, "Freq")
                         .default_value(200.0)
+                        .param_key("fx_eq_low_freq_hz")
                         .format(|v| format!("{:.0} Hz", v)),
                 )
                 .changed()
@@ -47,6 +49,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_eq_mid_gain_db, -15.0..=15.0, "Gain")
                         .default_value(0.0)
+                        .param_key("fx_eq_mid_gain_db")
                         .format(|v| format!("{:+.1} dB", v)),
                 )
                 .changed()
@@ -60,6 +63,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_eq_mid_freq_hz, 200.0..=8_000.0, "Freq")
                         .default_value(1_000.0)
+                        .param_key("fx_eq_mid_freq_hz")
                         .format(|v| format!("{:.0} Hz", v)),
                 )
                 .changed()
@@ -73,6 +77,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_eq_mid_q, 0.1..=10.0, "Q")
                         .default_value(0.7)
+                        .param_key("fx_eq_mid_q")
                         .format(|v| format!("{:.2}", v)),
                 )
                 .changed()
@@ -87,6 +92,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_eq_high_gain_db, -15.0..=15.0, "Gain")
                         .default_value(0.0)
+                        .param_key("fx_eq_high_gain_db")
                         .format(|v| format!("{:+.1} dB", v)),
                 )
                 .changed()
@@ -100,6 +106,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_eq_high_freq_hz, 2_000.0..=20_000.0, "Freq")
                         .default_value(6_000.0)
+                        .param_key("fx_eq_high_freq_hz")
                         .format(|v| format!("{:.0} Hz", v)),
                 )
                 .changed()

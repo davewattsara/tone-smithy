@@ -182,11 +182,14 @@ impl egui::Widget for Knob<'_> {
         }
         if learn_clicked {
             if let Some(key) = self.param_key {
-                // Deposit the param key into egui memory; tick_midi_learn reads
-                // it next frame and enters learn mode.
+                // Deposit key + range into egui memory. tick_midi_learn reads
+                // all three items and enters learn mode with the full context.
+                let start = *self.range.start();
+                let end = *self.range.end();
                 ui.memory_mut(|m| {
-                    m.data
-                        .insert_temp(egui::Id::new("ts_midi_learn_pending"), key.to_string());
+                    m.data.insert_temp(egui::Id::new("ts_ml_key"), key.to_string());
+                    m.data.insert_temp(egui::Id::new("ts_ml_start"), start);
+                    m.data.insert_temp(egui::Id::new("ts_ml_end"), end);
                 });
             }
         }

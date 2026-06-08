@@ -18,6 +18,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_reverb_predelay_ms, 0.0..=50.0, "Pre")
                         .default_value(10.0)
+                        .param_key("fx_reverb_predelay_ms")
                         .format(|v| format!("{:.0} ms", v)),
                 )
                 .changed()

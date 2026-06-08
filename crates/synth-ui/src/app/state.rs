@@ -257,9 +257,10 @@ pub struct ToneSmithyApp {
     pub(crate) midi_ports: Vec<String>,
     /// Pending device change to be consumed by `AppShell` after `update()`.
     pending_device_change: Option<DeviceChange>,
-    /// The parameter key currently waiting for a CC to be learned. Set when
-    /// the user clicks "MIDI Learn" in a knob context menu.
-    pub(crate) midi_learn_target: Option<String>,
+    /// Parameter key + range currently waiting for a CC to be bound.
+    /// Set when the user clicks "MIDI Learn" in a knob context menu.
+    /// Tuple: `(param_key, range_start, range_end)`.
+    pub(crate) midi_learn_target: Option<(String, f32, f32)>,
     /// CC values from the previous frame — used to detect incoming CC movement
     /// during MIDI Learn mode.
     pub(crate) prev_cc_values: [f32; 128],

@@ -60,6 +60,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_chorus_spread, 0.0..=1.0, "Spread")
                         .default_value(0.5)
+                        .param_key("fx_chorus_spread")
                         .format(|v| format!("{:.0}%", v * 100.0)),
                 )
                 .changed()
