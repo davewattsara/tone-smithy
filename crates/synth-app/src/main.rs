@@ -156,10 +156,20 @@ fn main() -> Result<()> {
     let cpu_load = audio.cpu_load.clone();
     // Throw-away rx; the shell owns the live one.
     let (_, dummy_rx, _) = param_bus::new_param_bus();
+    let mut ui = ToneSmithyApp::new(status, events_tx, snapshot_slot, cpu_load, settings.clone());
+
+    // `.tsmith` file association / command line: the first positional argument,
+    // if any, is a preset path to open on startup. The audio stream is already
+    // live, so the resulting events are consumed as soon as they are queued.
+    if let Some(path) = preset_path_arg() {
+        tracing::info!("opening preset from argument: {}", path.display());
+        ui.open_preset_file(&path);
+    }
+
     let shell = AppShell {
         audio,
         midi,
-        ui: ToneSmithyApp::new(status, events_tx, snapshot_slot, cpu_load, settings.clone()),
+        ui,
         events_rx: dummy_rx,
         settings,
     };
@@ -168,6 +178,15 @@ fn main() -> Result<()> {
         .map_err(|e| anyhow::anyhow!("eframe error: {e}"))?;
 
     Ok(())
+}
+
+/// The preset path to open on startup, taken from the first command-line
+/// argument. Returns `None` when no argument is given. The path is not required
+/// to end in `.tsmith` — Windows passes the associated file's full path, and a
+/// non-existent path is reported by the loader as a preset error rather than
+/// failing the launch.
+fn preset_path_arg() -> Option<std::path::PathBuf> {
+    std::env::args_os().nth(1).map(std::path::PathBuf::from)
 }
 
 fn init_logging() {

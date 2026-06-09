@@ -19,6 +19,7 @@ desktop.ini
 # Build artefacts / packaging
 /dist/
 /installer/Output/
+/installer/*.exe
 
 # Logs
 *.log

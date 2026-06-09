@@ -2,7 +2,7 @@
 
 A hybrid (subtractive + FM) standalone software synthesizer for Windows, written in Rust.
 
-> **Status:** in development. M14 (factory bank) complete — tag `m14` on `main`; next up M15 (installer and release). v1.0 target ~12–15 months at 10–20 hrs/week.
+> **Status:** v1.0.0 — all milestones (M0–M15) complete. The Windows installer is built via `cargo xtask dist`; v1.0 ships unsigned (see the SmartScreen note below).
 > See [`docs/planning/06-implementation/milestones.md`](docs/planning/06-implementation/milestones.md) for the milestone plan.
 
 Tone Smithy combines analog-style subtractive synthesis with 4-operator FM in a single voice — so a patch can layer warm analog character with clean FM bell tones without switching plugins. Free download, open source, no DAW required.
@@ -21,7 +21,27 @@ Tone Smithy combines analog-style subtractive synthesis with 4-operator FM in a 
 
 A second filter, 24 dB/oct option, second mod envelope, 16-slot matrix, step sequencer, and factory bank expansion to ~120 presets are deferred to v1.1 to keep the v1.0 timeline tractable. See [`docs/planning/02-scope/roadmap.md`](docs/planning/02-scope/roadmap.md).
 
-## Quick start
+## Download & install (Windows)
+
+> Released builds attach to [GitHub Releases](../../releases) once v1.0 is cut.
+
+1. Download `tonesmithy-<version>-windows-x64.exe` from the latest release.
+2. (Optional) verify it against `SHA256SUMS` published alongside it.
+3. Run the installer. It installs per-user — no administrator prompt — adds a
+   Start Menu shortcut, and optionally associates `.tsmith` preset files.
+4. Launch **Tone Smithy** and follow the first-run wizard to pick an audio
+   output and MIDI input. No MIDI device? Play from your computer keyboard.
+
+**SmartScreen note:** v1.0 may ship unsigned, so Windows SmartScreen can show
+"Windows protected your PC". Click **More info → Run anyway** to continue. Once a
+code-signing certificate is in place this warning goes away.
+
+Step-by-step help: [`docs/getting-started.md`](docs/getting-started.md).
+
+Uninstall from **Settings → Apps**. Your settings and user presets in
+`%APPDATA%\Tone Smithy\` are left in place unless you remove them yourself.
+
+## Build from source
 
 Prerequisites: a stable Rust toolchain via [rustup](https://rustup.rs/) and a C linker. On Linux, also `libasound2-dev`, `libudev-dev`, `libxkbcommon-dev`, `libwayland-dev` for cpal and eframe. The pinned toolchain comes from `rust-toolchain.toml`.
 
@@ -42,6 +62,14 @@ Enable the pre-commit hook (formats + clippy on every commit):
 
 ```bash
 git config core.hooksPath .githooks
+```
+
+Package a release build (assembles `target/dist/<version>/`; on Windows with
+[Inno Setup](https://jrsoftware.org/isinfo.php) on `PATH` it also compiles the
+installer):
+
+```bash
+cargo xtask dist
 ```
 
 ## Project layout
