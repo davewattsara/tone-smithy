@@ -1,0 +1,18 @@
+Tone Smithy — Third-Party Licenses
+==================================
+
+Tone Smithy bundles the following third-party Rust crates. Each license text
+appears once, followed by the crates distributed under it.
+
+{{#each licenses}}
+--------------------------------------------------------------------------------
+{{name}} ({{id}})
+
+Used by:
+{{#each used_by}}
+  - {{crate.name}} {{crate.version}}
+{{/each}}
+
+{{text}}
+
+{{/each}}
