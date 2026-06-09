@@ -155,6 +155,18 @@ impl VoiceManager {
         }
     }
 
+    /// Full panic: release every voice and reset the gating state so no
+    /// note can stay latched. Beyond [`all_notes_off`](Self::all_notes_off)
+    /// this also clears every sustain-deferred release and lifts the
+    /// sustain latch, so a stuck note caused by a lost note-off or a
+    /// missed pedal-up is guaranteed to stop. The sustain latch resyncs
+    /// on the pedal's next transition.
+    pub fn panic(&mut self) {
+        self.all_notes_off();
+        self.deferred_note_offs = [false; 128];
+        self.sustain_held = false;
+    }
+
     /// Updates the sustain-pedal state. When `held` transitions to
     /// `false` all deferred note-offs are fired in MIDI-note order.
     pub fn set_sustain(&mut self, held: bool) {

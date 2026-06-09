@@ -228,6 +228,16 @@ impl ArpEngine {
         }
     }
 
+    /// Clear all held notes and close the gate. Used by the engine's
+    /// panic / all-notes-off path so the arp stops scheduling notes
+    /// immediately rather than continuing to clock a stale held set.
+    pub fn clear(&mut self) {
+        self.held_count = 0;
+        self.gate_open = false;
+        self.step_index = usize::MAX;
+        self.phase = 0.0;
+    }
+
     /// Reset the arp clock so the next `process()` call fires the first step
     /// immediately with a canonical fresh-start position.
     ///

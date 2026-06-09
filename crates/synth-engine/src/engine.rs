@@ -127,6 +127,13 @@ impl Engine {
                     self.voices.note_off(note_midi);
                 }
             }
+            EngineEvent::AllNotesOff => {
+                // Stop everything, whatever state it's in: sounding
+                // voices, sustain-deferred releases, and any notes the
+                // arp is still holding. This is the stuck-note recovery.
+                self.voices.panic();
+                self.arp.clear();
+            }
             EngineEvent::SetOscillatorWaveform { waveform } => {
                 self.params.set_waveform(waveform);
                 self.voices.set_main_waveform(waveform);
@@ -468,6 +475,34 @@ mod tests {
         engine.process_stereo(&mut buffer, 1024);
         let peak = buffer.iter().fold(0.0f32, |acc, s| acc.max(s.abs()));
         assert!(peak > 0.1, "expected audible output after NoteOn, peak was {peak}");
+    }
+
+    #[test]
+    fn all_notes_off_silences_a_held_note() {
+        let mut engine = Engine::new(48_000.0);
+        // Hold a note (never sending NoteOff) to mimic a stuck note.
+        engine.handle(EngineEvent::NoteOn {
+            note_midi: 60,
+            velocity: 100,
+        });
+        let mut buffer = [0.0f32; 1024 * 2];
+        engine.process_stereo(&mut buffer, 1024);
+        let held_peak = buffer.iter().fold(0.0f32, |acc, s| acc.max(s.abs()));
+        assert!(held_peak > 0.1, "note should be sounding, peak {held_peak}");
+
+        // Panic, then let the default (~0.2 s) release drain to silence.
+        engine.handle(EngineEvent::AllNotesOff);
+        let mut tail_peak = 0.0f32;
+        for _ in 0..100 {
+            buffer.fill(0.0);
+            engine.process_stereo(&mut buffer, 1024);
+            tail_peak = buffer.iter().fold(0.0f32, |acc, s| acc.max(s.abs()));
+        }
+        assert!(
+            tail_peak < 1.0e-3,
+            "note should be silent after AllNotesOff, tail peak {tail_peak}"
+        );
+        assert_eq!(engine.snapshot().active_voice_count, 0, "no voice should remain active");
     }
 
     #[test]

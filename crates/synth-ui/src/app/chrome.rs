@@ -33,6 +33,14 @@ impl ToneSmithyApp {
                 self.load_preset();
             }
             ui.separator();
+            if ui
+                .button("Panic")
+                .on_hover_text("Stop all sounding notes (also responds to MIDI All Notes Off)")
+                .clicked()
+            {
+                self.events.send(EngineEvent::AllNotesOff);
+            }
+            ui.separator();
             ui.label(
                 egui::RichText::new(&self.audio_status)
                     .color(theme::FG2)

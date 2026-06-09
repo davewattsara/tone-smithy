@@ -1,3 +1,4 @@
+use synth_engine::EngineEvent;
 use synth_engine::param_bus::load_snapshot;
 use synth_presets::{Preset, map_to_events, map_to_snapshot, snapshot_to_map};
 
@@ -39,6 +40,9 @@ impl ToneSmithyApp {
         {
             match synth_presets::load(&path) {
                 Ok(preset) => {
+                    // Silence any held note first so it doesn't hang with
+                    // the new patch's (possibly long) envelope settings.
+                    self.events.send(EngineEvent::AllNotesOff);
                     for event in map_to_events(&preset.parameters) {
                         self.events.send(event);
                     }

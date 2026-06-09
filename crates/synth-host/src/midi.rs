@@ -195,6 +195,12 @@ fn parse_midi_message(message: &[u8]) -> Option<EngineEvent> {
             if cc == 64 {
                 // Sustain pedal: threshold at 64, matching GM spec.
                 Some(EngineEvent::Sustain { held: raw >= 64 })
+            } else if cc == 120 || cc == 123 {
+                // Channel-mode messages: 120 = All Sound Off,
+                // 123 = All Notes Off. Both map to our panic so a
+                // controller's panic button (or a DAW's) stops stuck
+                // notes.
+                Some(EngineEvent::AllNotesOff)
             } else {
                 Some(EngineEvent::ControlChange {
                     cc,
@@ -323,6 +329,19 @@ mod tests {
         assert!(matches!(event, Some(EngineEvent::Sustain { held: false })));
         let event = parse_midi_message(&[0xB0, 64, 64]);
         assert!(matches!(event, Some(EngineEvent::Sustain { held: true })));
+    }
+
+    #[test]
+    fn all_sound_off_and_all_notes_off_ccs_map_to_panic() {
+        // CC 120 (All Sound Off) and CC 123 (All Notes Off) both panic.
+        assert!(matches!(
+            parse_midi_message(&[0xB0, 120, 0]),
+            Some(EngineEvent::AllNotesOff)
+        ));
+        assert!(matches!(
+            parse_midi_message(&[0xB0, 123, 0]),
+            Some(EngineEvent::AllNotesOff)
+        ));
     }
 
     #[test]
