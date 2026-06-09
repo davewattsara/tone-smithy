@@ -57,6 +57,36 @@ These touch [`../01-vision/open-questions.md`](../01-vision/open-questions.md):
 
 ---
 
+## Progress
+
+All Linux-doable phases are implemented on `milestone/m15-installer-release`:
+
+- [x] **Phase 1 — `xtask dist`.** Builds the release binary and stages
+  `target/dist/<version>/` (exe, both licences, CHANGELOG, README.txt,
+  THIRD-PARTY-LICENSES.txt, SHA256SUMS). Installer + signing steps skip with a
+  message off-Windows. Verified end-to-end in the sandbox.
+- [x] **Phase 2 — `installer/installer.iss`.** Per-user install, Start Menu +
+  optional desktop shortcut, opt-in `.tsmith` association, user-data-preserving
+  uninstall. Icon guarded with `FileExists`. *Not yet compiled (needs `iscc`).*
+- [x] **Phase 3 — `.tsmith` argv handling.** `main()` opens a preset path passed
+  on the command line via `ToneSmithyApp::open_preset_file`.
+- [x] **Phase 4 — third-party licences.** `about.toml` + `about.hbs`; wired into
+  `xtask dist` (graceful warn when `cargo about` is absent).
+- [x] **Phase 5 — docs + version.** Workspace bumped to `1.0.0`; CHANGELOG v1.0.0
+  entry; `docs/getting-started.md`; README download/install + build sections.
+- [x] **Phase 6 — release CI.** `.github/workflows/release.yml` builds the
+  installer and publishes the GitHub Release on a `v*` tag; signing gated on a
+  secret.
+
+### Remaining — needs the user's Windows host
+
+- Compile the installer (`cargo xtask dist` with Inno Setup installed) and smoke
+  test it.
+- Manual clean-VM install / launch / uninstall tests (Win 10 + 11).
+- Provide `assets/icons/tonesmithy.ico` (optional; builds are green without it).
+- Decide signing (cert vs. ship unsigned with the SmartScreen note).
+- After sign-off: merge to `main`, tag `v1.0.0`, push to trigger the release.
+
 ## Work breakdown
 
 ### Phase 1 — `xtask dist`
