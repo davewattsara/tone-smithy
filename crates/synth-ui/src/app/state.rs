@@ -446,6 +446,19 @@ impl ToneSmithyApp {
         self.audio_status = status;
     }
 
+    /// Reflects a successfully-applied audio device change into the UI's
+    /// settings copy. Without this the Settings dropdown keeps showing the
+    /// startup device, so a new selection appears to "do nothing".
+    pub fn set_audio_device(&mut self, device: Option<String>) {
+        self.settings.audio_output_device = device;
+    }
+
+    /// Reflects a successfully-applied MIDI port change into the UI's
+    /// settings copy, keeping the Settings dropdown in sync.
+    pub fn set_midi_port(&mut self, port: Option<String>) {
+        self.settings.midi_input_port = port;
+    }
+
     /// Sets a preset error message (shown in the error bar).
     pub fn set_preset_error(&mut self, msg: String) {
         self.preset_error = Some(msg);

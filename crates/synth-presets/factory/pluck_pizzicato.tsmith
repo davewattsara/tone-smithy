@@ -1,0 +1,26 @@
+(
+    version: 1,
+    metadata: (
+        name: "Pizzicato",
+        author: "Factory",
+        category: "Pluck",
+        tags: ["pluck", "pizzicato", "short", "pop"],
+        description: "Short pizzicato pop: a triangle with a sub thump and a near-instant decay.",
+    ),
+    parameters: {
+        "waveform": 3.0,
+        "filter_mode": 0.0,
+        "filter_cutoff_hz": 2500.0,
+        "filter_resonance": 0.15,
+        "amp_attack_secs": 0.001,
+        "amp_decay_secs": 0.12,
+        "amp_sustain_level": 0.0,
+        "amp_release_secs": 0.05,
+        "osc1_level": 1.0,
+        "osc2_level": 0.0,
+        "osc3_level": 0.0,
+        "sub_level": 0.3,
+        "master_volume": 0.85,
+    },
+    midi_learn: [],
+)

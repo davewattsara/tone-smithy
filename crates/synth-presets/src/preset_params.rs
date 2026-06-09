@@ -704,4 +704,34 @@ mod tests {
         assert_eq!(orig.arp_gate, got.arp_gate);
         assert_eq!(orig.arp_swing, got.arp_swing);
     }
+
+    /// A sparse preset (only a few keys set) must expand to the *full*
+    /// parameter set before being applied, so omitted parameters reset to
+    /// their defaults rather than retaining the previously loaded preset's
+    /// values. Regression test for the "second preset only loads partially"
+    /// bug: loaders go through `snapshot_to_map(map_to_snapshot(..))` so a
+    /// sparse map yields an event for every parameter.
+    #[test]
+    fn sparse_map_expands_to_full_parameter_set() {
+        let mut sparse = BTreeMap::new();
+        sparse.insert("filter_cutoff_hz".to_string(), 300.0);
+
+        let expanded = snapshot_to_map(&map_to_snapshot(&sparse));
+        let default_full = snapshot_to_map(&ParamSnapshot::default());
+
+        // The expanded map covers exactly the complete parameter set.
+        assert_eq!(
+            expanded.keys().collect::<Vec<_>>(),
+            default_full.keys().collect::<Vec<_>>(),
+            "expanded sparse map must contain every parameter key"
+        );
+        // The one key the preset set survives…
+        assert!((expanded["filter_cutoff_hz"] - 300.0).abs() < 1e-6);
+        // …and an omitted key takes its default rather than a stale value.
+        assert_eq!(expanded["fx_reverb_enabled"], default_full["fx_reverb_enabled"]);
+
+        // Applying the expanded map emits far more events than the sparse
+        // map would, i.e. every parameter is explicitly (re)set on load.
+        assert!(map_to_events(&expanded).len() > map_to_events(&sparse).len());
+    }
 }

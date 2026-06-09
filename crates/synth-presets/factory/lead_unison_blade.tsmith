@@ -1,0 +1,28 @@
+(
+    version: 1,
+    metadata: (
+        name: "Unison Blade",
+        author: "Factory",
+        category: "Lead",
+        tags: ["lead", "unison", "raw", "edge"],
+        description: "Razor unison lead with no effects: seven detuned saw voices straight into the filter.",
+    ),
+    parameters: {
+        "waveform": 1.0,
+        "filter_mode": 0.0,
+        "filter_cutoff_hz": 9000.0,
+        "filter_resonance": 0.35,
+        "amp_attack_secs": 0.005,
+        "amp_decay_secs": 0.15,
+        "amp_sustain_level": 0.9,
+        "amp_release_secs": 0.2,
+        "osc1_level": 1.0,
+        "osc1_unison_voices": 7.0,
+        "osc1_unison_detune_cents": 15.0,
+        "osc1_unison_spread": 0.5,
+        "osc2_level": 0.0,
+        "osc3_level": 0.0,
+        "master_volume": 0.6,
+    },
+    midi_learn: [],
+)

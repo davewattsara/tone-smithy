@@ -34,6 +34,7 @@ use crate::mod_matrix::DestOffsets;
 use crate::oscillator::Waveform;
 use crate::params::SampleParams;
 use crate::slot::{Slot, SlotMode};
+use crate::smoothing::SmoothedParam;
 
 /// LFO1 and LFO2 use different seeds so their S&H and SmoothRandom
 /// sequences are independent from the very first note.
@@ -84,6 +85,13 @@ pub struct Voice {
     /// Modulation offsets computed by the mod matrix once per block.
     /// Applied inside [`Voice::next_sample`]; cleared to zero at init.
     pub mod_offsets: DestOffsets,
+
+    /// Per-sample smoother for the mod-matrix *volume* offset. The matrix
+    /// recomputes [`mod_offsets`](Self::mod_offsets) only once per block,
+    /// so a volume routing (e.g. an LFO→Volume tremolo) would step the
+    /// gain at block boundaries and crackle. Smoothing the volume offset
+    /// turns those steps into per-sample ramps.
+    volume_mod: SmoothedParam,
 }
 
 impl Voice {
@@ -108,6 +116,7 @@ impl Voice {
             lfo2_out: 0.0,
             env2_out: 0.0,
             mod_offsets: DestOffsets::default(),
+            volume_mod: SmoothedParam::new(0.0, sample_rate_hz),
         }
     }
 
@@ -450,8 +459,12 @@ impl Voice {
     /// so a single-slot patch costs the same as the pre-M7 voice plus
     /// one comparison per sample.
     pub fn next_sample(&mut self, params: &SampleParams) -> (f32, f32) {
-        let env =
-            (self.amp_envelope.next_sample() * self.velocity_scale * (1.0 + self.mod_offsets.volume)).clamp(0.0, 1.0);
+        // Smooth the once-per-block volume offset to a per-sample ramp so
+        // amplitude modulation (e.g. an LFO→Volume tremolo) doesn't step
+        // the gain at block boundaries and crackle.
+        self.volume_mod.set_target(self.mod_offsets.volume);
+        let volume_mod = self.volume_mod.next_sample();
+        let env = (self.amp_envelope.next_sample() * self.velocity_scale * (1.0 + volume_mod)).clamp(0.0, 1.0);
 
         let held = self.held_note_midi;
         let mut sum_l = 0.0_f32;

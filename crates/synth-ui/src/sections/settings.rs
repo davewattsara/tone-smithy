@@ -98,6 +98,15 @@ impl ToneSmithyApp {
                 );
             }
 
+            cols[0].add_space(4.0);
+            cols[0].label(
+                egui::RichText::new(
+                    "No notes from a connected controller? Reconnect its USB cable, then click Refresh.",
+                )
+                .color(theme::FG2)
+                .font(theme::font_small()),
+            );
+
             cols[0].add_space(theme::GROUP_GAP);
             if cols[0].button("Refresh device lists").clicked() {
                 self.refresh_device_lists();

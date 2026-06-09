@@ -1,0 +1,26 @@
+(
+    version: 1,
+    metadata: (
+        name: "Nylon",
+        author: "Factory",
+        category: "Pluck",
+        tags: ["pluck", "nylon", "guitar", "warm"],
+        description: "Warm nylon guitar: a triangle over a sine sub with a soft low-pass and medium decay.",
+    ),
+    parameters: {
+        "waveform": 3.0,
+        "filter_mode": 0.0,
+        "filter_cutoff_hz": 3500.0,
+        "filter_resonance": 0.1,
+        "amp_attack_secs": 0.003,
+        "amp_decay_secs": 0.5,
+        "amp_sustain_level": 0.1,
+        "amp_release_secs": 0.3,
+        "osc1_level": 1.0,
+        "osc2_level": 0.0,
+        "osc3_level": 0.0,
+        "sub_level": 0.4,
+        "master_volume": 0.85,
+    },
+    midi_learn: [],
+)

@@ -40,6 +40,13 @@ pub enum EngineEvent {
         note_midi: u8,
     },
 
+    /// Panic / all-notes-off. Releases every sounding voice, clears any
+    /// sustain-deferred releases, lifts the sustain latch, and empties
+    /// the arpeggiator's held-note set. The recovery path for a stuck
+    /// note — emitted by the UI panic control and by MIDI CC 120 (All
+    /// Sound Off) and CC 123 (All Notes Off).
+    AllNotesOff,
+
     /// Change the oscillator waveform. Discrete; takes effect on the
     /// next block (the engine drains events before processing).
     SetOscillatorWaveform {
