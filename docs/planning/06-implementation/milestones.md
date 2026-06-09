@@ -247,6 +247,91 @@ Take the functional UI from M4 and the surfaces added through M6/M9/M10 and turn
 
 ---
 
+---
+
+## M16 — Quick wins (1–3 days) — v1.1
+
+Three self-contained UX improvements that can be implemented back-to-back before the heavier engine
+work begins.
+
+> Implementation plan: [`m16-plan.md`](m16-plan.md)
+
+- **K=C keyboard note** — add K as the 13th computer-keyboard note (C, one octave above J=B).
+- **Alphabetical preset ordering** — sort presets A-Z within each category in the preset browser.
+- **Conditional OSC/Sub panel** — hide OSC 1/2/3 + Sub controls in slot foldouts when the slot
+  is in FM mode; show them only when the slot is in Sub mode (mirrors the existing FM panel
+  behaviour).
+
+**Done when:** K plays C one octave above J; the browser lists presets in A-Z order per category;
+switching a slot to FM mode collapses the OSC panel and shows only FM operators.
+
+---
+
+## M17 — Engine expansion (4–6 weeks) — v1.1
+
+Restores the three engine features deferred from v1.0.
+
+- **Second filter** per voice — same TPT SVF as the first filter; serial (`F1 → F2`) and parallel
+  (`F1 ∥ F2 summed`) routing, selected per patch; full mod-matrix addressability.
+- **24 dB/oct filter** option — 4-pole ZDF ladder or cascaded SVF, added as a third slope option
+  alongside the existing 12 dB/oct. Chosen after listening tests on representative patches.
+- **Env3** — second mod envelope (ADSR with curve shaping, same implementation as Env2) added as
+  a mod-matrix source and shown in its own envelope tab.
+- **Mod matrix expanded to 16 slots** — parameter model update (array size), UI table reflow,
+  Env3 wired in as a source.
+
+**Done when:** A patch can route Env3 through two filters in series at 24 dB/oct with all 16 mod
+slots in use; all paths audio-tested and round-trip serialised in the preset format.
+
+---
+
+## M18 — Step sequencer (2–3 weeks) — v1.1
+
+Adds a 16-step melodic/modulation sequencer alongside the arpeggiator.
+
+- 16 steps; per-step note offset (±24 semitones), velocity (0–127), gate (0–100%), rest toggle.
+- One assignable modulation lane (any mod-matrix destination, per-step CV value).
+- Sync to arp BPM / MIDI clock; playback modes: forward, reverse, ping-pong, random.
+- UI: step-grid widget; integrate into the existing Arp tab or add a dedicated Seq tab.
+
+**Done when:** A 16-step melodic line plays with independent velocity and gate per step; the mod
+lane drives a destination audibly; sequences survive preset save/load round-trips.
+
+---
+
+## M19 — Cross-platform installers (2–3 weeks) — v1.1
+
+Extends `cargo xtask dist` and the release CI to produce Linux and macOS builds.
+
+- **Linux:** CI job on `ubuntu-latest`; package as AppImage and/or `.tar.gz`; audio via `cpal`
+  (PipeWire/ALSA); MIDI via `midir`. Test on a clean Ubuntu 24.04 VM.
+- **macOS:** CI job on `macos-latest` (Apple Silicon); package as `.dmg`; audio via CoreAudio;
+  MIDI via CoreMIDI. Code-sign and notarize if a Developer ID certificate is available;
+  otherwise unsigned with instructions for bypassing Gatekeeper.
+- Update `xtask dist` to accept a `--target` flag (or run per-platform jobs) without breaking the
+  existing Windows path.
+- Update README, getting-started doc, and release workflow for three-platform artefacts.
+
+**Done when:** A clean Linux and macOS machine can download the respective package, launch Tone
+Smithy, and play a preset without extra setup steps.
+
+---
+
+## M20 — v1.1 factory expansion + release (2–4 weeks) — v1.1
+
+Content authoring and the v1.1 release cut.
+
+- Add 40–60 new presets to the factory bank to reach ~120 total; include patches that showcase
+  the second filter, Env3, and the step sequencer.
+- QA pass: listen to every new preset in context, normalise levels, write descriptions.
+- Update `CHANGELOG.md` with the v1.1 entry.
+- Tag `v1.1.0` on `main`; GitHub Release publishes the Windows, Linux, and macOS installers.
+
+**Done when:** Factory bank reaches ~120 presets; GitHub Release publishes three-platform
+installers; user has tested on at least Windows and signed off.
+
+---
+
 ## Critical-path dependencies
 
 - **M-1 → M0 → M1 → M2 → M3** are strictly sequential. Each builds on the last.
@@ -260,6 +345,15 @@ Take the functional UI from M4 and the surfaces added through M6/M9/M10 and turn
 - **M14 (factory bank)** needs the engine stable (M5–M9 complete) and the preset format (M10). Can run in parallel with M11–M13.
 - **M15** needs everything.
 
+**v1.1 dependencies:**
+
+- **M16** has no hard predecessors — it touches UI and keyboard input only.
+- **M17** is independent of M16; they can overlap if bandwidth allows.
+- **M18 (step sequencer)** is independent of M17 but shares the BPM/clock infrastructure with
+  the arpeggiator — start after M9 is stable, which it already is.
+- **M19** is independent of M17/M18; CI jobs run in parallel on three platforms.
+- **M20** needs M17 + M18 + M19 complete so new presets can use all new features.
+
 ## What's out of scope
 
-Anything in [`../02-scope/out-of-scope.md`](../02-scope/out-of-scope.md) or scheduled for v1.1+ in [`../02-scope/roadmap.md`](../02-scope/roadmap.md). If something feels missing, that's where to look first.
+Anything in [`../02-scope/out-of-scope.md`](../02-scope/out-of-scope.md) or scheduled for v1.2+ in [`../02-scope/roadmap.md`](../02-scope/roadmap.md). If something feels missing, that's where to look first.

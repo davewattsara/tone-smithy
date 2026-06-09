@@ -72,10 +72,10 @@ Don't update it for internal refactors, doc-only planning changes, or conversati
 
 ## Project state at a glance
 
-- **Stage:** **M15 (Installer and release) complete — v1.0.0 cut, tag `v1.0.0` on `main`.** All v1 milestones (M0–M15) are done. v1.0 ships unsigned with the default icon (both deferred to a later version).
+- **Stage:** v1.0.0 shipped (tag `v1.0.0` on `main`). All v1 milestones (M0–M15) done. **Active: v1.1 planning — next milestone M16 (Quick wins).** v1.0 ships unsigned with the default icon (both deferred to a later version).
 - **Licence:** `MIT OR Apache-2.0` dual.
 - **Product name:** Tone Smithy.
-- **Branches:** `main` (stable; v1.0.0 release at tag `v1.0.0`); `development` (active work — commit here).
-- **v1 scope:** Path B — trimmed to ship in ~12–15 months. One filter (12 dB/oct), one mod envelope (Env2), 8-slot mod matrix, arpeggiator only, ~60-preset factory bank. The remaining engine features (second filter, 24 dB/oct, Env3, 16 slots, step sequencer, full factory bank) are restored in v1.1.
-- **Release:** pushing the `v1.0.0` tag triggers `.github/workflows/release.yml` (builds installer, publishes GitHub Release). Held for the user to push.
+- **Branches:** `main` (stable; v1.0.0 at tag `v1.0.0`); `development` (active work — commit here).
+- **v1.1 scope:** Three quick UX wins (K=C keyboard note, alphabetical presets, conditional OSC/Sub panel) + engine expansion (second filter, 24 dB/oct, Env3, 16-slot matrix) + step sequencer + Linux/macOS installers + factory bank expansion to ~120 presets. Milestones M16–M20 defined in `docs/planning/06-implementation/milestones.md`.
+- **Release:** v1.0.0 is live on GitHub Releases. pushing the `v1.0.0` tag triggered the release workflow. v1.1 will follow the same workflow via a `v1.1.0` tag.
 - **Open questions remaining:** MPE/microtuning/oversampling scope (now v1.3+), factory content authoring approach, auto-update mechanism. Code signing and the custom icon are resolved as "deferred to a later version" (see `docs/planning/01-vision/open-questions.md`).
