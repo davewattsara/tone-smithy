@@ -24,9 +24,23 @@ impl ToneSmithyApp {
                 ui.label(hdr("Via"));
                 ui.end_row();
 
+                const MOD_ENABLED_KEYS: [&str; 8] = [
+                    "mod_slot_enabled_0",
+                    "mod_slot_enabled_1",
+                    "mod_slot_enabled_2",
+                    "mod_slot_enabled_3",
+                    "mod_slot_enabled_4",
+                    "mod_slot_enabled_5",
+                    "mod_slot_enabled_6",
+                    "mod_slot_enabled_7",
+                ];
+                const MOD_SLOT_LABELS: [&str; 8] = ["1", "2", "3", "4", "5", "6", "7", "8"];
                 for i in 0..8usize {
                     if ui
-                        .add(Toggle::new(&mut self.mod_slot_enabled[i], &format!("{}", i + 1)))
+                        .add(
+                            Toggle::new(&mut self.mod_slot_enabled[i], MOD_SLOT_LABELS[i])
+                                .param_key(MOD_ENABLED_KEYS[i]),
+                        )
                         .changed()
                     {
                         self.events.send(EngineEvent::ParameterChange {
@@ -69,10 +83,21 @@ impl ToneSmithyApp {
                         });
 
                     let range = MOD_AMOUNT_RANGES.get(self.mod_slot_dest[i]).copied().unwrap_or(1.0);
+                    let mod_amount_key: &'static str = [
+                        "mod_slot_amount_0",
+                        "mod_slot_amount_1",
+                        "mod_slot_amount_2",
+                        "mod_slot_amount_3",
+                        "mod_slot_amount_4",
+                        "mod_slot_amount_5",
+                        "mod_slot_amount_6",
+                        "mod_slot_amount_7",
+                    ][i];
                     if ui
                         .add(
                             Knob::new(&mut self.mod_slot_amount[i], -range..=range, "")
                                 .default_value(0.0)
+                                .param_key(mod_amount_key)
                                 .format(move |v| {
                                     if range >= 100.0 {
                                         format!("{:+.0}", v)

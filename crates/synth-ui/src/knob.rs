@@ -50,6 +50,8 @@ pub struct Knob<'a> {
     /// Normalised modulation offset (-1..=1) for the modulation ring.
     /// Positive → `MOD_POS` colour; negative → `MOD_NEG` colour.
     mod_offset: Option<f32>,
+    /// Preset parameter key for MIDI Learn (e.g. `"filter_cutoff_hz"`).
+    param_key: Option<&'a str>,
 }
 
 impl<'a> Knob<'a> {
@@ -63,7 +65,16 @@ impl<'a> Knob<'a> {
             default_value: None,
             format: None,
             mod_offset: None,
+            param_key: None,
         }
+    }
+
+    /// Sets the preset parameter key for MIDI Learn. When provided, the
+    /// right-click "MIDI Learn" menu item becomes active.
+    #[must_use]
+    pub fn param_key(mut self, key: &'a str) -> Self {
+        self.param_key = Some(key);
+        self
     }
 
     /// Sets the value restored on double-click or context-menu Reset.
@@ -122,6 +133,7 @@ impl egui::Widget for Knob<'_> {
         let mut reset_clicked = false;
         let mut copy_clicked = false;
         let mut paste_clicked = false;
+        let mut learn_clicked = false;
         response.context_menu(|ui| {
             ui.set_min_width(140.0);
             if ui
@@ -140,7 +152,13 @@ impl egui::Widget for Knob<'_> {
                 ui.close_menu();
             }
             ui.separator();
-            ui.add_enabled(false, egui::Button::new("MIDI Learn"));
+            if ui
+                .add_enabled(self.param_key.is_some(), egui::Button::new("MIDI Learn"))
+                .clicked()
+            {
+                learn_clicked = true;
+                ui.close_menu();
+            }
         });
         if reset_clicked {
             if let Some(def) = self.default_value {
@@ -160,6 +178,19 @@ impl egui::Widget for Knob<'_> {
             if let Some(v) = clip {
                 *self.value = v.clamp(*self.range.start(), *self.range.end());
                 response.mark_changed();
+            }
+        }
+        if learn_clicked {
+            if let Some(key) = self.param_key {
+                // Deposit key + range into egui memory. tick_midi_learn reads
+                // all three items and enters learn mode with the full context.
+                let start = *self.range.start();
+                let end = *self.range.end();
+                ui.memory_mut(|m| {
+                    m.data.insert_temp(egui::Id::new("ts_ml_key"), key.to_string());
+                    m.data.insert_temp(egui::Id::new("ts_ml_start"), start);
+                    m.data.insert_temp(egui::Id::new("ts_ml_end"), end);
+                });
             }
         }
 

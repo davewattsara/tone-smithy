@@ -2,64 +2,145 @@
 //!
 //! Wires the audio output (`synth-host`) and the egui window (`synth-ui`)
 //! together. This is the composition root — the only file that knows about
-//! every other crate (see
-//! `docs/planning/03-architecture/design-patterns.md`, §1.6).
-//!
-//! M1: the UI's parameter sliders + on-screen keyboard drive the
-//! engine through `synth_engine::param_bus`; nothing is hardcoded here
-//! beyond the choice of default waveform.
+//! every other crate (see `docs/planning/03-architecture/design-patterns.md`,
+//! §1.6).
 
 use anyhow::{Context, Result};
 use synth_engine::Engine;
 use synth_engine::param_bus;
+use synth_engine::param_bus::EngineEventReceiver;
 use synth_host::audio::{self, AudioStream};
 use synth_host::midi::MidiInputStream;
-use synth_ui::app::ToneSmithyApp;
+use synth_presets::preset_params::map_to_events;
+use synth_presets::preset_params::snapshot_to_map;
+use synth_presets::{AppSettings, load_settings, save_settings};
+use synth_ui::app::{DeviceChange, ToneSmithyApp};
 
 /// Owns the audio + MIDI streams and delegates UI work to [`ToneSmithyApp`].
 ///
-/// The streams live here (rather than inside the UI app) because
-/// `cpal::Stream` is `!Send` and binding it to the UI struct keeps the
-/// lifetime obvious — when the window closes and this struct drops, audio
-/// stops. The MIDI input rides alongside for the same reason. The UI app
-/// owns its bus handles (sender + snapshot slot) so it can read snapshots
-/// and send parameter changes directly.
+/// Streams live here (not in the UI) because `cpal::Stream` is `!Send`.
+/// Device switches are handled by dropping the old stream and opening a new
+/// one while keeping the same event sender / snapshot slot so the UI stays
+/// connected.
 struct AppShell {
-    _audio: AudioStream,
-    _midi: MidiInputStream,
+    audio: AudioStream,
+    midi: MidiInputStream,
     ui: ToneSmithyApp,
+    /// Receives the raw event stream from MIDI/computer keyboard.
+    /// Kept here so it can be handed to a replacement audio stream.
+    events_rx: EngineEventReceiver,
+    settings: AppSettings,
+}
+
+impl AppShell {
+    fn audio_status(audio: &AudioStream, midi: &MidiInputStream) -> String {
+        let midi_str = match midi.port_name() {
+            Some(name) => format!("MIDI: {name}"),
+            None => "MIDI: none".to_string(),
+        };
+        format!(
+            "{} Hz, {} ch, {} | {midi_str}",
+            audio.sample_rate, audio.channels, audio.buffer_latency_hint
+        )
+    }
+
+    /// Applies a pending device change requested by the UI.
+    fn apply_device_change(&mut self, change: DeviceChange) {
+        match change {
+            DeviceChange::Audio(device_name) => {
+                // Snapshot current engine state so the new engine starts
+                // with identical parameters.
+                let snapshot = synth_engine::param_bus::load_snapshot(self.ui.snapshot_slot());
+                let events_for_new = map_to_events(&snapshot_to_map(&snapshot));
+
+                let new_sample_rate = audio::default_output_format()
+                    .map(|f| f.sample_rate)
+                    .unwrap_or(snapshot.bpm as u32); // fallback; will be corrected on next open
+
+                let (new_tx, new_rx, new_slot) = param_bus::new_param_bus();
+                let mut new_engine = Engine::new(new_sample_rate as f32);
+                for event in events_for_new {
+                    new_engine.handle(event);
+                }
+
+                match audio::start_on_device(device_name.as_deref(), new_engine, new_rx, new_slot.clone()) {
+                    Ok(new_audio) => {
+                        self.events_rx = {
+                            // The old events_rx is no longer attached to any
+                            // stream — just let it drain silently. The UI gets
+                            // a fresh sender so computer keyboard and MIDI
+                            // still deliver into the new stream.
+                            let (_dummy_tx, dummy_rx, _) = param_bus::new_param_bus();
+                            // Reconnect MIDI to the new bus.
+                            let midi_port = self.midi.port_name().map(str::to_owned);
+                            if let Ok(new_midi) = MidiInputStream::start_on_port(midi_port.as_deref(), new_tx.clone()) {
+                                self.midi = new_midi;
+                            }
+                            self.ui.reconnect_bus(new_tx, new_slot.clone());
+                            let status = Self::audio_status(&new_audio, &self.midi);
+                            self.ui.set_audio_status(status);
+                            self.settings.audio_output_device = device_name;
+                            save_settings(&self.settings);
+                            self.audio = new_audio;
+                            dummy_rx
+                        };
+                    }
+                    Err(e) => {
+                        tracing::error!("audio device switch failed: {e}");
+                        self.ui.set_preset_error(format!("Audio switch failed: {e}"));
+                    }
+                }
+            }
+            DeviceChange::Midi(port_name) => {
+                let sender = self.ui.events_sender().clone();
+                match MidiInputStream::start_on_port(port_name.as_deref(), sender) {
+                    Ok(new_midi) => {
+                        self.midi = new_midi;
+                        let status = Self::audio_status(&self.audio, &self.midi);
+                        self.ui.set_audio_status(status);
+                        self.settings.midi_input_port = port_name;
+                        save_settings(&self.settings);
+                    }
+                    Err(e) => {
+                        tracing::error!("MIDI port switch failed: {e}");
+                        self.ui.set_preset_error(format!("MIDI switch failed: {e}"));
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl eframe::App for AppShell {
     fn update(&mut self, ctx: &eframe::egui::Context, frame: &mut eframe::Frame) {
         self.ui.update(ctx, frame);
+        if let Some(change) = self.ui.take_pending_device_change() {
+            self.apply_device_change(change);
+        }
     }
 }
 
 fn main() -> Result<()> {
     init_logging();
 
-    // Query the device first so we know the sample rate before building
-    // the engine. The stream itself is opened by `start_with_engine`.
-    let device_format = audio::default_output_format().context("could not query default audio output device")?;
+    let settings = load_settings();
 
+    let device_format = audio::default_output_format().context("could not query audio output device")?;
     let engine = Engine::new(device_format.sample_rate as f32);
     let (events_tx, events_rx, snapshot_slot) = param_bus::new_param_bus();
 
-    let audio =
-        audio::start_with_engine(engine, events_rx, snapshot_slot.clone()).context("could not start audio output")?;
-    // Open the first available MIDI input port (if any). The events
-    // sender is cloned here — the bus is MPMC, so the UI thread, the
-    // computer keyboard, and the MIDI thread all push into it.
-    let midi = MidiInputStream::start(events_tx.clone()).context("could not start MIDI input")?;
-    let midi_status = match midi.port_name() {
-        Some(name) => format!("MIDI in: {name}"),
-        None => "MIDI in: no device".to_string(),
-    };
-    let status = format!(
-        "audio out: {} Hz, {} channel(s), {} | {midi_status}",
-        audio.sample_rate, audio.channels, audio.buffer_latency_hint,
-    );
+    let audio = audio::start_on_device(
+        settings.audio_output_device.as_deref(),
+        engine,
+        events_rx,
+        snapshot_slot.clone(),
+    )
+    .context("could not start audio output")?;
+
+    let midi = MidiInputStream::start_on_port(settings.midi_input_port.as_deref(), events_tx.clone())
+        .context("could not start MIDI input")?;
+
+    let status = AppShell::audio_status(&audio, &midi);
     tracing::info!("{status}");
 
     let native_options = eframe::NativeOptions {
@@ -71,10 +152,14 @@ fn main() -> Result<()> {
     };
 
     let cpu_load = audio.cpu_load.clone();
+    // Throw-away rx; the shell owns the live one.
+    let (_, dummy_rx, _) = param_bus::new_param_bus();
     let shell = AppShell {
-        _audio: audio,
-        _midi: midi,
-        ui: ToneSmithyApp::new(status, events_tx, snapshot_slot, cpu_load),
+        audio,
+        midi,
+        ui: ToneSmithyApp::new(status, events_tx, snapshot_slot, cpu_load, settings.clone()),
+        events_rx: dummy_rx,
+        settings,
     };
 
     eframe::run_native("Tone Smithy", native_options, Box::new(move |_cc| Ok(Box::new(shell))))
@@ -83,8 +168,6 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-/// Installs a `tracing` subscriber that reads `RUST_LOG` if set and defaults
-/// to `info` otherwise.
 fn init_logging() {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));

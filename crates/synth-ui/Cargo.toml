@@ -10,6 +10,7 @@ authors.workspace = true
 
 [dependencies]
 synth-engine = { path = "../synth-engine" }
+synth-host = { path = "../synth-host" }
 synth-presets = { path = "../synth-presets" }
 eframe.workspace = true
 egui.workspace = true

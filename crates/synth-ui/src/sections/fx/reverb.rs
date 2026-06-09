@@ -7,7 +7,10 @@ use crate::toggle::Toggle;
 
 impl ToneSmithyApp {
     pub(crate) fn reverb_section(&mut self, ui: &mut egui::Ui) {
-        if ui.add(Toggle::new(&mut self.fx_reverb_enabled, "Reverb")).changed() {
+        if ui
+            .add(Toggle::new(&mut self.fx_reverb_enabled, "Reverb").param_key("fx_reverb_enabled"))
+            .changed()
+        {
             self.events.send(EngineEvent::ParameterChange {
                 id: ParamId::FxReverbEnabled,
                 value: if self.fx_reverb_enabled { 1.0 } else { 0.0 },
@@ -18,6 +21,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_reverb_predelay_ms, 0.0..=50.0, "Pre")
                         .default_value(10.0)
+                        .param_key("fx_reverb_predelay_ms")
                         .format(|v| format!("{:.0} ms", v)),
                 )
                 .changed()
@@ -31,6 +35,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_reverb_decay_secs, 0.1..=30.0, "Decay")
                         .default_value(2.0)
+                        .param_key("fx_reverb_decay_secs")
                         .format(secs_format),
                 )
                 .changed()
@@ -44,6 +49,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_reverb_size, 0.1..=1.0, "Size")
                         .default_value(0.7)
+                        .param_key("fx_reverb_size")
                         .format(|v| format!("{:.2}", v)),
                 )
                 .changed()
@@ -57,6 +63,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_reverb_damping, 0.0..=1.0, "Damp")
                         .default_value(0.5)
+                        .param_key("fx_reverb_damping")
                         .format(|v| format!("{:.0}%", v * 100.0)),
                 )
                 .changed()
@@ -70,6 +77,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_reverb_mix, 0.0..=1.0, "Mix")
                         .default_value(0.25)
+                        .param_key("fx_reverb_mix")
                         .format(|v| format!("{:.0}%", v * 100.0)),
                 )
                 .changed()

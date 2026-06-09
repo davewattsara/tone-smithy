@@ -214,7 +214,32 @@ pub fn start_silent() -> Result<AudioStream, AudioError> {
 /// [`AudioError::UnsupportedSampleFormat`] if the device opens at a
 /// non-`f32` format, and [`AudioError::UnsupportedChannelCount`] if the
 /// device opens with more than 2 channels.
+/// Returns the display names of all available output devices on the default host.
+/// Missing or unreadable device names are silently skipped.
+#[must_use]
+pub fn list_output_devices() -> Vec<String> {
+    let host = cpal::default_host();
+    host.output_devices()
+        .map(|devs| devs.filter_map(|d| d.name().ok()).collect())
+        .unwrap_or_default()
+}
+
 pub fn start_with_engine(
+    engine: Engine,
+    events: EngineEventReceiver,
+    snapshot_slot: SnapshotSlot,
+) -> Result<AudioStream, AudioError> {
+    start_on_device(None, engine, events, snapshot_slot)
+}
+
+/// Like [`start_with_engine`] but opens `device_name` instead of the default.
+/// Falls back to the default device if the name is `None` or cannot be matched.
+///
+/// # Errors
+///
+/// Returns [`AudioError`] if no suitable device can be opened.
+pub fn start_on_device(
+    device_name: Option<&str>,
     mut engine: Engine,
     events: EngineEventReceiver,
     snapshot_slot: SnapshotSlot,
@@ -226,7 +251,7 @@ pub fn start_with_engine(
         channels,
         sample_format,
         buffer_latency_hint,
-    } = open_default_output()?;
+    } = open_named_output(device_name)?;
     log_open(channels, sample_rate, sample_format, &buffer_latency_hint);
 
     if sample_format != cpal::SampleFormat::F32 {
@@ -367,8 +392,25 @@ struct DeviceOpen {
 }
 
 fn open_default_output() -> Result<DeviceOpen, AudioError> {
+    open_named_output(None)
+}
+
+/// Opens a named output device, or the OS default if `name` is `None` or the
+/// name cannot be matched. Falls back to the default rather than failing so
+/// that a stale settings entry doesn't prevent startup.
+fn open_named_output(name: Option<&str>) -> Result<DeviceOpen, AudioError> {
     let host = cpal::default_host();
-    let device = host.default_output_device().ok_or(AudioError::NoDefaultDevice)?;
+
+    let device = if let Some(target) = name {
+        host.output_devices()
+            .ok()
+            .and_then(|mut devs| devs.find(|d| d.name().ok().as_deref() == Some(target)))
+            .or_else(|| host.default_output_device())
+    } else {
+        host.default_output_device()
+    }
+    .ok_or(AudioError::NoDefaultDevice)?;
+
     let supported = device.default_output_config()?;
     let sample_rate = supported.sample_rate().0;
     let channels = supported.channels();

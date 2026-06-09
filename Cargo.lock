@@ -2934,6 +2934,7 @@ dependencies = [
  "serde",
  "synth-engine",
  "thiserror 1.0.69",
+ "tracing",
 ]
 
 [[package]]
@@ -2945,6 +2946,7 @@ dependencies = [
  "notify",
  "rfd",
  "synth-engine",
+ "synth-host",
  "synth-presets",
 ]
 

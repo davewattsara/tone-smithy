@@ -99,11 +99,22 @@ impl ToneSmithyApp {
             ),
         };
 
+        let osc_level_key = ["osc1_level", "osc2_level", "osc3_level"][idx];
+        let osc_detune_key = ["osc1_detune_cents", "osc2_detune_cents", "osc3_detune_cents"][idx];
+        let osc_pan_key = ["osc1_pan", "osc2_pan", "osc3_pan"][idx];
+        let osc_uvoices_key = ["osc1_unison_voices", "osc2_unison_voices", "osc3_unison_voices"][idx];
+        let osc_udetune_key = [
+            "osc1_unison_detune_cents",
+            "osc2_unison_detune_cents",
+            "osc3_unison_detune_cents",
+        ][idx];
+        let osc_uspread_key = ["osc1_unison_spread", "osc2_unison_spread", "osc3_unison_spread"][idx];
         ui.horizontal(|ui| {
             if ui
                 .add(
                     Knob::new(&mut self.osc_level[idx], 0.0..=OSC_LEVEL_MAX, "Level")
                         .default_value(1.0)
+                        .param_key(osc_level_key)
                         .format(|v| format!("{:.2}", v)),
                 )
                 .changed()
@@ -122,6 +133,7 @@ impl ToneSmithyApp {
                     )
                     .default_value(0.0)
                     .mod_offset(md.map_or(0.0, |m| m.osc1_detune))
+                    .param_key(osc_detune_key)
                     .format(|v| format!("{:+.1} ct", v)),
                 )
                 .changed()
@@ -136,6 +148,7 @@ impl ToneSmithyApp {
                     Knob::new(&mut self.osc_pan[idx], -1.0..=1.0, "Pan")
                         .default_value(0.0)
                         .mod_offset(md.map_or(0.0, |m| m.osc1_pan))
+                        .param_key(osc_pan_key)
                         .format(|v| {
                             if v < -0.01 {
                                 format!("L{:.0}", v.abs() * 100.0)
@@ -162,6 +175,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.osc_unison_voices[idx], 1.0..=UNISON_VOICES_MAX, "Voices")
                         .default_value(1.0)
+                        .param_key(osc_uvoices_key)
                         .format(|v| format!("{}", v.round() as u8)),
                 )
                 .changed()
@@ -179,6 +193,7 @@ impl ToneSmithyApp {
                         "Detune",
                     )
                     .default_value(10.0)
+                    .param_key(osc_udetune_key)
                     .format(|v| format!("{:.1} ct", v)),
                 )
                 .changed()
@@ -192,6 +207,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.osc_unison_spread[idx], 0.0..=1.0, "Spread")
                         .default_value(0.5)
+                        .param_key(osc_uspread_key)
                         .format(|v| format!("{:.2}", v)),
                 )
                 .changed()
@@ -211,6 +227,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.sub_level, 0.0..=OSC_LEVEL_MAX, "Level")
                         .default_value(0.0)
+                        .param_key("sub_level")
                         .format(|v| format!("{:.2}", v)),
                 )
                 .changed()
