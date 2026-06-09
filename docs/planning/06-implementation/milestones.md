@@ -269,6 +269,8 @@ switching a slot to FM mode collapses the OSC panel and shows only FM operators.
 
 ## M17 — Engine expansion (4–6 weeks) — v1.1
 
+> Implementation plan: [`m17-plan.md`](m17-plan.md)
+
 Restores the three engine features deferred from v1.0.
 
 - **Second filter** per voice — same TPT SVF as the first filter; serial (`F1 → F2`) and parallel
