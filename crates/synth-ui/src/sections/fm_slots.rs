@@ -1,15 +1,16 @@
 use eframe::egui;
 use synth_engine::{EngineEvent, ParamId};
 
-use crate::app::{FM_OP_ENV_MAX_SECS, FM_OP_ENV_MIN_SECS, FM_RATIO_FINE_MAX, ToneSmithyApp, secs_format};
+use crate::app::{FM_OP_ENV_MAX_SECS, FM_OP_ENV_MIN_SECS, FM_RATIO_FINE_MAX, ModDisplay, ToneSmithyApp, secs_format};
 use crate::knob::Knob;
 use crate::midi_learn_ext::attach_learn_menu;
 use crate::theme;
 
 impl ToneSmithyApp {
-    /// Per-slot controls: level, pan, and (for the FM slot) algorithm and
-    /// operator grid. Slot 0 is always Subtractive; slot 1 is always FM.
-    pub(crate) fn fm_slots_section(&mut self, ui: &mut egui::Ui) {
+    /// Per-slot controls: level, pan, and slot-specific content.
+    /// Slot 0 (Sub) expands to show oscillator controls; slot 1 (FM) shows
+    /// the algorithm selector and operator grid.
+    pub(crate) fn fm_slots_section(&mut self, ui: &mut egui::Ui, md: ModDisplay) {
         for slot_idx in 0..2usize {
             let mode_tag = if slot_idx == 0 { "Sub" } else { "FM" };
             let slot_label = format!("Slot {} ({})", slot_idx + 1, mode_tag);
@@ -57,7 +58,10 @@ impl ToneSmithyApp {
                         }
                     });
 
-                    if slot_idx == 1 {
+                    if slot_idx == 0 {
+                        ui.add_space(4.0);
+                        self.osc_sub_controls_inline(ui, md);
+                    } else {
                         ui.add_space(4.0);
                         const ALG_LABELS: [&str; 8] = [
                             "1 Stack",
@@ -373,7 +377,7 @@ impl ToneSmithyApp {
                                         }
                                     }); // Grid
                             }); // ScrollArea
-                    } // if FM mode
+                    } // slot-specific controls
                 }); // CollapsingHeader
         } // for slot_idx
     }
