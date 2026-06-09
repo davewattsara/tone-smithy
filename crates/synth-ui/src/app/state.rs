@@ -477,6 +477,12 @@ impl ToneSmithyApp {
         let user_dir = user_presets_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
         let mut entries = factory_entries();
         entries.extend(scan_dir(&user_dir, false));
+        entries.sort_by(|a, b| {
+            a.is_factory
+                .cmp(&b.is_factory)
+                .reverse()
+                .then_with(|| a.metadata.name.to_lowercase().cmp(&b.metadata.name.to_lowercase()))
+        });
         self.preset_entries = entries;
     }
 
