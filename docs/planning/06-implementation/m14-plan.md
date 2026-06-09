@@ -1,6 +1,28 @@
 # M14 — Factory Bank
 
-**Status:** In progress (branch `milestone/m14-factory-bank`)
+**Status:** Implementation complete, pending user QA (branch `milestone/m14-factory-bank`)
+
+## Implementation notes
+
+- **Count:** 61 presets are embedded — the `Init` patch plus 60 categorised
+  presets (15 Bass + 15 Lead + 12 Pad + 8 Pluck + 6 Keys + 4 FX). The
+  "53 new" figure in *Done when* is the plan's own arithmetic slip; the
+  category tables below list 54 new presets, and those tables are what was
+  built.
+- **QA approach:** rather than a manual ear pass (no audio device in the
+  build environment), QA runs as an automated test in `factory.rs`
+  (`qa_tests`). It parses every preset (unique names, valid categories) and
+  drives each through a real `Engine` — holding middle C for six seconds,
+  then releasing — asserting the output stays finite, never runs away, is
+  audibly non-silent, and decays after release.
+- **QA finding:** the harness caught `Whistle` rendering near-silent. A pure
+  sine carries only its fundamental, which sat far below its 3 kHz band-pass
+  passband, so almost nothing came through. It was rebuilt on a triangle
+  whose upper harmonics ring through the resonant band.
+- **Authoring note for FM presets:** every operator defaults to level 1.0,
+  so each FM preset sets all four operators' level / ratio / envelope
+  explicitly — an unset modulator would otherwise sit fully open and
+  over-brighten the tone.
 
 ## Goal
 
