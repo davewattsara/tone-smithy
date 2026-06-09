@@ -6,10 +6,11 @@ All notable changes to Tone Smithy are documented here. The format is based on
 
 ## [Unreleased]
 
-## [1.0.0] — Unreleased
+## [1.0.0] — 2026-06-09
 
 First public release. A hybrid (subtractive + FM) standalone software synthesizer
-for Windows.
+for Windows. Ships unsigned (see the README SmartScreen note); code signing and a
+custom application icon are deferred to a later version.
 
 ### Added
 

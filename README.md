@@ -2,7 +2,7 @@
 
 A hybrid (subtractive + FM) standalone software synthesizer for Windows, written in Rust.
 
-> **Status:** in development. M15 (installer and release) in progress — packaging the v1.0 build. v1.0 target ~12–15 months at 10–20 hrs/week.
+> **Status:** v1.0.0 — all milestones (M0–M15) complete. The Windows installer is built via `cargo xtask dist`; v1.0 ships unsigned (see the SmartScreen note below).
 > See [`docs/planning/06-implementation/milestones.md`](docs/planning/06-implementation/milestones.md) for the milestone plan.
 
 Tone Smithy combines analog-style subtractive synthesis with 4-operator FM in a single voice — so a patch can layer warm analog character with clean FM bell tones without switching plugins. Free download, open source, no DAW required.

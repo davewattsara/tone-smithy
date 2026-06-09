@@ -46,9 +46,22 @@ Decisions deliberately deferred from this round of planning. Each one is logged 
 
 ## Code signing certificate
 
-- **Status:** Deferred — non-trivial cost ($300–$500/year for an EV cert).
-- **Mitigation:** First public release may ship unsigned with a clear SmartScreen warning explanation.
-- **Decision needed by:** Before M15.
+- **Status:** **Resolved (2026-06-09): v1.0 ships unsigned.** A certificate is
+  deferred to a later release (non-trivial cost, $300–$500/year for an EV cert).
+- **Mitigation:** The README and the bundled `README.txt` carry a "SmartScreen
+  warning" explanation; the dist/CI tooling is signing-optional (gated on
+  `TONESMITHY_CERT` / a CI secret), so signing can be switched on later with no
+  code change.
+- **Revisit:** When a certificate is obtained for a future version (likely
+  v1.0.1 / v1.1).
+
+## Application icon
+
+- **Status:** **Resolved (2026-06-09): v1.0 ships with the default icon.** A
+  custom `assets/icons/tonesmithy.ico` is deferred to a later version.
+- **Mitigation:** The installer and exe icon references are guarded with
+  `FileExists`, so dropping the `.ico` in and rebuilding is the only step needed
+  once the art asset exists.
 
 ## Auto-update mechanism
 

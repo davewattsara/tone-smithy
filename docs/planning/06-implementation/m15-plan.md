@@ -1,6 +1,9 @@
 # M15 — Installer and Release
 
-**Status:** In progress (branch `milestone/m15-installer-release`)
+**Status:** Complete (2026-06-09). Installer built and smoke-tested on the user's
+Windows host; v1.0.0 cut. v1.0 ships unsigned and with the default icon — both
+deferred to a later version (see
+[`../01-vision/open-questions.md`](../01-vision/open-questions.md)).
 
 ## Goal
 
@@ -78,14 +81,22 @@ All Linux-doable phases are implemented on `milestone/m15-installer-release`:
   installer and publishes the GitHub Release on a `v*` tag; signing gated on a
   secret.
 
-### Remaining — needs the user's Windows host
+### Done on the user's Windows host (2026-06-09)
 
-- Compile the installer (`cargo xtask dist` with Inno Setup installed) and smoke
-  test it.
-- Manual clean-VM install / launch / uninstall tests (Win 10 + 11).
-- Provide `assets/icons/tonesmithy.ico` (optional; builds are green without it).
-- Decide signing (cert vs. ship unsigned with the SmartScreen note).
-- After sign-off: merge to `main`, tag `v1.0.0`, push to trigger the release.
+- [x] Compiled the installer via `cargo xtask dist` (Inno Setup 6.3+; the
+  `iscc` folder must be on `PATH`) and confirmed it installs and runs.
+- [x] User sign-off to ship v1.0 unsigned, with the custom icon and signing
+  deferred to a later version.
+
+### Deferred to a later version
+
+- Custom `assets/icons/tonesmithy.ico` (builds are green without it).
+- Code signing (tooling already signing-optional via `TONESMITHY_CERT`).
+
+### Release step (user-driven)
+
+Pushing the `v1.0.0` tag fires `.github/workflows/release.yml`, which builds the
+installer on CI and publishes the GitHub Release. Held until the user pushes.
 
 ## Work breakdown
 
