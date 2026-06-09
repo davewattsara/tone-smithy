@@ -80,7 +80,7 @@ Global patch controls and live status readout.
 |---|---|---|
 | Volume | 0–100% | Master output level. Can be modulated via the mod matrix. |
 | Pitch | -24 to +24 st | Global pitch offset in semitones. Useful for transposing a patch. |
-| BPM | 20–300 | Tempo used by the arpeggiator and BPM-synced LFOs. |
+| BPM | 20–300 | Tempo used by BPM-synced LFOs. The arpeggiator has its own separate BPM knob in the Arp tab. |
 
 ### Status section
 
@@ -306,8 +306,8 @@ Automatically sequences held notes at a rhythmic rate.
 | Enabled | On/Off | Engage or bypass the arpeggiator. |
 | Mode | Up, Down, Up/Dn, Rand, Played | Order in which held notes are played. |
 | Octaves | 1–4 oct | How many octaves the pattern spans. |
-| Rate | 1/32, 1/16, 1/8, 1/4, 1/2 | Note duration, relative to the BPM set in the Master tab. |
-| BPM | 20–300 | Tempo (shared with the LFO sync BPM). |
+| Rate | 1/32, 1/16, 1/8, 1/4, 1/2 | Note duration, relative to the BPM knob below. |
+| BPM | 20–300 | Arpeggiator tempo. Independent from the Master tab BPM (which drives LFO sync). |
 | Gate | 1–100% | How much of each step the note is held before releasing. Lower values give a more staccato feel. |
 | Swing | 0–100% | Delays every other step, creating a shuffle feel. 0% = straight. |
 
