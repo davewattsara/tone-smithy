@@ -178,6 +178,6 @@ Commit each phase separately so each one is bisectable and reviewable on its own
 
 ## Progress
 
-- [ ] Phase 1 — K=C keyboard note
-- [ ] Phase 2 — Alphabetical preset ordering
-- [ ] Phase 3 — OSC/Sub panel into Slot 1 foldout
+- [x] Phase 1 — K=C keyboard note
+- [x] Phase 2 — Alphabetical preset ordering
+- [x] Phase 3 — OSC/Sub panel into Slot 1 foldout
