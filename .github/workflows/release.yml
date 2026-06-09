@@ -43,11 +43,16 @@ jobs:
         run: cargo install cargo-about --locked
 
       - name: Decode signing certificate
-        id: cert
-        if: ${{ secrets.TONESMITHY_CERT_BASE64 != '' }}
+        # The `secrets` context isn't allowed in `if:` conditions, so the gating
+        # is done inside the script: no cert secret -> no-op, and the later dist
+        # step leaves the build unsigned.
         env:
           CERT_BASE64: ${{ secrets.TONESMITHY_CERT_BASE64 }}
         run: |
+          if (-not $env:CERT_BASE64) {
+            Write-Host "No TONESMITHY_CERT_BASE64 secret set; building unsigned."
+            exit 0
+          }
           $pfx = Join-Path $env:RUNNER_TEMP "tonesmithy-cert.pfx"
           [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:CERT_BASE64))
           echo "TONESMITHY_CERT=$pfx" >> $env:GITHUB_ENV
