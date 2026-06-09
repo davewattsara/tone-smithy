@@ -7,6 +7,10 @@ This is the Tone Smithy repo: a hybrid (subtractive + FM) standalone software sy
 ### Starting a milestone
 - **Never begin milestone implementation work without explicit user instruction.** Finishing a previous milestone, reading a plan, or reaching the end of a session does not constitute permission to start the next one. Wait for the user to say "start M16" (or equivalent) before writing any code.
 
+### Closing out a milestone
+- When marking a milestone complete in `docs/planning/06-implementation/milestones.md`, always include the date: `— **complete (YYYY-MM-DD, tag \`mXX\`)**`. Use the user's local date (today's conversation log filename, e.g. `docs/conversations/2026-06-09.md` → `2026-06-09`).
+- The sign-off goes on the `## MXX — Title` heading line itself, matching the format used for M0 and M1.
+
 ### After making file changes
 - **Commit immediately.** Don't wait to be asked.
 - Use the per-command identity override with **your current model name** (e.g. `Claude Sonnet 4.6`, `Claude Opus 4.7` — whatever model is powering this session):

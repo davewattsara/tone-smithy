@@ -60,7 +60,7 @@ Get the project's own engine producing sound.
 
 ---
 
-## M2 — Subtractive voice ✓ (tag `m02`)
+## M2 — Subtractive voice — **complete (2026-05-19, tag `m02`)**
 
 Build out the full single subtractive voice.
 
@@ -74,7 +74,7 @@ Build out the full single subtractive voice.
 
 ---
 
-## M3 — MIDI input + polyphony ✓ (tag `m03`)
+## M3 — MIDI input + polyphony — **complete (2026-05-19, tag `m03`)**
 
 Make the synth playable from real hardware.
 
@@ -92,7 +92,7 @@ Make the synth playable from real hardware.
 
 ---
 
-## M4 — Minimal playable UI ✓ (tag `m04`)
+## M4 — Minimal playable UI — **complete (2026-05-19, tag `m04`)**
 
 Make the synth tweakable from the window, not just from MIDI.
 
@@ -109,7 +109,7 @@ Make the synth tweakable from the window, not just from MIDI.
 
 ---
 
-## M5 — LFOs and Env2 ✓ (tag `m05`)
+## M5 — LFOs and Env2 — **complete (2026-05-25, tag `m05`)**
 
 Add the modulation sources that the matrix will route in M6.
 
@@ -122,7 +122,7 @@ Add the modulation sources that the matrix will route in M6.
 
 ---
 
-## M6 — Modulation matrix ✓ (tag `m06`)
+## M6 — Modulation matrix — **complete (2026-05-25, tag `m06`)**
 
 Wire the sources to anything.
 
@@ -135,7 +135,7 @@ Wire the sources to anything.
 
 ---
 
-## M7 — FM engine (4–5 weeks)
+## M7 — FM engine (4–5 weeks) — **complete (2026-06-01, tag `m07`)**
 
 > Implementation plan: [`m07-plan.md`](m07-plan.md) — sub-milestone breakdown, algorithm table, operator model, oversampling strategy.
 
@@ -151,7 +151,7 @@ The harder of the two synthesis methods. Conceptually new ground for someone lea
 
 ---
 
-## M8 — Effects chain (6–8 weeks)
+## M8 — Effects chain (6–8 weeks) — **complete (2026-06-01, tag `m08`)**
 
 Five effects, each a small DSP project in its own right. Tackle in order, listening between each.
 
@@ -166,7 +166,7 @@ Five effects, each a small DSP project in its own right. Tackle in order, listen
 
 ---
 
-## M9 — Arpeggiator (1–2 weeks)
+## M9 — Arpeggiator (1–2 weeks) — **complete (2026-06-02, tag `m09`)**
 
 - Modes: up, down, up/down, random, played order.
 - Octave range 1–4, rate sync (BPM or free), gate length, swing.
@@ -177,7 +177,7 @@ Five effects, each a small DSP project in its own right. Tackle in order, listen
 
 ---
 
-## M10 — Preset save / load (1–2 weeks)
+## M10 — Preset save / load (1–2 weeks) — **complete (2026-06-02, tag `m10`)**
 
 - RON format with metadata, parameter snapshot, mod matrix, MIDI Learn map.
 - Save, save-as, load, delete, duplicate from a simple UI surface (polished browser comes in M12).
@@ -188,7 +188,7 @@ Five effects, each a small DSP project in its own right. Tackle in order, listen
 
 ---
 
-## M11 — UI v1 polish (4–5 weeks)
+## M11 — UI v1 polish (4–5 weeks) — **complete (2026-06-07, tag `m11`)**
 
 Take the functional UI from M4 and the surfaces added through M6/M9/M10 and turn them into a flagship-class interface.
 
@@ -203,7 +203,7 @@ Take the functional UI from M4 and the surfaces added through M6/M9/M10 and turn
 
 ---
 
-## M12 — Preset browser (1–2 weeks)
+## M12 — Preset browser (1–2 weeks) — **complete (2026-06-08, tag `m12`)**
 
 - Category and tag filtering, search, sort.
 - Factory / user separation. Folder tree for user presets.
@@ -214,7 +214,7 @@ Take the functional UI from M4 and the surfaces added through M6/M9/M10 and turn
 
 ---
 
-## M13 — Settings + MIDI Learn polish (1–2 weeks)
+## M13 — Settings + MIDI Learn polish (1–2 weeks) — **complete (2026-06-09, tag `m13`)**
 
 - Audio device picker with live switching.
 - MIDI input picker (multi-select), channel filter per input.
@@ -226,7 +226,7 @@ Take the functional UI from M4 and the surfaces added through M6/M9/M10 and turn
 
 ---
 
-## M14 — Factory bank (4–6 weeks, can overlap with M11–M13)
+## M14 — Factory bank (4–6 weeks, can overlap with M11–M13) — **complete (2026-06-09, tag `m14`)**
 
 - Authoring of ~60–80 presets across categories per [`../05-design/dsp-and-sound.md`](../05-design/dsp-and-sound.md).
 - A QA pass: every preset listened to in context, levels normalised within a target loudness range, descriptions written.
@@ -236,7 +236,7 @@ Take the functional UI from M4 and the surfaces added through M6/M9/M10 and turn
 
 ---
 
-## M15 — Installer and release (1–2 weeks)
+## M15 — Installer and release (1–2 weeks) — **complete (2026-06-09, tag `v1.0.0`)**
 
 - Inno Setup script producing a signed (if cert available) or unsigned installer.
 - `xtask dist` produces all release artefacts.
