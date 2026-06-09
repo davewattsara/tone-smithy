@@ -39,5 +39,5 @@ for Windows.
 - **Standalone app** — low-latency `cpal` audio, `midir` MIDI input, and a
   computer-keyboard fallback.
 
-[Unreleased]: https://github.com/OWNER/REPO/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/OWNER/REPO/releases/tag/v1.0.0
+[Unreleased]: https://github.com/davewattsara/tone-smithy/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/davewattsara/tone-smithy/releases/tag/v1.0.0

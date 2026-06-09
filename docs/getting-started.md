@@ -6,7 +6,7 @@ standalone Windows application — there's no DAW or plugin host to set up.
 ## 1. Download
 
 Grab the latest installer from the
-[Releases page](https://github.com/OWNER/REPO/releases):
+[Releases page](https://github.com/davewattsara/tone-smithy/releases):
 
 - `tonesmithy-<version>-windows-x64.exe` — the installer.
 - `SHA256SUMS` — checksums, if you want to verify the download.
