@@ -40,14 +40,7 @@ impl ToneSmithyApp {
         {
             match synth_presets::load(&path) {
                 Ok(preset) => {
-                    // Silence any held note first so it doesn't hang with
-                    // the new patch's (possibly long) envelope settings.
-                    self.events.send(EngineEvent::AllNotesOff);
-                    for event in map_to_events(&preset.parameters) {
-                        self.events.send(event);
-                    }
-                    let snap = map_to_snapshot(&preset.parameters);
-                    self.sync_from_snapshot(&snap);
+                    self.apply_preset_params(&preset.parameters);
                     self.patch_name = preset.metadata.name.clone();
                     self.midi_learn_mappings = preset.midi_learn.clone();
                     self.preset_error = None;
@@ -57,5 +50,27 @@ impl ToneSmithyApp {
                 }
             }
         }
+    }
+
+    /// Applies a loaded preset's parameters to the engine and the UI.
+    ///
+    /// Presets are sparse — they store only the parameters that matter to
+    /// the patch and rely on engine defaults for the rest. Driving the
+    /// engine from that sparse map alone would leave every omitted
+    /// parameter at the *previously loaded* preset's value, so switching
+    /// patches smears state from one into the next (the first load from a
+    /// fresh default engine looks fine; every load after it inherits
+    /// stale values). We rebuild the full parameter set — defaults
+    /// overlaid with the preset's values — and emit an event for every
+    /// parameter, guaranteeing a clean, complete load. A preceding
+    /// AllNotesOff stops any held note so it can't hang under the new
+    /// patch's envelope.
+    pub(crate) fn apply_preset_params(&mut self, params: &std::collections::BTreeMap<String, f32>) {
+        self.events.send(EngineEvent::AllNotesOff);
+        let snap = map_to_snapshot(params);
+        for event in map_to_events(&snapshot_to_map(&snap)) {
+            self.events.send(event);
+        }
+        self.sync_from_snapshot(&snap);
     }
 }

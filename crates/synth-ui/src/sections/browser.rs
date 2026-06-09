@@ -1,11 +1,7 @@
 //! Preset browser tab — search, filter by category, click to load.
 
 use eframe::egui;
-use synth_engine::EngineEvent;
-use synth_presets::{
-    CATEGORIES, PresetEntry, load, load_factory_preset, map_to_events, map_to_snapshot, save, snapshot_to_map,
-    user_presets_dir,
-};
+use synth_presets::{CATEGORIES, PresetEntry, load, load_factory_preset, save, snapshot_to_map, user_presets_dir};
 
 use crate::app::ToneSmithyApp;
 use crate::theme;
@@ -164,12 +160,7 @@ impl ToneSmithyApp {
         let Some(preset) = load_factory_preset(name) else {
             return;
         };
-        self.events.send(EngineEvent::AllNotesOff);
-        for event in map_to_events(&preset.parameters) {
-            self.events.send(event);
-        }
-        let snap = map_to_snapshot(&preset.parameters);
-        self.sync_from_snapshot(&snap);
+        self.apply_preset_params(&preset.parameters);
         self.patch_name = preset.metadata.name.clone();
         self.midi_learn_mappings = preset.midi_learn.clone();
         self.preset_error = None;
@@ -178,12 +169,7 @@ impl ToneSmithyApp {
     fn load_file_preset(&mut self, path: &std::path::Path) {
         match load(path) {
             Ok(preset) => {
-                self.events.send(EngineEvent::AllNotesOff);
-                for event in map_to_events(&preset.parameters) {
-                    self.events.send(event);
-                }
-                let snap = map_to_snapshot(&preset.parameters);
-                self.sync_from_snapshot(&snap);
+                self.apply_preset_params(&preset.parameters);
                 self.patch_name = preset.metadata.name.clone();
                 self.midi_learn_mappings = preset.midi_learn.clone();
                 self.preset_error = None;
