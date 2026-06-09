@@ -7,35 +7,15 @@ use crate::midi_learn_ext::attach_learn_menu;
 use crate::theme;
 
 impl ToneSmithyApp {
-    /// Compact per-slot controls shown in the 4th column: mode toggle, level,
-    /// pan, and (when FM) algorithm. The operator grid is separate — see
-    /// [`fm_op_grid`].
+    /// Per-slot controls: level, pan, and (for the FM slot) algorithm and
+    /// operator grid. Slot 0 is always Subtractive; slot 1 is always FM.
     pub(crate) fn fm_slots_section(&mut self, ui: &mut egui::Ui) {
         for slot_idx in 0..2usize {
-            let mode_tag = if self.slot_mode[slot_idx] == 0 { "Sub" } else { "FM" };
+            let mode_tag = if slot_idx == 0 { "Sub" } else { "FM" };
             let slot_label = format!("Slot {} ({})", slot_idx + 1, mode_tag);
             egui::CollapsingHeader::new(slot_label)
                 .id_salt(format!("fm_slot_{slot_idx}"))
                 .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        let is_sub = self.slot_mode[slot_idx] == 0;
-                        let is_fm = self.slot_mode[slot_idx] == 1;
-                        if ui.selectable_label(is_sub, "Sub").clicked() && !is_sub {
-                            self.slot_mode[slot_idx] = 0;
-                            self.events.send(EngineEvent::ParameterChange {
-                                id: ParamId::SlotMode(slot_idx as u8),
-                                value: 0.0,
-                            });
-                        }
-                        if ui.selectable_label(is_fm, "FM").clicked() && !is_fm {
-                            self.slot_mode[slot_idx] = 1;
-                            self.events.send(EngineEvent::ParameterChange {
-                                id: ParamId::SlotMode(slot_idx as u8),
-                                value: 1.0,
-                            });
-                        }
-                    });
-
                     let slot_level_key = ["slot_level_0", "slot_level_1"][slot_idx];
                     let slot_pan_key = ["slot_pan_0", "slot_pan_1"][slot_idx];
                     ui.horizontal(|ui| {
@@ -77,7 +57,7 @@ impl ToneSmithyApp {
                         }
                     });
 
-                    if self.slot_mode[slot_idx] == 1 {
+                    if slot_idx == 1 {
                         ui.add_space(4.0);
                         const ALG_LABELS: [&str; 8] = [
                             "1 Stack",

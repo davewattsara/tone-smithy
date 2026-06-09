@@ -46,7 +46,7 @@ pub use crate::mod_env::{ModEnv, ModEnvStage};
 pub use crate::mod_matrix::{DestOffsets, ModDest, ModMatrix, ModSlot, ModSource, ModSources};
 pub use crate::oscillator::{Oscillator, UnisonOscillator, Waveform, midi_note_to_hz};
 pub use crate::params::{ParamId, ParamSnapshot, ParameterTree, SampleParams};
-pub use crate::slot::{Slot, SlotMode, SubtractiveBank};
+pub use crate::slot::{Slot, SubtractiveBank};
 pub use crate::smoothing::{DEFAULT_TIME_CONSTANT_MS, SmoothedParam};
 pub use crate::voice::Voice;
 pub use crate::voice_manager::VoiceManager;

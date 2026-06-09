@@ -166,9 +166,6 @@ pub enum ParamId {
     ModSlotVia(u8),
 
     // ── FM synthesis (M7.3) ────────────────────────────────────────────────
-    /// Slot synthesis mode. Slot index 0..=1; value 0.0 = Subtractive,
-    /// 1.0 = FM.
-    SlotMode(u8),
     /// Per-slot mix level, 0..=1. Slot index 0..=1.
     SlotLevel(u8),
     /// Per-slot mix pan, -1..=1. Slot index 0..=1.

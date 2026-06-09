@@ -166,8 +166,6 @@ pub struct ParamSnapshot {
     pub mod_slot_via: [u8; 8],
 
     // ── FM synthesis mirrors ───────────────────────────────────────────
-    /// Slot mode per slot: 0 = Subtractive, 1 = FM.
-    pub slot_mode: [u8; 2],
     /// Per-slot mix level, 0..=1.
     pub slot_level: [f32; 2],
     /// Per-slot mix pan, -1..=1.
@@ -285,7 +283,6 @@ impl Default for ParamSnapshot {
             mod_slot_dest: [0; 8],
             mod_slot_amount: [0.0; 8],
             mod_slot_via: [0; 8],
-            slot_mode: [0; 2],
             slot_level: [1.0, 0.0],
             slot_pan: [0.0; 2],
             fm_algorithm: [0; 2],

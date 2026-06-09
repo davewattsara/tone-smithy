@@ -21,7 +21,6 @@ use crate::lfo::LfoShape;
 use crate::mod_matrix::{ModDest, ModMatrix, ModSource, ModSources};
 use crate::oscillator::Waveform;
 use crate::params::SampleParams;
-use crate::slot::SlotMode;
 use crate::voice::Voice;
 
 /// Fixed-size pool of [`Voice`]s with note allocation and stealing.
@@ -402,13 +401,6 @@ impl VoiceManager {
     }
 
     // ── FM synthesis ─────────────────────────────────────────────────────────
-
-    /// Sets the synthesis mode on slot `slot` of every voice.
-    pub fn set_slot_mode(&mut self, slot: usize, mode: SlotMode) {
-        for v in &mut self.voices {
-            v.set_slot_mode(slot, mode);
-        }
-    }
 
     /// Sets the mix level on slot `slot` of every voice.
     pub fn set_slot_level(&mut self, slot: usize, level: f32) {

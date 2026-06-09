@@ -28,7 +28,6 @@ use crate::fm::OPERATOR_COUNT;
 use crate::lfo::SyncDivision;
 use crate::mod_matrix::{ModDest, ModSource};
 use crate::oscillator::Waveform;
-use crate::slot::SlotMode;
 use crate::smoothing::SmoothedParam;
 
 use super::ids::ParamId;
@@ -189,7 +188,6 @@ pub struct ParameterTree {
     pub(super) mod_slot_via: [u8; 8],
 
     // ── FM synthesis ───────────────────────────────────────────────────
-    pub(super) slot_mode: [SlotMode; 2],
     pub(super) slot_level: [f32; 2],
     pub(super) slot_pan: [f32; 2],
     pub(super) fm_algorithm: [u8; 2],
@@ -306,7 +304,6 @@ impl ParameterTree {
             mod_slot_dest: [0; 8],
             mod_slot_amount: [0.0; 8],
             mod_slot_via: [0; 8],
-            slot_mode: [SlotMode::Subtractive; 2],
             slot_level: defaults.slot_level,
             slot_pan: defaults.slot_pan,
             fm_algorithm: defaults.fm_algorithm,
@@ -439,15 +436,6 @@ impl ParameterTree {
             ParamId::ModSlotVia(i) => {
                 if (i as usize) < 8 {
                     self.mod_slot_via[i as usize] = ModSource::from_index(value as u8).unwrap_or_default().to_index();
-                }
-            }
-            ParamId::SlotMode(i) => {
-                if (i as usize) < 2 {
-                    self.slot_mode[i as usize] = if value >= 0.5 {
-                        SlotMode::Fm
-                    } else {
-                        SlotMode::Subtractive
-                    };
                 }
             }
             ParamId::SlotLevel(i) => {
@@ -856,7 +844,6 @@ impl ParameterTree {
             mod_slot_dest: self.mod_slot_dest,
             mod_slot_amount: self.mod_slot_amount,
             mod_slot_via: self.mod_slot_via,
-            slot_mode: self.slot_mode.map(|m| if m == SlotMode::Fm { 1 } else { 0 }),
             slot_level: self.slot_level,
             slot_pan: self.slot_pan,
             fm_algorithm: self.fm_algorithm,

@@ -15,7 +15,6 @@ use crate::fx::FxChain;
 use crate::lfo::LfoShape;
 use crate::mod_matrix::{ModDest, ModSource};
 use crate::params::{ParamId, ParamSnapshot, ParameterTree};
-use crate::slot::SlotMode;
 use crate::voice_manager::VoiceManager;
 
 /// Maximum block size the engine promises to handle, in frames.
@@ -245,14 +244,6 @@ impl Engine {
             }
 
             // ── FM synthesis ────────────────────────────────────────────────
-            ParamId::SlotMode(i) => {
-                let mode = if value >= 0.5 {
-                    SlotMode::Fm
-                } else {
-                    SlotMode::Subtractive
-                };
-                self.voices.set_slot_mode(i as usize, mode);
-            }
             ParamId::SlotLevel(i) => self.voices.set_slot_level(i as usize, value),
             ParamId::SlotPan(i) => self.voices.set_slot_pan(i as usize, value),
             ParamId::FmAlgorithm(i) => self.voices.set_fm_algorithm(i as usize, value as u8),
