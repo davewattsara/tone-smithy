@@ -1,6 +1,6 @@
 # M13 — Settings + MIDI Learn
 
-**Status:** In progress (branch `milestone/m13-settings-midi-learn`)
+**Status:** Complete (merged to `main`, tag `m13`)
 
 ## Goal
 
