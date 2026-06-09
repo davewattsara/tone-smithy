@@ -116,6 +116,10 @@ impl MidiInputStream {
             port,
             MIDI_CONNECTION_NAME,
             move |_stamp, message, sender| {
+                // TEMPORARY diagnostic (remove once the V61 no-input issue is
+                // resolved): log every raw message so we can confirm whether
+                // the keyboard is delivering anything to the open port.
+                tracing::info!("MIDI in: {message:02X?}");
                 if let Some(event) = parse_midi_message(message) {
                     sender.send(event);
                 }
