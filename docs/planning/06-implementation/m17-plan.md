@@ -144,15 +144,20 @@ Defaults: same as Env2 (0.010 / 0.200 / 0.8 / 0.200 / 0.0 / 0.0 / 0.0; `env3_out
 - Add `mod_env3: ModEnv` field to `Voice`.
 - Initialise it with the same defaults as `mod_env` in `Voice::new()`.
 - In the per-sample loop, advance `mod_env3` alongside `mod_env` (same note-on/off hooks).
-- Add `env3_out` to the block snapshot: `self.last_env3_out = ...` (or however Env2 does it).
+- Add `env3_out` to the block snapshot, mirroring Env2's `self.env3_out = self.mod_env3.advance(block_size)`
+  (the field is `env2_out`, no `last_` prefix — see voice.rs).
 
 **`crates/synth-engine/src/mod_matrix.rs`**
 
-- Add `Env3` to `ModSource` enum (after `Env2`).
+- **Append `Env3` to the *end* of the `ModSource` enum (after `PitchBend`), not after `Env2`.**
+  `ModSource::to_index()` is `self as u8`, so the enum order *is* the on-the-wire index. Inserting
+  `Env3` mid-enum would renumber `AmpEnv`…`PitchBend`, breaking every saved preset's mod routing,
+  the hardcoded `from_index` arms, and the tests in this file. Appending gives `Env3` index 10 with
+  no renumbering.
 - Update `ModSource::COUNT` from 10 to 11.
 - Add `env3: f32` to `ModSources`.
 - Handle `ModSource::Env3 => self.env3` in `get()`.
-- Update `from_index` / `to_index` (Env3 gets the next sequential index after the current 9).
+- Add `10 => Some(Self::Env3)` to `from_index`; `to_index` needs no change (it returns `self as u8`).
 
 **`crates/synth-presets/src/preset_params.rs`**
 
@@ -171,9 +176,11 @@ Defaults: same as Env2 (0.010 / 0.200 / 0.8 / 0.200 / 0.0 / 0.0 / 0.0; `env3_out
 - The two envelopes can share a tab with two side-by-side groups, or Env3 gets its own small
   header. Check the existing tab layout to decide.
 
-**`crates/synth-ui/src/sections/modulation.rs`**
+**`crates/synth-ui/src/app/state.rs`**
 
-- Add `"Env3"` to `MOD_SOURCE_LABELS` at the index matching `ModSource::Env3::to_index()`.
+- Append `"Env3"` to the `MOD_SOURCE_LABELS` slice (defined in state.rs, *not* modulation.rs — that
+  file only imports it). The label index must match `ModSource::Env3::to_index()` (= 10), so it goes
+  at the end of the slice.
 
 ### Done when
 
@@ -253,32 +260,46 @@ SetFilter2Mode { mode: FilterMode },
 - Add `filter2_l: StateVariableFilter`, `filter2_r: StateVariableFilter`.
 - Add `filter_routing: FilterRouting` field.
 - In `Voice::new()`: init filter2 with the same defaults as filter1.
-- In the per-sample processing:
+- In the per-sample processing. The SVF API is `set_params(cutoff_hz, resonance)` then
+  `next_sample(input)` (there is no `process_sample`; see how F1 is driven at voice.rs's
+  `set_params`/`next_sample` calls). Filter 2's smoothed cutoff/resonance arrive via the snapshot
+  `params` struct (new `params.filter2_cutoff_hz` / `params.filter2_resonance` fields), exactly like
+  F1's existing `params.filter_cutoff_hz` / `params.filter_resonance`:
 
   ```rust
+  self.filter_l.set_params(params.filter_cutoff_hz, params.filter_resonance);
+  self.filter_r.set_params(params.filter_cutoff_hz, params.filter_resonance);
+  self.filter2_l.set_params(params.filter2_cutoff_hz, params.filter2_resonance);
+  self.filter2_r.set_params(params.filter2_cutoff_hz, params.filter2_resonance);
+
   let (out_l, out_r) = match self.filter_routing {
       FilterRouting::Serial => {
-          let f1_l = self.filter_l.process_sample(slot_mix_l, sp);
-          let f1_r = self.filter_r.process_sample(slot_mix_r, sp);
-          let f2_l = self.filter2_l.process_sample(f1_l, sp2);
-          let f2_r = self.filter2_r.process_sample(f1_r, sp2);
-          (f2_l, f2_r)
+          let f1_l = self.filter_l.next_sample(mixed_l);
+          let f1_r = self.filter_r.next_sample(mixed_r);
+          (self.filter2_l.next_sample(f1_l), self.filter2_r.next_sample(f1_r))
       }
       FilterRouting::Parallel => {
-          let f1_l = self.filter_l.process_sample(slot_mix_l, sp);
-          let f1_r = self.filter_r.process_sample(slot_mix_r, sp);
-          let f2_l = self.filter2_l.process_sample(slot_mix_l, sp2);
-          let f2_r = self.filter2_r.process_sample(slot_mix_r, sp2);
+          let f1_l = self.filter_l.next_sample(mixed_l);
+          let f1_r = self.filter_r.next_sample(mixed_r);
+          let f2_l = self.filter2_l.next_sample(mixed_l);
+          let f2_r = self.filter2_r.next_sample(mixed_r);
           ((f1_l + f2_l) * 0.5, (f1_r + f2_r) * 0.5)
       }
   };
   ```
 
-  where `sp2` is a `SampleParams`-like struct carrying filter2's smoothed cutoff/resonance.
-  The simplest approach: add `filter2_cutoff_hz` and `filter2_resonance` as smoothed fields to
-  `SampleParams`; they're consumed by the voice just like the existing filter fields.
+- Add the `filter_routing` setter on `Voice` (mirroring `set_mode`), and a `set_filter2_mode`.
 
-- Handle `SetFilterRouting` and `SetFilter2Mode` in `Voice::set_mode()` / a new dispatch method.
+**`crates/synth-engine/src/voice_manager.rs`** *(layer the original plan omitted)*
+
+The mod/filter events don't reach `Voice` directly — `engine.rs` dispatches each `EngineEvent` to a
+`VoiceManager` setter, which fans it out across the pool (see `VoiceManager::set_filter_mode`). Add
+matching pool-wide setters: `set_filter_routing(FilterRouting)` and `set_filter2_mode(FilterMode)`.
+
+**`crates/synth-engine/src/engine.rs`**
+
+- Route the new `SetFilterRouting` / `SetFilter2Mode` events to the `VoiceManager` setters above.
+- Seed filter2 defaults in `Engine::new()` alongside the existing `set_filter_mode` seeding.
 
 **`crates/synth-engine/src/params/snapshot.rs`**
 
@@ -322,7 +343,8 @@ Update `ModDest::COUNT` (6 → 8). Update `from_index`, `to_index`, `compute_off
 
 - Add a "Filter 2" group below Filter 1: cutoff, resonance, mode — same layout.
 - Add a routing selector: "Series" / "Parallel" toggle at the top of the filter panel.
-- The mod-destination dropdowns in `modulation.rs` gain two new entries: "F2 Cutoff", "F2 Res".
+- Append "F2 Cutoff" / "F2 Res" to the `MOD_DEST_LABELS` slice in **`app/state.rs`** (not
+  modulation.rs — the dropdowns read the labels from there). Order must match `ModDest::to_index()`.
 
 ### Done when
 
@@ -393,8 +415,14 @@ SetFilterSlope { filter_idx: u8, slope: FilterSlope },
 
 **`crates/synth-engine/src/voice.rs`**
 
-Handle `SetFilterSlope` by calling `set_slope()` on all four SVF instances for the given
-`filter_idx` (0 = F1, 1 = F2).
+Add a `set_filter_slope(filter_idx, slope)` method that calls `set_slope()` on the two SVF instances
+for the given `filter_idx` (0 = F1: `filter_l`/`filter_r`; 1 = F2: `filter2_l`/`filter2_r`).
+
+**`crates/synth-engine/src/voice_manager.rs` + `engine.rs`**
+
+As in Phase 3, the event reaches voices through `VoiceManager`, not directly. Add
+`VoiceManager::set_filter_slope(filter_idx, slope)` and route `SetFilterSlope` to it from
+`engine.rs`.
 
 **`crates/synth-engine/src/params/snapshot.rs`**
 
@@ -450,6 +478,7 @@ Specifically:
 | `crates/synth-engine/src/params/tree.rs` | 1, 2, 3 |
 | `crates/synth-engine/src/events.rs` | 3, 4 |
 | `crates/synth-engine/src/engine.rs` | 3, 4 |
+| `crates/synth-engine/src/voice_manager.rs` | 3, 4 |
 | `crates/synth-engine/src/voice.rs` | 2, 3, 4 |
 | `crates/synth-engine/src/filter/mod.rs` | 3, 4 |
 | `crates/synth-engine/src/filter/svf.rs` | 4 |
