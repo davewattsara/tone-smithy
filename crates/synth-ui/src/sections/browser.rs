@@ -166,6 +166,15 @@ impl ToneSmithyApp {
         self.preset_error = None;
     }
 
+    /// Load a preset from a `.tsmith` file on disk.
+    ///
+    /// Public entry point for the standalone app's `.tsmith` file association /
+    /// command-line argument: launching `tonesmithy path/to/patch.tsmith` opens
+    /// that preset on startup.
+    pub fn open_preset_file(&mut self, path: &std::path::Path) {
+        self.load_file_preset(path);
+    }
+
     fn load_file_preset(&mut self, path: &std::path::Path) {
         match load(path) {
             Ok(preset) => {
