@@ -47,8 +47,8 @@ The window is divided into two areas:
 
 - **Header bar** (top strip) — patch name, Panic button, pitch-bend and mod-wheel
   indicators, CPU meter, and audio/MIDI status.
-- **Tab area** (main body) — eight tabs covering every aspect of the sound:
-  Master, Osc, Filter, Env/LFO, Mod, Arp, FX, Presets, and Settings.
+- **Tab area** (main body) — nine tabs covering every aspect of the sound:
+  Master, Osc, Filter, Envelopes, Mod, Arp, FX, Presets, and Settings.
 
 ### Controls
 
@@ -110,7 +110,7 @@ Each oscillator has three controls:
 
 | Control | Range | Description |
 |---|---|---|
-| Level | 0–2 | Output level of this oscillator. |
+| Level | 0–1 | Output level of this oscillator. |
 | Detune | -100 to +100 ct | Fine pitch offset in cents. OSC 1 Detune and Pan can be targeted by the mod matrix. |
 | Pan | L100 to R100 | Stereo position. |
 
@@ -118,7 +118,7 @@ Each oscillator also has a **Unison** section:
 
 | Control | Range | Description |
 |---|---|---|
-| Voices | 1–8 | Number of detuned unison copies. 1 = no unison. |
+| Voices | 1–7 | Number of detuned unison copies. 1 = no unison. |
 | Detune | 0–50 ct | Total detune spread across all unison voices. |
 | Spread | 0–1 | Stereo width of the unison voices. |
 
@@ -128,7 +128,7 @@ A pure sine one octave below the fundamental, mixed with OSC 3.
 
 | Control | Range | Description |
 |---|---|---|
-| Level | 0–2 | Sub oscillator level. |
+| Level | 0–1 | Sub oscillator level. |
 | Pan | L100 to R100 | Sub oscillator stereo position. |
 
 ### Slots / FM section
@@ -156,10 +156,10 @@ Each of the four operators (OP 1–4) has:
 
 | Control | Range | Description |
 |---|---|---|
-| Ratio (integer) | 1–16 | Harmonic ratio: integer part. |
-| Ratio (fine) | -1 to +1 | Fine ratio offset (fractional part). Allows inharmonic tones. |
+| Ratio (integer) | 1–15 | Harmonic ratio: integer part. |
+| Ratio (fine) | -100 to +100 | Fine ratio offset. Allows inharmonic tones. |
 | Level | 0–1 | Operator output level (for carriers) or modulation depth (for modulators). |
-| Feedback | 0–1 | Self-feedback amount (operator 1 only, algorithm-dependent). |
+| Feedback | -1 to +1 | Self-feedback amount (OP 4 only). |
 | A / D / S / R | (time) | Per-operator ADSR envelope. |
 
 ---
@@ -454,11 +454,11 @@ available.
 ### Note layout (one chromatic octave)
 
 ```
-White keys:  A  S  D  F  G  H  J  K
+White keys:  A  S  D  F  G  H  J
 Black keys:  W  E     T  Y  U
 ```
 
-This maps to: A=C, W=C#, S=D, E=D#, D=E, F=F, T=F#, G=G, Y=G#, H=A, U=A#, J=B, K=C (next octave).
+This maps to: A=C, W=C#, S=D, E=D#, D=E, F=F, T=F#, G=G, Y=G#, H=A, U=A#, J=B.
 
 ### Octave shift
 
