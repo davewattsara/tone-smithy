@@ -95,11 +95,11 @@ Shows live values updated in real time:
 
 ## 4. Oscillator tab
 
-The oscillator section provides the raw sound source for **Subtractive mode**.
-Each voice has two slots (configured in the Slots / FM section below); the
-waveform selector, OSC 1–3, and the sub oscillator only affect slots that are
-set to **Sub** mode. Slots in **FM** mode use their own internal sine-based
-operator bank and are completely unaffected by anything in this section.
+Each voice has two slots with fixed roles: **Slot 1** is always Subtractive
+(OSC 1–3 + Sub) and **Slot 2** is always FM (4-operator). The waveform
+selector, OSC 1–3, and the sub oscillator all belong to Slot 1 only. Slot 2
+uses its own internal sine-based operator bank and is completely unaffected by
+anything in this section.
 
 ### Waveform selector
 
@@ -135,25 +135,25 @@ A pure sine one octave below the fundamental, mixed with OSC 3.
 
 ### Slots / FM section
 
-Two per-voice **Slots** sit below the oscillator columns. Each slot can run
-in one of two modes, switchable with the Sub / FM buttons:
+Two per-voice **Slots** sit below the oscillator columns. Their roles are fixed:
 
-**Sub mode** — the slot blends the main oscillators (OSC 1–3 + Sub) into the
-voice signal. Slot 1 defaults to Sub at level 1.0; Slot 2 defaults to level 0.
+**Slot 1 (Sub)** — outputs the main oscillators (OSC 1–3 + Sub). Level defaults
+to 1.0.
 
-**FM mode** — the slot drives a 4-operator FM engine with 8 selectable
-algorithms, independently of any subtractive content in the other slot.
+**Slot 2 (FM)** — drives a 4-operator FM engine with 8 selectable algorithms.
+Level defaults to 0 (silent unless you raise it). Its sound is independent of
+Slot 1.
 
-In either mode each slot has:
+Each slot has:
 
 | Control | Description |
 |---|---|
 | Level | Output level of this slot. |
 | Pan | Stereo position. |
 
-#### FM operator controls (FM mode only)
+#### FM operator controls (Slot 2)
 
-When a slot is in FM mode, selecting an algorithm reveals the operator grid.
+Expanding Slot 2 reveals the algorithm selector and operator grid.
 Each of the four operators (OP 1–4) has:
 
 | Control | Range | Description |

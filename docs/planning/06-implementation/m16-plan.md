@@ -111,83 +111,47 @@ by another means. If the field name differs, adjust accordingly.
 
 ---
 
-## Phase 3 — Conditional OSC/Sub panel
+## Phase 3 — Move OSC/Sub controls into Slot 1 foldout
 
-**Goal:** OSC 1/2/3 + Sub controls only appear when at least one slot is in Sub mode; when both
-slots are FM, the oscillator section is hidden (since it has no effect on an all-FM patch).
+**Goal:** Move the waveform selector and OSC 1/2/3 + Sub columns inside the Slot 1 foldout, so
+the layout mirrors Slot 2 (where FM operators already live inside the foldout). The OSC controls
+have always been Slot-1-only; putting them in the foldout makes that structural relationship
+visible in the UI.
 
 ### Background
 
-`osc_tab()` (`crates/synth-ui/src/sections/osc.rs:11`) renders:
-1. A waveform selector row.
-2. Three side-by-side columns: OSC 1, OSC 2, OSC 3 + Sub.
-3. The "SLOTS / FM" section (slot foldouts with mode toggles and FM operator grids).
+`osc_tab()` (`crates/synth-ui/src/sections/osc.rs:11`) currently renders:
+1. A waveform selector row — always visible.
+2. Three side-by-side columns: OSC 1, OSC 2, OSC 3 + Sub — always visible.
+3. The "SLOTS / FM" section (two slot foldouts).
 
-The SubtractiveBank is **shared across both slots** — OSC 1/2/3 are not per-slot controls. So
-it is not meaningful to put OSC controls inside each individual slot foldout (that would show the
-same knobs twice if both slots are Sub). The correct conditional is: show OSC controls when
-**either** slot is in Sub mode; hide them when both are FM.
-
-The user asked for the controls to appear "inside a slot foldout when that slot is in Sub mode",
-mirroring FM operators. Because the oscillator bank is shared, the simplest implementation that
-achieves the same visual effect is: **move the waveform selector + three OSC columns inside the
-foldout of the first Sub-mode slot**. If both slots are Sub, the controls appear in Slot 1's
-foldout only (Slot 2's foldout would show just level/pan and the mode toggle). If only Slot 2 is
-Sub, the controls appear inside Slot 2's foldout.
-
-This mirrors exactly how FM operators work: FM controls appear inside the foldout of a slot that
-is in FM mode.
+With fixed slot roles (Slot 1 = Sub, Slot 2 = FM), the OSC controls belong structurally inside
+the Slot 1 foldout, just as the FM operator grid lives inside the Slot 2 foldout. There is no
+conditionality needed — the controls just move.
 
 ### Changes
 
-**`crates/synth-ui/src/sections/fm_slots.rs`**
-
-Inside `fm_slots_section()`, within the per-slot `CollapsingHeader` loop, add a Sub-mode branch
-after the level/pan knobs, symmetric with the existing FM branch:
-
-```rust
-if self.slot_mode[slot_idx] == 0 {
-    // Only render OSC controls for the *first* Sub-mode slot to avoid
-    // showing the shared subtractive bank controls twice.
-    let first_sub = self.slot_mode.iter().position(|&m| m == 0) == Some(slot_idx);
-    if first_sub {
-        ui.add_space(4.0);
-        // Call the extracted helper (see osc.rs changes).
-        self.osc_sub_controls_inline(ui, md);
-    }
-}
-```
-
 **`crates/synth-ui/src/sections/osc.rs`**
 
-- Extract the waveform selector row + three OSC columns into a new method
+- Extract the waveform selector row + three OSC columns + sub controls into a new method
   `osc_sub_controls_inline(&mut self, ui: &mut Ui, md: ModDisplay)`.
-- Remove that block from `osc_tab()`.
-- Pass `ModDisplay` down from `osc_tab()` through `fm_slots_section()` to
-  `osc_sub_controls_inline()`. This may require threading `md` through the call chain, or making
-  it a field on `ToneSmithyApp` if that is simpler.
+- Remove those blocks from `osc_tab()`, leaving `osc_tab()` as just a thin wrapper that calls
+  `fm_slots_section()`.
 
-If threading `ModDisplay` is awkward, an alternative is to keep the OSC columns in `osc_tab()`
-but wrap the entire block in:
+**`crates/synth-ui/src/sections/fm_slots.rs`**
 
-```rust
-let any_sub = self.slot_mode.iter().any(|&m| m == 0);
-if any_sub { /* waveform + columns */ }
-```
+- Pass `md: ModDisplay` through to `fm_slots_section()`.
+- Inside the `slot_idx == 0` branch of the `CollapsingHeader`, after the level/pan knobs, call
+  `self.osc_sub_controls_inline(ui, md)`.
 
-This is simpler and has the same practical effect — use whichever approach is cleaner at
-implementation time.
-
-> **Open question:** The user might expect OSC controls inside the slot foldout even when that
-> foldout is collapsed. Collapsing works as usual — the foldout hides all its contents including
-> OSC controls. Verify with the user after the first implementation if the collapsed behaviour is
-> acceptable.
+If threading `ModDisplay` is awkward, store it as a field set at the top of each frame rather
+than passing it through the call chain.
 
 ### Done when
 
-- Switching both slots to FM collapses / hides the OSC 1/2/3 + Sub controls entirely.
-- Switching one slot back to Sub reveals the OSC controls inside that slot's foldout.
-- FM operator grids are unaffected.
+- Slot 1 foldout shows level/pan then waveform selector + OSC 1/2/3 + Sub columns.
+- Slot 2 foldout shows level/pan then algorithm + operator grid (unchanged).
+- The top-level OSC tab no longer shows the waveform/OSC columns outside the foldouts.
 - `cargo fmt` and `cargo clippy` clean.
 
 ---
@@ -196,8 +160,7 @@ implementation time.
 
 1. Phase 1 (K key) — smallest, no dependencies.
 2. Phase 2 (alphabetical sort) — no dependencies on Phase 1.
-3. Phase 3 (conditional OSC panel) — no dependencies on 1 or 2; do last because it involves
-   the most refactoring.
+3. Phase 3 (OSC panel into Slot 1 foldout) — no dependencies on 1 or 2; do last.
 
 Commit each phase separately so each one is bisectable and reviewable on its own.
 
@@ -217,4 +180,4 @@ Commit each phase separately so each one is bisectable and reviewable on its own
 
 - [ ] Phase 1 — K=C keyboard note
 - [ ] Phase 2 — Alphabetical preset ordering
-- [ ] Phase 3 — Conditional OSC/Sub panel
+- [ ] Phase 3 — OSC/Sub panel into Slot 1 foldout
