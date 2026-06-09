@@ -7,7 +7,10 @@ use crate::toggle::Toggle;
 
 impl ToneSmithyApp {
     pub(crate) fn drive_section(&mut self, ui: &mut egui::Ui) {
-        if ui.add(Toggle::new(&mut self.fx_drive_enabled, "Drive")).changed() {
+        if ui
+            .add(Toggle::new(&mut self.fx_drive_enabled, "Drive").param_key("fx_drive_enabled"))
+            .changed()
+        {
             self.events.send(EngineEvent::ParameterChange {
                 id: ParamId::FxDriveEnabled,
                 value: if self.fx_drive_enabled { 1.0 } else { 0.0 },
@@ -18,6 +21,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_drive_drive, 1.0..=20.0, "Drive")
                         .default_value(1.0)
+                        .param_key("fx_drive_drive")
                         .format(|v| format!("{:.1}x", v)),
                 )
                 .changed()
@@ -31,6 +35,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.fx_drive_asymmetry, -1.0..=1.0, "Asym")
                         .default_value(0.0)
+                        .param_key("fx_drive_asymmetry")
                         .format(|v| format!("{:+.2}", v)),
                 )
                 .changed()

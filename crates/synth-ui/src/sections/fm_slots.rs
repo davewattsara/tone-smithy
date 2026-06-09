@@ -3,6 +3,7 @@ use synth_engine::{EngineEvent, ParamId};
 
 use crate::app::{FM_OP_ENV_MAX_SECS, FM_OP_ENV_MIN_SECS, FM_RATIO_FINE_MAX, ToneSmithyApp, secs_format};
 use crate::knob::Knob;
+use crate::midi_learn_ext::attach_learn_menu;
 use crate::theme;
 
 impl ToneSmithyApp {
@@ -35,11 +36,14 @@ impl ToneSmithyApp {
                         }
                     });
 
+                    let slot_level_key = ["slot_level_0", "slot_level_1"][slot_idx];
+                    let slot_pan_key = ["slot_pan_0", "slot_pan_1"][slot_idx];
                     ui.horizontal(|ui| {
                         if ui
                             .add(
                                 Knob::new(&mut self.slot_level[slot_idx], 0.0..=1.0, "Level")
                                     .default_value(if slot_idx == 0 { 1.0 } else { 0.0 })
+                                    .param_key(slot_level_key)
                                     .format(|v| format!("{:.2}", v)),
                             )
                             .changed()
@@ -53,6 +57,7 @@ impl ToneSmithyApp {
                             .add(
                                 Knob::new(&mut self.slot_pan[slot_idx], -1.0..=1.0, "Pan")
                                     .default_value(0.0)
+                                    .param_key(slot_pan_key)
                                     .format(|v| {
                                         if v < -0.01 {
                                             format!("L{:.0}", v.abs() * 100.0)
@@ -130,41 +135,154 @@ impl ToneSmithyApp {
                                         ui.label(egui::RichText::new("FB").color(theme::FG2).font(theme::font_small()));
                                         ui.end_row();
 
+                                        // Static key tables avoid lifetime issues with format!()
+                                        const FM_OP_RATIO_INT_K: [[&str; 4]; 2] = [
+                                            [
+                                                "fm_op_ratio_integer_0_0",
+                                                "fm_op_ratio_integer_0_1",
+                                                "fm_op_ratio_integer_0_2",
+                                                "fm_op_ratio_integer_0_3",
+                                            ],
+                                            [
+                                                "fm_op_ratio_integer_1_0",
+                                                "fm_op_ratio_integer_1_1",
+                                                "fm_op_ratio_integer_1_2",
+                                                "fm_op_ratio_integer_1_3",
+                                            ],
+                                        ];
+                                        const FM_OP_RATIO_FINE_K: [[&str; 4]; 2] = [
+                                            [
+                                                "fm_op_ratio_fine_0_0",
+                                                "fm_op_ratio_fine_0_1",
+                                                "fm_op_ratio_fine_0_2",
+                                                "fm_op_ratio_fine_0_3",
+                                            ],
+                                            [
+                                                "fm_op_ratio_fine_1_0",
+                                                "fm_op_ratio_fine_1_1",
+                                                "fm_op_ratio_fine_1_2",
+                                                "fm_op_ratio_fine_1_3",
+                                            ],
+                                        ];
+                                        const FM_OP_LEVEL_K: [[&str; 4]; 2] = [
+                                            [
+                                                "fm_op_level_0_0",
+                                                "fm_op_level_0_1",
+                                                "fm_op_level_0_2",
+                                                "fm_op_level_0_3",
+                                            ],
+                                            [
+                                                "fm_op_level_1_0",
+                                                "fm_op_level_1_1",
+                                                "fm_op_level_1_2",
+                                                "fm_op_level_1_3",
+                                            ],
+                                        ];
+                                        const FM_OP_ATK_K: [[&str; 4]; 2] = [
+                                            [
+                                                "fm_op_attack_secs_0_0",
+                                                "fm_op_attack_secs_0_1",
+                                                "fm_op_attack_secs_0_2",
+                                                "fm_op_attack_secs_0_3",
+                                            ],
+                                            [
+                                                "fm_op_attack_secs_1_0",
+                                                "fm_op_attack_secs_1_1",
+                                                "fm_op_attack_secs_1_2",
+                                                "fm_op_attack_secs_1_3",
+                                            ],
+                                        ];
+                                        const FM_OP_DCY_K: [[&str; 4]; 2] = [
+                                            [
+                                                "fm_op_decay_secs_0_0",
+                                                "fm_op_decay_secs_0_1",
+                                                "fm_op_decay_secs_0_2",
+                                                "fm_op_decay_secs_0_3",
+                                            ],
+                                            [
+                                                "fm_op_decay_secs_1_0",
+                                                "fm_op_decay_secs_1_1",
+                                                "fm_op_decay_secs_1_2",
+                                                "fm_op_decay_secs_1_3",
+                                            ],
+                                        ];
+                                        const FM_OP_SUS_K: [[&str; 4]; 2] = [
+                                            [
+                                                "fm_op_sustain_level_0_0",
+                                                "fm_op_sustain_level_0_1",
+                                                "fm_op_sustain_level_0_2",
+                                                "fm_op_sustain_level_0_3",
+                                            ],
+                                            [
+                                                "fm_op_sustain_level_1_0",
+                                                "fm_op_sustain_level_1_1",
+                                                "fm_op_sustain_level_1_2",
+                                                "fm_op_sustain_level_1_3",
+                                            ],
+                                        ];
+                                        const FM_OP_REL_K: [[&str; 4]; 2] = [
+                                            [
+                                                "fm_op_release_secs_0_0",
+                                                "fm_op_release_secs_0_1",
+                                                "fm_op_release_secs_0_2",
+                                                "fm_op_release_secs_0_3",
+                                            ],
+                                            [
+                                                "fm_op_release_secs_1_0",
+                                                "fm_op_release_secs_1_1",
+                                                "fm_op_release_secs_1_2",
+                                                "fm_op_release_secs_1_3",
+                                            ],
+                                        ];
+                                        const FM_OP_FB_K: [&str; 2] = ["fm_op_feedback_0_3", "fm_op_feedback_1_3"];
+
                                         for op in 0..4usize {
                                             let packed = ((slot_idx as u8) << 4) | (op as u8);
                                             ui.label(format!("Op {}", op + 1));
 
                                             let mut ratio_int = self.fm_op_ratio_integer[slot_idx][op] as i32;
-                                            if ui
-                                                .add(egui::DragValue::new(&mut ratio_int).range(1..=15).speed(0.1))
-                                                .changed()
-                                            {
+                                            let mut resp_int =
+                                                ui.add(egui::DragValue::new(&mut ratio_int).range(1..=15).speed(0.1));
+                                            if resp_int.changed() {
                                                 self.fm_op_ratio_integer[slot_idx][op] = ratio_int as u8;
                                                 self.events.send(EngineEvent::ParameterChange {
                                                     id: ParamId::FmOpRatioInteger(packed),
                                                     value: ratio_int as f32,
                                                 });
                                             }
+                                            attach_learn_menu(
+                                                &mut resp_int,
+                                                ui,
+                                                FM_OP_RATIO_INT_K[slot_idx][op],
+                                                1.0,
+                                                15.0,
+                                            );
 
-                                            if ui
-                                                .add(
-                                                    egui::DragValue::new(&mut self.fm_op_ratio_fine[slot_idx][op])
-                                                        .range(-FM_RATIO_FINE_MAX..=FM_RATIO_FINE_MAX)
-                                                        .speed(0.5)
-                                                        .suffix(" ct"),
-                                                )
-                                                .changed()
-                                            {
+                                            let mut resp_fine = ui.add(
+                                                egui::DragValue::new(&mut self.fm_op_ratio_fine[slot_idx][op])
+                                                    .range(-FM_RATIO_FINE_MAX..=FM_RATIO_FINE_MAX)
+                                                    .speed(0.5)
+                                                    .suffix(" ct"),
+                                            );
+                                            if resp_fine.changed() {
                                                 self.events.send(EngineEvent::ParameterChange {
                                                     id: ParamId::FmOpRatioFine(packed),
                                                     value: self.fm_op_ratio_fine[slot_idx][op],
                                                 });
                                             }
+                                            attach_learn_menu(
+                                                &mut resp_fine,
+                                                ui,
+                                                FM_OP_RATIO_FINE_K[slot_idx][op],
+                                                -FM_RATIO_FINE_MAX,
+                                                FM_RATIO_FINE_MAX,
+                                            );
 
                                             if ui
                                                 .add(
                                                     Knob::new(&mut self.fm_op_level[slot_idx][op], 0.0..=1.0, "Lv")
                                                         .default_value(1.0)
+                                                        .param_key(FM_OP_LEVEL_K[slot_idx][op])
                                                         .format(|v| format!("{:.2}", v)),
                                                 )
                                                 .changed()
@@ -183,6 +301,7 @@ impl ToneSmithyApp {
                                                         "",
                                                     )
                                                     .default_value(0.010)
+                                                    .param_key(FM_OP_ATK_K[slot_idx][op])
                                                     .format(secs_format),
                                                 )
                                                 .changed()
@@ -200,6 +319,7 @@ impl ToneSmithyApp {
                                                         "",
                                                     )
                                                     .default_value(0.200)
+                                                    .param_key(FM_OP_DCY_K[slot_idx][op])
                                                     .format(secs_format),
                                                 )
                                                 .changed()
@@ -217,6 +337,7 @@ impl ToneSmithyApp {
                                                         "",
                                                     )
                                                     .default_value(0.800)
+                                                    .param_key(FM_OP_SUS_K[slot_idx][op])
                                                     .format(|v| format!("{:.2}", v)),
                                                 )
                                                 .changed()
@@ -234,6 +355,7 @@ impl ToneSmithyApp {
                                                         "",
                                                     )
                                                     .default_value(0.200)
+                                                    .param_key(FM_OP_REL_K[slot_idx][op])
                                                     .format(secs_format),
                                                 )
                                                 .changed()
@@ -253,6 +375,7 @@ impl ToneSmithyApp {
                                                             "FB",
                                                         )
                                                         .default_value(0.0)
+                                                        .param_key(FM_OP_FB_K[slot_idx])
                                                         .format(|v| format!("{:.2}", v)),
                                                     )
                                                     .changed()

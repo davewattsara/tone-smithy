@@ -30,6 +30,7 @@ impl ToneSmithyApp {
                     Knob::new(&mut self.master_volume, 0.0..=1.0, "Volume")
                         .default_value(0.8)
                         .mod_offset(md.volume)
+                        .param_key("master_volume")
                         .format(|v| format!("{:.0}%", v * 100.0)),
                 )
                 .changed()
@@ -48,6 +49,7 @@ impl ToneSmithyApp {
                     )
                     .default_value(0.0)
                     .mod_offset(md.pitch)
+                    .param_key("pitch_offset_semis")
                     .format(|v| format!("{:+.0} st", v)),
                 )
                 .changed()
@@ -61,6 +63,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.bpm, BPM_MIN..=BPM_MAX, "BPM")
                         .default_value(120.0)
+                        .param_key("bpm")
                         .format(|v| format!("{:.0}", v)),
                 )
                 .changed()

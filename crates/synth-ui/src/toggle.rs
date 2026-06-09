@@ -30,13 +30,27 @@ const LABEL_GAP: f32 = 4.0;
 pub struct Toggle<'a> {
     value: &'a mut bool,
     label: &'a str,
+    /// Preset parameter key for MIDI Learn. When set, right-clicking opens a
+    /// "MIDI Learn" context menu. CC ≥ 0.5 maps to `true`; CC < 0.5 to `false`.
+    param_key: Option<&'a str>,
 }
 
 impl<'a> Toggle<'a> {
     /// Creates a toggle bound to `value` with a text label to the right.
     #[must_use]
     pub fn new(value: &'a mut bool, label: &'a str) -> Self {
-        Self { value, label }
+        Self {
+            value,
+            label,
+            param_key: None,
+        }
+    }
+
+    /// Sets the preset parameter key for MIDI Learn.
+    #[must_use]
+    pub fn param_key(mut self, key: &'a str) -> Self {
+        self.param_key = Some(key);
+        self
     }
 }
 
@@ -56,10 +70,30 @@ impl egui::Widget for Toggle<'_> {
             response.mark_changed();
         }
 
+        // Right-click context menu for MIDI Learn.
+        let mut learn_clicked = false;
+        response.context_menu(|ui| {
+            if ui
+                .add_enabled(self.param_key.is_some(), egui::Button::new("MIDI Learn"))
+                .clicked()
+            {
+                learn_clicked = true;
+                ui.close_menu();
+            }
+        });
+        if learn_clicked {
+            if let Some(key) = self.param_key {
+                ui.memory_mut(|m| {
+                    m.data.insert_temp(egui::Id::new("ts_ml_key"), key.to_string());
+                    m.data.insert_temp(egui::Id::new("ts_ml_start"), 0.0f32);
+                    m.data.insert_temp(egui::Id::new("ts_ml_end"), 1.0f32);
+                });
+            }
+        }
+
         if ui.is_rect_visible(rect) {
             let painter = ui.painter();
 
-            // Pill track
             let pill_rect = egui::Rect::from_min_size(
                 egui::pos2(rect.left(), rect.center().y - PILL_H / 2.0),
                 egui::vec2(PILL_W, PILL_H),
@@ -73,7 +107,6 @@ impl egui::Widget for Toggle<'_> {
             };
             painter.rect_filled(pill_rect, pill_rounding, track_color);
 
-            // Outline on hover
             if response.hovered() {
                 painter.rect_stroke(
                     pill_rect,
@@ -82,7 +115,6 @@ impl egui::Widget for Toggle<'_> {
                 );
             }
 
-            // Thumb
             let thumb_x = if *self.value {
                 pill_rect.right() - THUMB_R - 2.0
             } else {
@@ -92,7 +124,6 @@ impl egui::Widget for Toggle<'_> {
             let thumb_color = if *self.value { theme::ACCENT } else { theme::FG2 };
             painter.circle_filled(thumb_center, THUMB_R, thumb_color);
 
-            // Label
             let label_pos = egui::pos2(
                 pill_rect.right() + LABEL_GAP,
                 rect.center().y - label_galley.size().y / 2.0,

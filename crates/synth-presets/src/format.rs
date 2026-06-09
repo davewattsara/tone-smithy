@@ -72,11 +72,22 @@ pub struct PresetMetadata {
     pub description: String,
 }
 
-/// One MIDI-learn assignment: a CC number mapped to a parameter key.
+/// One MIDI-learn assignment: a CC number mapped to a parameter.
+///
+/// `range_start` and `range_end` are stored so that routing does not need
+/// any external lookup table — any parameter can be learned regardless of
+/// whether it appears in a whitelist.  Both fields default to `0.0` so
+/// preset files written before M13 load without error.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MidiLearnEntry {
     /// MIDI CC number, 0..=127.
     pub cc: u8,
     /// Parameter key matching a key in [`Preset::parameters`].
     pub parameter: String,
+    /// Minimum value of the parameter range (CC 0 → this value).
+    #[serde(default)]
+    pub range_start: f32,
+    /// Maximum value of the parameter range (CC 1 → this value).
+    #[serde(default)]
+    pub range_end: f32,
 }

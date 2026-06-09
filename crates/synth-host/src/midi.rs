@@ -68,33 +68,49 @@ pub struct MidiInputStream {
 }
 
 impl MidiInputStream {
-    /// Opens the first available MIDI input port (if any) and routes
-    /// note events into `sender`.
-    ///
-    /// Returns `Ok` with `port_name == None` if no MIDI device is
-    /// present — that's a normal startup state, not a failure.
+    /// Opens the first available MIDI input port (if any) and routes events
+    /// into `sender`. Returns with `port_name == None` if no port is present.
     ///
     /// # Errors
     ///
-    /// Returns [`MidiError`] if `midir` cannot initialise, if reading
-    /// a port name fails, or if the chosen port refuses to connect.
+    /// Returns [`MidiError`] if `midir` cannot initialise or the port refuses
+    /// to connect.
     pub fn start(sender: EngineEventSender) -> Result<Self, MidiError> {
+        Self::start_on_port(None, sender)
+    }
+
+    /// Like [`start`] but opens the port whose name equals `port_name`.
+    /// Falls back to the first available port if `port_name` is `None` or
+    /// cannot be matched.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MidiError`] if `midir` cannot initialise or the chosen port
+    /// refuses to connect.
+    pub fn start_on_port(port_name: Option<&str>, sender: EngineEventSender) -> Result<Self, MidiError> {
         let mut midi_in = MidiInput::new(MIDI_CLIENT_NAME)?;
-        // We only care about voice messages right now. Ignoring SysEx,
-        // time, and active-sensing here trims the callback's input;
-        // the parser would ignore them anyway, but skipping the
-        // bytes is cheaper.
         midi_in.ignore(Ignore::All);
 
         let ports = midi_in.ports();
-        let Some(port) = ports.first() else {
+        if ports.is_empty() {
             return Ok(Self {
                 _connection: None,
                 port_name: None,
             });
+        }
+
+        // Try to match by name; fall back to the first port.
+        let port = if let Some(target) = port_name {
+            ports
+                .iter()
+                .find(|p| midi_in.port_name(p).as_deref() == Ok(target))
+                .unwrap_or(&ports[0])
+        } else {
+            &ports[0]
         };
-        let port_name = midi_in.port_name(port)?;
-        tracing::info!("opening MIDI input port: {port_name}");
+
+        let name = midi_in.port_name(port)?;
+        tracing::info!("opening MIDI input port: {name}");
 
         let connection = midi_in.connect(
             port,
@@ -109,16 +125,31 @@ impl MidiInputStream {
 
         Ok(Self {
             _connection: Some(connection),
-            port_name: Some(port_name),
+            port_name: Some(name),
         })
     }
 
-    /// Returns the name of the connected port, or `None` if no MIDI
-    /// device was available at startup.
+    /// Returns the name of the connected port, or `None` if no MIDI device
+    /// was available at startup.
     #[must_use]
     pub fn port_name(&self) -> Option<&str> {
         self.port_name.as_deref()
     }
+}
+
+/// Returns the names of all currently visible MIDI input ports.
+///
+/// # Errors
+///
+/// Returns [`MidiError`] if `midir` cannot initialise.
+pub fn list_ports() -> Result<Vec<String>, MidiError> {
+    let midi_in = MidiInput::new(MIDI_CLIENT_NAME)?;
+    let names = midi_in
+        .ports()
+        .iter()
+        .filter_map(|p| midi_in.port_name(p).ok())
+        .collect();
+    Ok(names)
 }
 
 /// Parses a single MIDI message into an [`EngineEvent`], or returns

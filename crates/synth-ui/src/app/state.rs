@@ -6,11 +6,25 @@ use notify::RecommendedWatcher;
 use synth_engine::ParamSnapshot;
 use synth_engine::param_bus::{EngineEventSender, SnapshotSlot, load_snapshot};
 use synth_engine::{FilterMode, Waveform};
-use synth_presets::{PresetEntry, factory_entries, scan_dir, start_watcher, user_presets_dir};
+use synth_presets::{
+    AppSettings, MidiLearnEntry, PresetEntry, factory_entries, scan_dir, start_watcher, user_presets_dir,
+};
 
 use crate::computer_keyboard::ComputerKeyboard;
 use crate::keyboard::VirtualKeyboard;
 use crate::sections::browser::LoadAction;
+
+// ── Device change request (read by AppShell each frame) ──────────────────────
+
+/// Sent from the Settings tab to the composition root (`AppShell`) to request
+/// a live audio or MIDI device switch.
+#[derive(Debug, Clone)]
+pub enum DeviceChange {
+    /// Switch to a named audio output device (`None` = OS default).
+    Audio(Option<String>),
+    /// Switch to a named MIDI input port (`None` = first available).
+    Midi(Option<String>),
+}
 
 // ── Constants used by section files ──────────────────────────────────────────
 
@@ -60,6 +74,7 @@ pub enum Tab {
     Fx,
     Master,
     Presets,
+    Settings,
 }
 
 impl Tab {
@@ -72,6 +87,7 @@ impl Tab {
         (Tab::Fx, "FX"),
         (Tab::Master, "Master"),
         (Tab::Presets, "Presets"),
+        (Tab::Settings, "Settings"),
     ];
 }
 
@@ -231,6 +247,25 @@ pub struct ToneSmithyApp {
     _file_watcher: Option<RecommendedWatcher>,
     /// Deferred actions from browser row rendering (load/delete/save-as).
     pub(crate) load_actions: Vec<LoadAction>,
+
+    // ── Settings + MIDI Learn (M13) ──────────────────────────────────────────
+    /// Persisted app settings (audio device, MIDI port, etc.).
+    pub(crate) settings: AppSettings,
+    /// Available audio output device names (cached at startup / on refresh).
+    pub(crate) audio_devices: Vec<String>,
+    /// Available MIDI input port names (cached at startup / on refresh).
+    pub(crate) midi_ports: Vec<String>,
+    /// Pending device change to be consumed by `AppShell` after `update()`.
+    pending_device_change: Option<DeviceChange>,
+    /// Parameter key + range currently waiting for a CC to be bound.
+    /// Set when the user clicks "MIDI Learn" in a knob context menu.
+    /// Tuple: `(param_key, range_start, range_end)`.
+    pub(crate) midi_learn_target: Option<(String, f32, f32)>,
+    /// CC values from the previous frame — used to detect incoming CC movement
+    /// during MIDI Learn mode.
+    pub(crate) prev_cc_values: [f32; 128],
+    /// Active MIDI Learn bindings: CC number → parameter key.
+    pub(crate) midi_learn_mappings: Vec<MidiLearnEntry>,
 }
 
 // ── Construction ──────────────────────────────────────────────────────────────
@@ -243,6 +278,7 @@ impl ToneSmithyApp {
         events: EngineEventSender,
         snapshot_slot: SnapshotSlot,
         cpu_load: Arc<AtomicU32>,
+        settings: AppSettings,
     ) -> Self {
         let snap = load_snapshot(&snapshot_slot);
         let mut app = Self {
@@ -355,9 +391,64 @@ impl ToneSmithyApp {
             },
             _file_watcher: None,
             load_actions: Vec::new(),
+            settings,
+            audio_devices: Vec::new(),
+            midi_ports: Vec::new(),
+            pending_device_change: None,
+            midi_learn_target: None,
+            prev_cc_values: [0.0; 128],
+            midi_learn_mappings: Vec::new(),
         };
         app.init_browser();
+        app.refresh_device_lists();
         app
+    }
+
+    /// Refreshes the cached audio device and MIDI port lists.
+    pub(crate) fn refresh_device_lists(&mut self) {
+        self.audio_devices = synth_host::audio::list_output_devices();
+        self.midi_ports = synth_host::midi::list_ports().unwrap_or_default();
+    }
+
+    // ── AppShell interface ────────────────────────────────────────────────────
+
+    /// Returns the snapshot slot so `AppShell` can read the current engine state.
+    #[must_use]
+    pub fn snapshot_slot(&self) -> &SnapshotSlot {
+        &self.snapshot_slot
+    }
+
+    /// Returns the event sender so `AppShell` can hand it to a reconnected
+    /// MIDI stream.
+    #[must_use]
+    pub fn events_sender(&self) -> &EngineEventSender {
+        &self.events
+    }
+
+    /// Takes the pending device change (if any) — called by `AppShell` each frame.
+    pub fn take_pending_device_change(&mut self) -> Option<DeviceChange> {
+        self.pending_device_change.take()
+    }
+
+    /// Queues a device change to be applied by `AppShell` after `update()`.
+    pub(crate) fn request_device_change(&mut self, change: DeviceChange) {
+        self.pending_device_change = Some(change);
+    }
+
+    /// Reconnects the UI to a new engine bus after a device switch.
+    pub fn reconnect_bus(&mut self, events: EngineEventSender, snapshot_slot: SnapshotSlot) {
+        self.events = events;
+        self.snapshot_slot = snapshot_slot;
+    }
+
+    /// Updates the audio status string (shown in the header bar).
+    pub fn set_audio_status(&mut self, status: String) {
+        self.audio_status = status;
+    }
+
+    /// Sets a preset error message (shown in the error bar).
+    pub fn set_preset_error(&mut self, msg: String) {
+        self.preset_error = Some(msg);
     }
 
     /// Starts the file watcher and populates the initial preset list.

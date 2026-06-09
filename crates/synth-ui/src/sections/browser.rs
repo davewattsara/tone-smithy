@@ -169,6 +169,7 @@ impl ToneSmithyApp {
         let snap = map_to_snapshot(&preset.parameters);
         self.sync_from_snapshot(&snap);
         self.patch_name = preset.metadata.name.clone();
+        self.midi_learn_mappings = preset.midi_learn.clone();
         self.preset_error = None;
     }
 
@@ -181,6 +182,7 @@ impl ToneSmithyApp {
                 let snap = map_to_snapshot(&preset.parameters);
                 self.sync_from_snapshot(&snap);
                 self.patch_name = preset.metadata.name.clone();
+                self.midi_learn_mappings = preset.midi_learn.clone();
                 self.preset_error = None;
             }
             Err(e) => {

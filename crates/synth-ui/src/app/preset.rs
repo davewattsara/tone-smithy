@@ -8,6 +8,7 @@ impl ToneSmithyApp {
         let snapshot = load_snapshot(&self.snapshot_slot);
         let mut preset = Preset::new(self.patch_name.clone());
         preset.parameters = snapshot_to_map(&snapshot);
+        preset.midi_learn = self.midi_learn_mappings.clone();
 
         let default_filename = format!("{}.tsmith", self.patch_name);
         let start_dir = synth_presets::user_presets_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
@@ -44,6 +45,7 @@ impl ToneSmithyApp {
                     let snap = map_to_snapshot(&preset.parameters);
                     self.sync_from_snapshot(&snap);
                     self.patch_name = preset.metadata.name.clone();
+                    self.midi_learn_mappings = preset.midi_learn.clone();
                     self.preset_error = None;
                 }
                 Err(e) => {
