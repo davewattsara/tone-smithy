@@ -79,6 +79,7 @@ impl AppShell {
                             self.ui.reconnect_bus(new_tx, new_slot.clone());
                             let status = Self::audio_status(&new_audio, &self.midi);
                             self.ui.set_audio_status(status);
+                            self.ui.set_audio_device(device_name.clone());
                             self.settings.audio_output_device = device_name;
                             save_settings(&self.settings);
                             self.audio = new_audio;
@@ -98,6 +99,7 @@ impl AppShell {
                         self.midi = new_midi;
                         let status = Self::audio_status(&self.audio, &self.midi);
                         self.ui.set_audio_status(status);
+                        self.ui.set_midi_port(port_name.clone());
                         self.settings.midi_input_port = port_name;
                         save_settings(&self.settings);
                     }
