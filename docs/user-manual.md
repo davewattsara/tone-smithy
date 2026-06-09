@@ -52,11 +52,12 @@ The window is divided into two areas:
 
 ### Controls
 
-- **Knobs** — click and drag up/down to change value. Double-click to reset to
-  default. Right-click to MIDI Learn (see [MIDI Learn](#12-midi-learn)).
+- **Knobs** — click and drag up/down to change value. Hold **Shift** while
+  dragging for fine control. Double-click to reset to default. The current value
+  shows beneath the knob while you drag. Right-click to MIDI Learn (see
+  [MIDI Learn](#12-midi-learn)).
 - **Toggles** — click to enable/disable a section (EQ, Drive, Chorus, etc.).
 - **Selectors** — labelled buttons or drop-down menus; click to choose.
-- **Value display** — the current value shows beneath each knob while you drag.
 
 ### Header bar
 
