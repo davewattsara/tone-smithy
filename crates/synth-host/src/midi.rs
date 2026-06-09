@@ -116,10 +116,12 @@ impl MidiInputStream {
             port,
             MIDI_CONNECTION_NAME,
             move |_stamp, message, sender| {
-                // TEMPORARY diagnostic (remove once the V61 no-input issue is
-                // resolved): log every raw message so we can confirm whether
-                // the keyboard is delivering anything to the open port.
-                tracing::info!("MIDI in: {message:02X?}");
+                // Quiet diagnostic: silent by default, surfaced with
+                // `RUST_LOG=synth_host=debug`. Lets us confirm whether the
+                // controller is actually delivering bytes to the open port
+                // when troubleshooting "connected but no notes" reports (a
+                // stuck WinMM/USB routing state, cleared by a device replug).
+                tracing::debug!("MIDI in: {message:02X?}");
                 if let Some(event) = parse_midi_message(message) {
                     sender.send(event);
                 }
