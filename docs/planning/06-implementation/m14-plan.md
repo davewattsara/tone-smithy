@@ -1,6 +1,6 @@
 # M14 — Factory Bank
 
-**Status:** Implementation complete, pending user QA (branch `milestone/m14-factory-bank`)
+**Status:** Complete — merged to `main`, tag `m14`.
 
 ## Implementation notes
 
