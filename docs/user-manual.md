@@ -95,9 +95,11 @@ Shows live values updated in real time:
 
 ## 4. Oscillator tab
 
-The oscillator section provides the raw sound source. Each voice contains three
-main oscillators, a sub-oscillator, and two slots that can run independently in
-either Subtractive or FM mode.
+The oscillator section provides the raw sound source for **Subtractive mode**.
+Each voice has two slots (configured in the Slots / FM section below); the
+waveform selector, OSC 1–3, and the sub oscillator only affect slots that are
+set to **Sub** mode. Slots in **FM** mode use their own internal sine-based
+operator bank and are completely unaffected by anything in this section.
 
 ### Waveform selector
 
