@@ -1,13 +1,14 @@
 use crate::MAIN_OSCILLATOR_COUNT;
-use crate::filter::FilterMode;
+use crate::filter::{FilterMode, FilterRouting};
 use crate::fm::OPERATOR_COUNT;
 use crate::mod_matrix::MOD_MATRIX_SLOTS;
 use crate::oscillator::Waveform;
 
 use super::tree::{
     DEFAULT_AMP_ATTACK_SECS, DEFAULT_AMP_DECAY_SECS, DEFAULT_AMP_RELEASE_SECS, DEFAULT_AMP_SUSTAIN_LEVEL,
-    DEFAULT_FILTER_CUTOFF_HZ, DEFAULT_FILTER_RESONANCE, DEFAULT_MASTER_VOLUME, DEFAULT_OSC_DETUNE_CENTS,
-    DEFAULT_OSC_LEVEL, DEFAULT_OSC_PAN, DEFAULT_UNISON_DETUNE_CENTS, DEFAULT_UNISON_SPREAD, DEFAULT_UNISON_VOICES,
+    DEFAULT_FILTER_CUTOFF_HZ, DEFAULT_FILTER_RESONANCE, DEFAULT_FILTER2_CUTOFF_HZ, DEFAULT_MASTER_VOLUME,
+    DEFAULT_OSC_DETUNE_CENTS, DEFAULT_OSC_LEVEL, DEFAULT_OSC_PAN, DEFAULT_UNISON_DETUNE_CENTS, DEFAULT_UNISON_SPREAD,
+    DEFAULT_UNISON_VOICES,
 };
 
 /// An immutable snapshot of the engine's outward-facing parameter
@@ -50,6 +51,18 @@ pub struct ParamSnapshot {
 
     /// Current filter output mode.
     pub filter_mode: FilterMode,
+
+    /// Current filter 2 cutoff frequency, in Hz.
+    pub filter2_cutoff_hz: f32,
+
+    /// Current filter 2 resonance on the 0..=1 user scale.
+    pub filter2_resonance: f32,
+
+    /// Current filter 2 output mode.
+    pub filter2_mode: FilterMode,
+
+    /// How filters 1 and 2 are connected (serial vs. parallel).
+    pub filter_routing: FilterRouting,
 
     /// Per-main-oscillator levels (0..=1), indexed as the voice
     /// indexes its main oscillators.
@@ -261,6 +274,10 @@ impl Default for ParamSnapshot {
             filter_cutoff_hz: DEFAULT_FILTER_CUTOFF_HZ,
             filter_resonance: DEFAULT_FILTER_RESONANCE,
             filter_mode: FilterMode::LowPass,
+            filter2_cutoff_hz: DEFAULT_FILTER2_CUTOFF_HZ,
+            filter2_resonance: DEFAULT_FILTER_RESONANCE,
+            filter2_mode: FilterMode::LowPass,
+            filter_routing: FilterRouting::Serial,
             osc_main_levels: [DEFAULT_OSC_LEVEL; MAIN_OSCILLATOR_COUNT],
             sub_level: DEFAULT_OSC_LEVEL,
             osc_main_detune_cents: [DEFAULT_OSC_DETUNE_CENTS; MAIN_OSCILLATOR_COUNT],
@@ -377,6 +394,12 @@ pub struct SampleParams {
 
     /// Filter resonance for this sample, on the 0..=1 user scale.
     pub filter_resonance: f32,
+
+    /// Filter 2 cutoff frequency for this sample, in Hz.
+    pub filter2_cutoff_hz: f32,
+
+    /// Filter 2 resonance for this sample, on the 0..=1 user scale.
+    pub filter2_resonance: f32,
 
     /// Per-main-oscillator levels for this sample.
     pub osc_main_levels: [f32; MAIN_OSCILLATOR_COUNT],

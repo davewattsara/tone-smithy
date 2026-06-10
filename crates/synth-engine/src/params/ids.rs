@@ -145,6 +145,12 @@ pub enum ParamId {
     /// Env2 Release stage curve, -1..=1.
     Env2ReleaseCurve,
 
+    // ── Filter 2 ───────────────────────────────────────────────────────
+    /// Filter 2 cutoff frequency, in Hz. Smoothed.
+    Filter2CutoffHz,
+    /// Filter 2 resonance, on the 0..=1 user scale. Smoothed.
+    Filter2Resonance,
+
     // ── Env3 (second modulation envelope) ──────────────────────────────
     /// Env3 attack time, in seconds.
     Env3AttackSecs,

@@ -1,4 +1,4 @@
-use synth_engine::ParamSnapshot;
+use synth_engine::{MOD_MATRIX_SLOTS, ParamSnapshot};
 
 use super::state::{CUTOFF_MAX_HZ, CUTOFF_MIN_HZ, OSC_DETUNE_MAX_CENTS, PITCH_OFFSET_RANGE};
 
@@ -6,8 +6,8 @@ use super::state::{CUTOFF_MAX_HZ, CUTOFF_MIN_HZ, OSC_DETUNE_MAX_CENTS, PITCH_OFF
 /// knob in the UI. Computed once per frame from the engine snapshot and
 /// passed to section panels so they can drive the mod ring on knobs.
 ///
-/// Only sources with live values in the snapshot (LFO1, LFO2, Env2) produce
-/// visible rings; the rest are left at 0.0.
+/// Only sources with live values in the snapshot (LFO1, LFO2, Env2, Env3)
+/// produce visible rings; the rest are left at 0.0.
 #[derive(Default, Clone, Copy)]
 pub(crate) struct ModDisplay {
     pub cutoff: f32,
@@ -16,6 +16,8 @@ pub(crate) struct ModDisplay {
     pub volume: f32,
     pub osc1_detune: f32,
     pub osc1_pan: f32,
+    pub filter2_cutoff: f32,
+    pub filter2_resonance: f32,
 }
 
 impl ModDisplay {
@@ -26,12 +28,13 @@ impl ModDisplay {
                 1 => snap.lfo1_out,
                 2 => snap.lfo2_out,
                 3 => snap.env2_out,
+                10 => snap.env3_out,
                 _ => 0.0,
             }
         };
 
         let mut d = ModDisplay::default();
-        for i in 0..8usize {
+        for i in 0..MOD_MATRIX_SLOTS {
             if !snap.mod_slot_enabled[i] {
                 continue;
             }
@@ -48,6 +51,8 @@ impl ModDisplay {
                 3 => d.volume += live * amt / 1.0,
                 4 => d.osc1_detune += live * amt / (2.0 * OSC_DETUNE_MAX_CENTS),
                 5 => d.osc1_pan += live * amt / 2.0,
+                6 => d.filter2_cutoff += live * amt / (CUTOFF_MAX_HZ - CUTOFF_MIN_HZ),
+                7 => d.filter2_resonance += live * amt / 1.0,
                 _ => {}
             }
         }
@@ -58,6 +63,8 @@ impl ModDisplay {
         d.volume = d.volume.clamp(-1.0, 1.0);
         d.osc1_detune = d.osc1_detune.clamp(-1.0, 1.0);
         d.osc1_pan = d.osc1_pan.clamp(-1.0, 1.0);
+        d.filter2_cutoff = d.filter2_cutoff.clamp(-1.0, 1.0);
+        d.filter2_resonance = d.filter2_resonance.clamp(-1.0, 1.0);
         d
     }
 }

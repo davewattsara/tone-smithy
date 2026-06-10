@@ -9,7 +9,7 @@
 use std::collections::BTreeMap;
 
 use synth_engine::EngineEvent;
-use synth_engine::{EngineEvent as Ev, FilterMode, MOD_MATRIX_SLOTS, ParamId, ParamSnapshot, Waveform};
+use synth_engine::{EngineEvent as Ev, FilterMode, FilterRouting, MOD_MATRIX_SLOTS, ParamId, ParamSnapshot, Waveform};
 
 /// Serialises all saveable params from `snap` into a stable string-keyed
 /// map. Keys use snake_case matching the `ParamSnapshot` field names;
@@ -18,9 +18,11 @@ use synth_engine::{EngineEvent as Ev, FilterMode, MOD_MATRIX_SLOTS, ParamId, Par
 pub fn snapshot_to_map(snap: &ParamSnapshot) -> BTreeMap<String, f32> {
     let mut m = BTreeMap::new();
 
-    // Discrete: waveform and filter mode encoded as index
+    // Discrete: waveform and filter modes/routing encoded as index
     m.insert("waveform".into(), snap.waveform.index() as f32);
     m.insert("filter_mode".into(), snap.filter_mode.index() as f32);
+    m.insert("filter2_mode".into(), snap.filter2_mode.index() as f32);
+    m.insert("filter_routing".into(), snap.filter_routing.index() as f32);
 
     // Global
     m.insert("pitch_offset_semis".into(), snap.pitch_offset_semis);
@@ -36,6 +38,8 @@ pub fn snapshot_to_map(snap: &ParamSnapshot) -> BTreeMap<String, f32> {
     // Filter
     m.insert("filter_cutoff_hz".into(), snap.filter_cutoff_hz);
     m.insert("filter_resonance".into(), snap.filter_resonance);
+    m.insert("filter2_cutoff_hz".into(), snap.filter2_cutoff_hz);
+    m.insert("filter2_resonance".into(), snap.filter2_resonance);
 
     // Osc 1 (index 0)
     for i in 0..3usize {
@@ -186,6 +190,16 @@ pub fn map_to_events(m: &BTreeMap<String, f32>) -> Vec<EngineEvent> {
             mode: FilterMode::from_index(v as usize),
         });
     }
+    if let Some(&v) = m.get("filter2_mode") {
+        ev.push(Ev::SetFilter2Mode {
+            mode: FilterMode::from_index(v as usize),
+        });
+    }
+    if let Some(&v) = m.get("filter_routing") {
+        ev.push(Ev::SetFilterRouting {
+            routing: FilterRouting::from_index(v as usize),
+        });
+    }
 
     // Global
     pc!("pitch_offset_semis", ParamId::PitchOffsetSemis);
@@ -201,6 +215,8 @@ pub fn map_to_events(m: &BTreeMap<String, f32>) -> Vec<EngineEvent> {
     // Filter
     pc!("filter_cutoff_hz", ParamId::FilterCutoffHz);
     pc!("filter_resonance", ParamId::FilterResonance);
+    pc!("filter2_cutoff_hz", ParamId::Filter2CutoffHz);
+    pc!("filter2_resonance", ParamId::Filter2Resonance);
 
     // Osc arrays
     for i in 0..3usize {
@@ -411,6 +427,12 @@ pub fn map_to_snapshot(m: &BTreeMap<String, f32>) -> ParamSnapshot {
     if let Some(&v) = m.get("filter_mode") {
         s.filter_mode = FilterMode::from_index(v as usize);
     }
+    if let Some(&v) = m.get("filter2_mode") {
+        s.filter2_mode = FilterMode::from_index(v as usize);
+    }
+    if let Some(&v) = m.get("filter_routing") {
+        s.filter_routing = FilterRouting::from_index(v as usize);
+    }
 
     get!("pitch_offset_semis", s.pitch_offset_semis);
     get!("master_volume", s.master_volume);
@@ -421,6 +443,8 @@ pub fn map_to_snapshot(m: &BTreeMap<String, f32>) -> ParamSnapshot {
     get!("amp_release_secs", s.amp_release_secs);
     get!("filter_cutoff_hz", s.filter_cutoff_hz);
     get!("filter_resonance", s.filter_resonance);
+    get!("filter2_cutoff_hz", s.filter2_cutoff_hz);
+    get!("filter2_resonance", s.filter2_resonance);
 
     for i in 0..3usize {
         let n = i + 1;
@@ -588,6 +612,10 @@ mod tests {
         orig.amp_release_secs = 1.2;
         orig.filter_cutoff_hz = 3_000.0;
         orig.filter_resonance = 0.4;
+        orig.filter2_cutoff_hz = 1_200.0;
+        orig.filter2_resonance = 0.6;
+        orig.filter2_mode = FilterMode::HighPass;
+        orig.filter_routing = FilterRouting::Parallel;
         for i in 0..3 {
             orig.osc_main_levels[i] = 0.8 - i as f32 * 0.1;
             orig.osc_main_detune_cents[i] = 5.0 + i as f32;
@@ -693,6 +721,10 @@ mod tests {
         assert_eq!(orig.amp_release_secs, got.amp_release_secs);
         assert_eq!(orig.filter_cutoff_hz, got.filter_cutoff_hz);
         assert_eq!(orig.filter_resonance, got.filter_resonance);
+        assert_eq!(orig.filter2_cutoff_hz, got.filter2_cutoff_hz);
+        assert_eq!(orig.filter2_resonance, got.filter2_resonance);
+        assert_eq!(orig.filter2_mode, got.filter2_mode);
+        assert_eq!(orig.filter_routing, got.filter_routing);
         assert_eq!(orig.osc_main_levels, got.osc_main_levels);
         assert_eq!(orig.osc_main_detune_cents, got.osc_main_detune_cents);
         assert_eq!(orig.osc_main_pans, got.osc_main_pans);

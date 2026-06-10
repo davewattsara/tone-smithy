@@ -5,7 +5,7 @@ use std::sync::mpsc::Receiver;
 use notify::RecommendedWatcher;
 use synth_engine::ParamSnapshot;
 use synth_engine::param_bus::{EngineEventSender, SnapshotSlot, load_snapshot};
-use synth_engine::{FilterMode, MOD_MATRIX_SLOTS, Waveform};
+use synth_engine::{FilterMode, FilterRouting, MOD_MATRIX_SLOTS, Waveform};
 use synth_presets::{
     AppSettings, MidiLearnEntry, PresetEntry, factory_entries, scan_dir, start_watcher, user_presets_dir,
 };
@@ -51,7 +51,9 @@ pub(crate) const FM_OP_ENV_MAX_SECS: f32 = 10.0;
 pub(crate) const MOD_SOURCE_LABELS: &[&str] = &[
     "Off", "LFO1", "LFO2", "Env2", "AmpEnv", "Vel", "Key", "ModWhl", "AfterT", "Bend", "Env3",
 ];
-pub(crate) const MOD_DEST_LABELS: &[&str] = &["Cutoff", "Reso", "Pitch", "Vol", "Osc1Det", "Osc1Pan"];
+pub(crate) const MOD_DEST_LABELS: &[&str] = &[
+    "Cutoff", "Reso", "Pitch", "Vol", "Osc1Det", "Osc1Pan", "F2 Cut", "F2 Res",
+];
 pub(crate) const MOD_AMOUNT_RANGES: &[f32] = &[
     10_000.0, // FilterCutoffHz
     1.0,      // FilterResonance
@@ -125,6 +127,10 @@ pub struct ToneSmithyApp {
     pub(crate) filter_mode: FilterMode,
     pub(crate) filter_cutoff_hz: f32,
     pub(crate) filter_resonance: f32,
+    pub(crate) filter2_mode: FilterMode,
+    pub(crate) filter2_cutoff_hz: f32,
+    pub(crate) filter2_resonance: f32,
+    pub(crate) filter_routing: FilterRouting,
 
     // ── Amp envelope ─────────────────────────────────────────────────────────
     pub(crate) amp_attack_secs: f32,
@@ -306,6 +312,10 @@ impl ToneSmithyApp {
             filter_mode: snap.filter_mode,
             filter_cutoff_hz: snap.filter_cutoff_hz,
             filter_resonance: snap.filter_resonance,
+            filter2_mode: snap.filter2_mode,
+            filter2_cutoff_hz: snap.filter2_cutoff_hz,
+            filter2_resonance: snap.filter2_resonance,
+            filter_routing: snap.filter_routing,
             amp_attack_secs: snap.amp_attack_secs,
             amp_decay_secs: snap.amp_decay_secs,
             amp_sustain_level: snap.amp_sustain_level,
@@ -516,6 +526,10 @@ impl ToneSmithyApp {
         self.sub_pan = snap.sub_pan;
         self.filter_cutoff_hz = snap.filter_cutoff_hz;
         self.filter_resonance = snap.filter_resonance;
+        self.filter2_mode = snap.filter2_mode;
+        self.filter2_cutoff_hz = snap.filter2_cutoff_hz;
+        self.filter2_resonance = snap.filter2_resonance;
+        self.filter_routing = snap.filter_routing;
         self.amp_attack_secs = snap.amp_attack_secs;
         self.amp_decay_secs = snap.amp_decay_secs;
         self.amp_sustain_level = snap.amp_sustain_level;

@@ -16,7 +16,7 @@
 //! [`Voice`]: crate::voice::Voice
 
 use crate::POLYPHONY;
-use crate::filter::FilterMode;
+use crate::filter::{FilterMode, FilterRouting};
 use crate::lfo::LfoShape;
 use crate::mod_matrix::{ModDest, ModMatrix, ModSource, ModSources};
 use crate::oscillator::Waveform;
@@ -252,6 +252,20 @@ impl VoiceManager {
     pub fn set_filter_mode(&mut self, mode: FilterMode) {
         for v in &mut self.voices {
             v.set_filter_mode(mode);
+        }
+    }
+
+    /// Sets the filter-2 output tap on every voice.
+    pub fn set_filter2_mode(&mut self, mode: FilterMode) {
+        for v in &mut self.voices {
+            v.set_filter2_mode(mode);
+        }
+    }
+
+    /// Sets the filter routing (serial/parallel) on every voice.
+    pub fn set_filter_routing(&mut self, routing: FilterRouting) {
+        for v in &mut self.voices {
+            v.set_filter_routing(routing);
         }
     }
 
@@ -590,6 +604,8 @@ impl VoiceManager {
             let off = &v.mod_offsets;
             vp.filter_cutoff_hz = (vp.filter_cutoff_hz + off.filter_cutoff_hz).clamp(20.0, 20_000.0);
             vp.filter_resonance = (vp.filter_resonance + off.filter_resonance).clamp(0.0, 1.0);
+            vp.filter2_cutoff_hz = (vp.filter2_cutoff_hz + off.filter2_cutoff_hz).clamp(20.0, 20_000.0);
+            vp.filter2_resonance = (vp.filter2_resonance + off.filter2_resonance).clamp(0.0, 1.0);
             vp.pitch_offset_semis += off.pitch_semis;
             vp.osc_main_detune_cents[0] += off.osc1_detune_cents;
             vp.osc_main_pans[0] = (vp.osc_main_pans[0] + off.osc1_pan).clamp(-1.0, 1.0);
@@ -683,6 +699,8 @@ mod tests {
             pitch_offset_semis: snap.pitch_offset_semis,
             filter_cutoff_hz: 22_000.0,
             filter_resonance: 0.0,
+            filter2_cutoff_hz: 22_000.0,
+            filter2_resonance: 0.0,
             osc_main_levels: snap.osc_main_levels,
             sub_level: snap.sub_level,
             osc_main_detune_cents: snap.osc_main_detune_cents,

@@ -23,7 +23,7 @@
 //! [`EngineEvent`]: crate::EngineEvent
 
 use crate::MAIN_OSCILLATOR_COUNT;
-use crate::filter::FilterMode;
+use crate::filter::{FilterMode, FilterRouting};
 use crate::fm::OPERATOR_COUNT;
 use crate::lfo::SyncDivision;
 use crate::mod_matrix::{MOD_MATRIX_SLOTS, ModDest, ModSource};
@@ -59,6 +59,11 @@ pub(super) const DEFAULT_FILTER_CUTOFF_HZ: f32 = 8_000.0;
 /// Default filter resonance, on the 0..=1 user-facing scale. Zero is
 /// the maximally damped end of the range — no peak at all.
 pub(super) const DEFAULT_FILTER_RESONANCE: f32 = 0.0;
+
+/// Default filter 2 cutoff frequency, in Hz. Sits at the top of the
+/// audible range so a fresh patch (and any pre-M17 preset that never
+/// set filter 2) passes signal through the second low-pass unchanged.
+pub(super) const DEFAULT_FILTER2_CUTOFF_HZ: f32 = 20_000.0;
 
 /// Default per-oscillator level. All four oscillators arrive at unity;
 /// the slot mixer's headroom scale handles the worst-case in-phase
@@ -105,6 +110,8 @@ pub struct ParameterTree {
     pub(super) pitch_offset_semis: SmoothedParam,
     pub(super) filter_cutoff_hz: SmoothedParam,
     pub(super) filter_resonance: SmoothedParam,
+    pub(super) filter2_cutoff_hz: SmoothedParam,
+    pub(super) filter2_resonance: SmoothedParam,
 
     pub(super) osc_main_levels: [SmoothedParam; MAIN_OSCILLATOR_COUNT],
     pub(super) sub_level: SmoothedParam,
@@ -135,6 +142,8 @@ pub struct ParameterTree {
 
     pub(super) waveform: Waveform,
     pub(super) filter_mode: FilterMode,
+    pub(super) filter2_mode: FilterMode,
+    pub(super) filter_routing: FilterRouting,
 
     pub(super) active_voice_count: u8,
 
@@ -260,6 +269,8 @@ impl ParameterTree {
             pitch_offset_semis: SmoothedParam::new(defaults.pitch_offset_semis, sample_rate_hz),
             filter_cutoff_hz: SmoothedParam::new(defaults.filter_cutoff_hz, sample_rate_hz),
             filter_resonance: SmoothedParam::new(defaults.filter_resonance, sample_rate_hz),
+            filter2_cutoff_hz: SmoothedParam::new(defaults.filter2_cutoff_hz, sample_rate_hz),
+            filter2_resonance: SmoothedParam::new(defaults.filter2_resonance, sample_rate_hz),
             osc_main_levels: defaults.osc_main_levels.map(|v| SmoothedParam::new(v, sample_rate_hz)),
             sub_level: SmoothedParam::new(defaults.sub_level, sample_rate_hz),
             osc_main_detune_cents: defaults
@@ -281,6 +292,8 @@ impl ParameterTree {
             master_volume: SmoothedParam::new(defaults.master_volume, sample_rate_hz),
             waveform: defaults.waveform,
             filter_mode: defaults.filter_mode,
+            filter2_mode: defaults.filter2_mode,
+            filter_routing: defaults.filter_routing,
             active_voice_count: defaults.active_voice_count,
             pitch_bend_semis: SmoothedParam::new(defaults.pitch_bend_semis, sample_rate_hz),
             mod_wheel: defaults.mod_wheel,
@@ -385,6 +398,8 @@ impl ParameterTree {
             ParamId::MasterVolume => self.master_volume.set_target(value),
             ParamId::FilterCutoffHz => self.filter_cutoff_hz.set_target(value),
             ParamId::FilterResonance => self.filter_resonance.set_target(value),
+            ParamId::Filter2CutoffHz => self.filter2_cutoff_hz.set_target(value),
+            ParamId::Filter2Resonance => self.filter2_resonance.set_target(value),
             ParamId::Osc1Level => self.osc_main_levels[0].set_target(value),
             ParamId::Osc2Level => self.osc_main_levels[1].set_target(value),
             ParamId::Osc3Level => self.osc_main_levels[2].set_target(value),
@@ -593,6 +608,16 @@ impl ParameterTree {
         self.filter_mode = mode;
     }
 
+    /// Sets the filter 2 output mode. Discrete.
+    pub fn set_filter2_mode(&mut self, mode: FilterMode) {
+        self.filter2_mode = mode;
+    }
+
+    /// Sets the routing between filter 1 and filter 2. Discrete.
+    pub fn set_filter_routing(&mut self, routing: FilterRouting) {
+        self.filter_routing = routing;
+    }
+
     /// Mirrors the engine's active voice count into the next snapshot.
     /// Not driven by an `EngineEvent` — the engine writes this each
     /// block before publishing. At M2 the value is 0 or 1; the voice
@@ -621,6 +646,18 @@ impl ParameterTree {
     #[must_use]
     pub fn filter_mode(&self) -> FilterMode {
         self.filter_mode
+    }
+
+    /// Returns the current filter 2 mode.
+    #[must_use]
+    pub fn filter2_mode(&self) -> FilterMode {
+        self.filter2_mode
+    }
+
+    /// Returns the current filter routing.
+    #[must_use]
+    pub fn filter_routing(&self) -> FilterRouting {
+        self.filter_routing
     }
 
     /// Returns the current amp attack time, in seconds.
@@ -802,6 +839,8 @@ impl ParameterTree {
             pitch_offset_semis: self.pitch_offset_semis.next_sample(),
             filter_cutoff_hz: self.filter_cutoff_hz.next_sample(),
             filter_resonance: self.filter_resonance.next_sample(),
+            filter2_cutoff_hz: self.filter2_cutoff_hz.next_sample(),
+            filter2_resonance: self.filter2_resonance.next_sample(),
             osc_main_levels: [
                 self.osc_main_levels[0].next_sample(),
                 self.osc_main_levels[1].next_sample(),
@@ -851,6 +890,10 @@ impl ParameterTree {
             filter_cutoff_hz: self.filter_cutoff_hz.current(),
             filter_resonance: self.filter_resonance.current(),
             filter_mode: self.filter_mode,
+            filter2_cutoff_hz: self.filter2_cutoff_hz.current(),
+            filter2_resonance: self.filter2_resonance.current(),
+            filter2_mode: self.filter2_mode,
+            filter_routing: self.filter_routing,
             osc_main_levels: [
                 self.osc_main_levels[0].current(),
                 self.osc_main_levels[1].current(),

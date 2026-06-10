@@ -95,11 +95,16 @@ pub enum ModDest {
     Osc1DetuneCents,
     /// Additive offset to oscillator 1 pan, -1..=1 units.
     Osc1Pan,
+    /// Additive offset to filter 2 cutoff, in Hz. Appended so existing
+    /// destination indices (and saved presets) keep their meaning.
+    Filter2CutoffHz,
+    /// Additive offset to filter 2 resonance, 0..=1 units.
+    Filter2Resonance,
 }
 
 impl ModDest {
     /// Total number of variants.
-    pub const COUNT: u8 = 6;
+    pub const COUNT: u8 = 8;
 
     /// Converts a `u8` index to a variant.
     pub fn from_index(i: u8) -> Option<Self> {
@@ -110,6 +115,8 @@ impl ModDest {
             3 => Some(Self::Volume),
             4 => Some(Self::Osc1DetuneCents),
             5 => Some(Self::Osc1Pan),
+            6 => Some(Self::Filter2CutoffHz),
+            7 => Some(Self::Filter2Resonance),
             _ => None,
         }
     }
@@ -164,6 +171,8 @@ pub struct DestOffsets {
     pub volume: f32,
     pub osc1_detune_cents: f32,
     pub osc1_pan: f32,
+    pub filter2_cutoff_hz: f32,
+    pub filter2_resonance: f32,
 }
 
 /// One routing slot: source → destination with a signed amount and optional
@@ -219,6 +228,8 @@ impl ModMatrix {
                 ModDest::Volume => out.volume += contribution,
                 ModDest::Osc1DetuneCents => out.osc1_detune_cents += contribution,
                 ModDest::Osc1Pan => out.osc1_pan += contribution,
+                ModDest::Filter2CutoffHz => out.filter2_cutoff_hz += contribution,
+                ModDest::Filter2Resonance => out.filter2_resonance += contribution,
             }
         }
         out

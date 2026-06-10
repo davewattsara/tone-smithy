@@ -27,7 +27,7 @@
 //! [`Slot`]: crate::slot::Slot
 
 use crate::envelope::Adsr;
-use crate::filter::{FilterMode, StateVariableFilter};
+use crate::filter::{FilterMode, FilterRouting, StateVariableFilter};
 use crate::lfo::{Lfo, LfoShape};
 use crate::mod_env::ModEnv;
 use crate::mod_matrix::DestOffsets;
@@ -60,6 +60,9 @@ pub struct Voice {
     slots: [Slot; 2],
     filter_l: StateVariableFilter,
     filter_r: StateVariableFilter,
+    filter2_l: StateVariableFilter,
+    filter2_r: StateVariableFilter,
+    filter_routing: FilterRouting,
     amp_envelope: Adsr,
     lfo1: Lfo,
     lfo2: Lfo,
@@ -112,6 +115,9 @@ impl Voice {
             ],
             filter_l: StateVariableFilter::new(sample_rate_hz),
             filter_r: StateVariableFilter::new(sample_rate_hz),
+            filter2_l: StateVariableFilter::new(sample_rate_hz),
+            filter2_r: StateVariableFilter::new(sample_rate_hz),
+            filter_routing: FilterRouting::Serial,
             amp_envelope: Adsr::new(sample_rate_hz),
             lfo1: Lfo::new(sample_rate_hz, LFO1_SEED),
             lfo2: Lfo::new(sample_rate_hz, LFO2_SEED),
@@ -149,6 +155,8 @@ impl Voice {
         if is_first_note {
             self.filter_l.reset();
             self.filter_r.reset();
+            self.filter2_l.reset();
+            self.filter2_r.reset();
         }
         self.amp_envelope.note_on();
         self.lfo1.note_on();
@@ -436,6 +444,18 @@ impl Voice {
         }
     }
 
+    /// Sets the output mode on both filter-2 channels. Click-free, like
+    /// [`set_filter_mode`](Self::set_filter_mode).
+    pub fn set_filter2_mode(&mut self, mode: FilterMode) {
+        self.filter2_l.set_mode(mode);
+        self.filter2_r.set_mode(mode);
+    }
+
+    /// Sets how filter 1 and filter 2 are connected.
+    pub fn set_filter_routing(&mut self, routing: FilterRouting) {
+        self.filter_routing = routing;
+    }
+
     /// Sets the filter output mode on both channel filters. The
     /// integrator state is preserved on each so mode flips are
     /// click-free.
@@ -529,8 +549,27 @@ impl Voice {
             .set_params(params.filter_cutoff_hz, params.filter_resonance);
         self.filter_r
             .set_params(params.filter_cutoff_hz, params.filter_resonance);
-        let filtered_l = self.filter_l.next_sample(mixed_l);
-        let filtered_r = self.filter_r.next_sample(mixed_r);
+        self.filter2_l
+            .set_params(params.filter2_cutoff_hz, params.filter2_resonance);
+        self.filter2_r
+            .set_params(params.filter2_cutoff_hz, params.filter2_resonance);
+
+        let (filtered_l, filtered_r) = match self.filter_routing {
+            FilterRouting::Serial => {
+                let f1_l = self.filter_l.next_sample(mixed_l);
+                let f1_r = self.filter_r.next_sample(mixed_r);
+                (self.filter2_l.next_sample(f1_l), self.filter2_r.next_sample(f1_r))
+            }
+            FilterRouting::Parallel => {
+                // Each filter sees the slot mix; outputs are averaged so a
+                // parallel patch keeps roughly the same level as serial.
+                let f1_l = self.filter_l.next_sample(mixed_l);
+                let f1_r = self.filter_r.next_sample(mixed_r);
+                let f2_l = self.filter2_l.next_sample(mixed_l);
+                let f2_r = self.filter2_r.next_sample(mixed_r);
+                ((f1_l + f2_l) * 0.5, (f1_r + f2_r) * 0.5)
+            }
+        };
 
         (filtered_l * env, filtered_r * env)
     }
@@ -552,6 +591,8 @@ mod tests {
             pitch_offset_semis: snap.pitch_offset_semis,
             filter_cutoff_hz: 22_000.0,
             filter_resonance: 0.0,
+            filter2_cutoff_hz: 22_000.0,
+            filter2_resonance: 0.0,
             osc_main_levels: snap.osc_main_levels,
             sub_level: snap.sub_level,
             osc_main_detune_cents: snap.osc_main_detune_cents,
