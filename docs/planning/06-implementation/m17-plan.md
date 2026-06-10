@@ -493,7 +493,12 @@ Specifically:
 
 ## Progress
 
-- [ ] Phase 1 — Mod matrix 8 → 16 slots
-- [ ] Phase 2 — Env3
-- [ ] Phase 3 — Second filter + routing
-- [ ] Phase 4 — 24 dB/oct slope
+- [x] Phase 1 — Mod matrix 8 → 16 slots
+- [x] Phase 2 — Env3
+- [x] Phase 3 — Second filter + routing
+- [x] Phase 4 — 24 dB/oct slope
+
+All four phases implemented on `milestone/m17-engine-expansion` and
+verified green (build, `cargo fmt --check`, `cargo clippy -D warnings`,
+full test suite). Awaiting user audio testing before milestone close-out
+(sign-off date, merge to `main`, tag `m17`).
