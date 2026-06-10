@@ -103,7 +103,10 @@ impl Voice {
     #[must_use]
     pub fn new(sample_rate_hz: f32) -> Self {
         Self {
-            slots: [Slot::new(sample_rate_hz, 1.0), Slot::new(sample_rate_hz, 0.0)],
+            slots: [
+                Slot::new(sample_rate_hz, 1.0, SlotMode::Subtractive),
+                Slot::new(sample_rate_hz, 0.0, SlotMode::Fm),
+            ],
             filter_l: StateVariableFilter::new(sample_rate_hz),
             filter_r: StateVariableFilter::new(sample_rate_hz),
             amp_envelope: Adsr::new(sample_rate_hz),
@@ -246,13 +249,6 @@ impl Voice {
     /// Sets the Env2 Release stage curve, `[-1, +1]`.
     pub fn set_env2_release_curve(&mut self, curve: f32) {
         self.mod_env.set_release_curve(curve);
-    }
-
-    /// Sets the synthesis mode for slot `slot` (0 or 1).
-    pub fn set_slot_mode(&mut self, slot: usize, mode: SlotMode) {
-        if let Some(s) = self.slots.get_mut(slot) {
-            s.mode = mode;
-        }
     }
 
     /// Sets the mix level for slot `slot`, clamped to 0..=1.
@@ -722,13 +718,10 @@ mod tests {
         // the operator envelopes and the amp envelope so we are audible
         // within a small window, play a note, confirm the voice produces
         // bounded non-zero stereo audio.
-        use crate::slot::SlotMode;
-
         let mut voice = Voice::new(48_000.0);
-        // Silence slot 0 so we measure only the FM contribution.
+        // Silence slot 0 (Sub) so we measure only the FM contribution.
         voice.slots[0].level = 0.0;
-        // Enable slot 1 in FM mode.
-        voice.slots[1].mode = SlotMode::Fm;
+        // Slot 1 is FM by construction; bring it to unit level.
         voice.slots[1].level = 1.0;
         for i in 0..crate::fm::OPERATOR_COUNT {
             let op = voice.slots[1].fm.operator_mut(i).unwrap();

@@ -10,7 +10,12 @@ use crate::theme;
 impl ToneSmithyApp {
     pub(crate) fn osc_tab(&mut self, ui: &mut egui::Ui, md: ModDisplay) {
         ui.add_space(theme::PANEL_PADDING);
+        self.fm_slots_section(ui, md);
+    }
 
+    /// Waveform selector + OSC 1/2/3 + Sub controls. Called from inside
+    /// the Slot 1 foldout so the layout mirrors Slot 2's operator grid.
+    pub(crate) fn osc_sub_controls_inline(&mut self, ui: &mut egui::Ui, md: ModDisplay) {
         // Waveform selector applies to all three main oscillators
         ui.horizontal(|ui| {
             ui.add_space(theme::PANEL_PADDING);
@@ -59,13 +64,6 @@ impl ToneSmithyApp {
                 self.sub_controls(ui);
             });
         });
-
-        // Slots / FM section — full width below the oscillator columns
-        ui.add_space(theme::GROUP_GAP);
-        theme::subtle_separator(ui);
-        ui.add_space(theme::GROUP_GAP);
-        theme::section_label(ui, "SLOTS / FM");
-        self.fm_slots_section(ui);
     }
 
     /// Renders level/detune/pan + unison knobs for main oscillator `idx` (0, 1, or 2).

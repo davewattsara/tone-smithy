@@ -6,8 +6,8 @@ The DSP heart of the synth. Lives in the `synth-engine` crate. No I/O, no alloca
 
 ```
               ┌─────────────┐    ┌─────────────┐
-   note on ─▶ │ OSC Slot 1  │    │ OSC Slot 2  │
-              │ (subtr/FM)  │    │ (subtr/FM)  │
+   note on ─▶ │   Slot 1    │    │   Slot 2    │
+              │    (Sub)    │    │    (FM)     │
               └──────┬──────┘    └──────┬──────┘
                      ▼                  ▼
                    ┌────────────────────────┐
@@ -52,7 +52,7 @@ Parameter changes from the UI are drained at the top of each callback (not each 
 
 ## DSP building blocks
 
-### Oscillators (subtractive)
+### Oscillators (Slot 1 — always Subtractive)
 - **PolyBLEP** anti-aliasing for saw and square.
 - Triangle via integrated square or a polynomial approximation.
 - Noise from a fast xorshift PRNG.
@@ -60,8 +60,8 @@ Parameter changes from the UI are drained at the top of each callback (not each 
 - Per-oscillator: detune in cents, fine tune, level, hard sync (defer to v1.x).
 - Unison: 1–7 stacked voices per oscillator with detune spread and stereo pan spread.
 
-### Operators (FM)
-- 4 sine operators per slot.
+### Operators (Slot 2 — always FM)
+- 4 sine operators.
 - Each operator has: frequency ratio, fine tune (cents), level, ADSR envelope (own per-op envelope, separate from the per-voice envelopes).
 - 8 starter algorithms (DX7 family routings: linear stack, parallel pairs, feedback on op 4, etc.).
 - Per-operator feedback (single tap), supported on op 4 in factory algorithms.

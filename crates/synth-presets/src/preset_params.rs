@@ -85,9 +85,10 @@ pub fn snapshot_to_map(snap: &ParamSnapshot) -> BTreeMap<String, f32> {
         m.insert(format!("mod_slot_via_{i}"), f32::from(snap.mod_slot_via[i]));
     }
 
-    // FM synthesis (2 slots × 4 ops)
+    // FM synthesis (2 slots × 4 ops).
+    // slot_mode is no longer serialised — slot 0 is always Subtractive,
+    // slot 1 is always FM.
     for s in 0..2usize {
-        m.insert(format!("slot_mode_{s}"), f32::from(snap.slot_mode[s]));
         m.insert(format!("slot_level_{s}"), snap.slot_level[s]);
         m.insert(format!("slot_pan_{s}"), snap.slot_pan[s]);
         m.insert(format!("fm_algorithm_{s}"), f32::from(snap.fm_algorithm[s]));
@@ -280,10 +281,9 @@ pub fn map_to_events(m: &BTreeMap<String, f32>) -> Vec<EngineEvent> {
         pc!(&format!("mod_slot_via_{ii}"), ParamId::ModSlotVia(i));
     }
 
-    // FM synthesis
+    // FM synthesis (slot_mode is no longer a runtime parameter)
     for s in 0..2u8 {
         let si = s as usize;
-        pc!(&format!("slot_mode_{si}"), ParamId::SlotMode(s));
         pc!(&format!("slot_level_{si}"), ParamId::SlotLevel(s));
         pc!(&format!("slot_pan_{si}"), ParamId::SlotPan(s));
         pc!(&format!("fm_algorithm_{si}"), ParamId::FmAlgorithm(s));
@@ -448,8 +448,10 @@ pub fn map_to_snapshot(m: &BTreeMap<String, f32>) -> ParamSnapshot {
         get_u8!(&format!("mod_slot_via_{i}"), s.mod_slot_via[i]);
     }
 
+    // slot_mode is no longer stored — slot 0 is always Sub, slot 1 always FM.
+    // Presets saved before this change may carry slot_mode_0 / slot_mode_1;
+    // those keys are ignored here and handled by the migration below.
     for si in 0..2usize {
-        get_u8!(&format!("slot_mode_{si}"), s.slot_mode[si]);
         get!(&format!("slot_level_{si}"), s.slot_level[si]);
         get!(&format!("slot_pan_{si}"), s.slot_pan[si]);
         get_u8!(&format!("fm_algorithm_{si}"), s.fm_algorithm[si]);
@@ -463,6 +465,40 @@ pub fn map_to_snapshot(m: &BTreeMap<String, f32>) -> ParamSnapshot {
             get!(&format!("fm_op_release_secs_{si}_{oi}"), s.fm_op_release_secs[si][oi]);
             get!(&format!("fm_op_feedback_{si}_{oi}"), s.fm_op_feedback[si][oi]);
         }
+    }
+
+    // Backward compatibility: v1.0 presets could place the FM bank on slot 0
+    // (slot_mode_0 == 1.0).  Remap their FM parameters to the fixed slot 1
+    // position so the patch sounds the same under the new fixed-slot layout.
+    if m.get("slot_mode_0").copied().unwrap_or(0.0) >= 0.5 {
+        let dflt = ParamSnapshot::default();
+        s.fm_algorithm[1] = s.fm_algorithm[0];
+        s.fm_algorithm[0] = dflt.fm_algorithm[0];
+        for op in 0..4 {
+            s.fm_op_ratio_integer[1][op] = s.fm_op_ratio_integer[0][op];
+            s.fm_op_ratio_fine_cents[1][op] = s.fm_op_ratio_fine_cents[0][op];
+            s.fm_op_level[1][op] = s.fm_op_level[0][op];
+            s.fm_op_attack_secs[1][op] = s.fm_op_attack_secs[0][op];
+            s.fm_op_decay_secs[1][op] = s.fm_op_decay_secs[0][op];
+            s.fm_op_sustain_level[1][op] = s.fm_op_sustain_level[0][op];
+            s.fm_op_release_secs[1][op] = s.fm_op_release_secs[0][op];
+            s.fm_op_feedback[1][op] = s.fm_op_feedback[0][op];
+            // Reset slot 0 FM params to defaults (Sub bank; engine ignores
+            // them for the Sub path but keeps them for clean state).
+            s.fm_op_ratio_integer[0][op] = dflt.fm_op_ratio_integer[0][op];
+            s.fm_op_ratio_fine_cents[0][op] = dflt.fm_op_ratio_fine_cents[0][op];
+            s.fm_op_level[0][op] = dflt.fm_op_level[0][op];
+            s.fm_op_attack_secs[0][op] = dflt.fm_op_attack_secs[0][op];
+            s.fm_op_decay_secs[0][op] = dflt.fm_op_decay_secs[0][op];
+            s.fm_op_sustain_level[0][op] = dflt.fm_op_sustain_level[0][op];
+            s.fm_op_release_secs[0][op] = dflt.fm_op_release_secs[0][op];
+            s.fm_op_feedback[0][op] = dflt.fm_op_feedback[0][op];
+        }
+        // Carry the FM output level to slot 1; silence slot 0 (Sub bank).
+        s.slot_level[1] = s.slot_level[0];
+        s.slot_pan[1] = s.slot_pan[0];
+        s.slot_level[0] = 0.0;
+        s.slot_pan[0] = 0.0;
     }
 
     get_bool!("fx_eq_enabled", s.fx_eq_enabled);
@@ -562,7 +598,6 @@ mod tests {
             orig.mod_slot_via[i] = i as u8;
         }
         for s in 0..2 {
-            orig.slot_mode[s] = s as u8;
             orig.slot_level[s] = 0.9;
             orig.slot_pan[s] = -0.1;
             orig.fm_algorithm[s] = (s + 1) as u8;
@@ -656,7 +691,6 @@ mod tests {
         assert_eq!(orig.mod_slot_dest, got.mod_slot_dest);
         assert_eq!(orig.mod_slot_amount, got.mod_slot_amount);
         assert_eq!(orig.mod_slot_via, got.mod_slot_via);
-        assert_eq!(orig.slot_mode, got.slot_mode);
         assert_eq!(orig.slot_level, got.slot_level);
         assert_eq!(orig.slot_pan, got.slot_pan);
         assert_eq!(orig.fm_algorithm, got.fm_algorithm);

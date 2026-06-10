@@ -163,7 +163,6 @@ pub struct ToneSmithyApp {
     pub(crate) mod_slot_via: [usize; 8],
 
     // ── FM synthesis ─────────────────────────────────────────────────────────
-    pub(crate) slot_mode: [u8; 2],
     pub(crate) slot_level: [f32; 2],
     pub(crate) slot_pan: [f32; 2],
     pub(crate) fm_algorithm: [u8; 2],
@@ -324,7 +323,6 @@ impl ToneSmithyApp {
             mod_slot_dest: snap.mod_slot_dest.map(|v| v as usize),
             mod_slot_amount: snap.mod_slot_amount,
             mod_slot_via: snap.mod_slot_via.map(|v| v as usize),
-            slot_mode: snap.slot_mode,
             slot_level: snap.slot_level,
             slot_pan: snap.slot_pan,
             fm_algorithm: snap.fm_algorithm,
@@ -479,6 +477,12 @@ impl ToneSmithyApp {
         let user_dir = user_presets_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
         let mut entries = factory_entries();
         entries.extend(scan_dir(&user_dir, false));
+        entries.sort_by(|a, b| {
+            a.is_factory
+                .cmp(&b.is_factory)
+                .reverse()
+                .then_with(|| a.metadata.name.to_lowercase().cmp(&b.metadata.name.to_lowercase()))
+        });
         self.preset_entries = entries;
     }
 
@@ -522,7 +526,6 @@ impl ToneSmithyApp {
         self.mod_slot_dest = snap.mod_slot_dest.map(|v| v as usize);
         self.mod_slot_amount = snap.mod_slot_amount;
         self.mod_slot_via = snap.mod_slot_via.map(|v| v as usize);
-        self.slot_mode = snap.slot_mode;
         self.slot_level = snap.slot_level;
         self.slot_pan = snap.slot_pan;
         self.fm_algorithm = snap.fm_algorithm;

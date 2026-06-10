@@ -2,19 +2,19 @@
 //!
 //! Maps the home row plus the row above into one chromatic octave so
 //! the synth is playable without MIDI hardware. The layout is the
-//! Vital / Serum convention:
+//! Vital / Serum convention, extended with K for the top C:
 //!
 //! ```text
 //!     W   E       T   Y   U
-//!   A   S   D   F   G   H   J
+//!   A   S   D   F   G   H   J   K
 //! ```
 //!
 //! - `A` = C, `W` = C#, `S` = D, `E` = D#, `D` = E, `F` = F, `T` = F#,
-//!   `G` = G, `Y` = G#, `H` = A, `U` = A#, `J` = B.
+//!   `G` = G, `Y` = G#, `H` = A, `U` = A#, `J` = B, `K` = C (octave above).
 //! - `Z` shifts the octave down, `X` shifts it up. The default octave
 //!   base is MIDI 48 (C3) so `A` plays middle-low C out of the box.
-//! - The octave base is clamped to `[0, 96]` so the J key — an octave
-//!   plus a B above the base — never escapes the valid MIDI range
+//! - The octave base is clamped to `[0, 96]` so the K key — C one octave
+//!   above the base (96 + 12 = 108) — never escapes the valid MIDI range
 //!   `[0, 127]`.
 //!
 //! The struct remembers which exact MIDI note each piano key is
@@ -28,11 +28,11 @@ use eframe::egui;
 use synth_engine::EngineEvent;
 use synth_engine::param_bus::EngineEventSender;
 
-/// Number of chromatic keys mapped (one full octave).
-const NUM_KEYS: usize = 12;
+/// Number of chromatic keys mapped (one octave plus the top C).
+const NUM_KEYS: usize = 13;
 
 /// Key → semitone offset from the octave base. Index 0 is the lowest
-/// note of the octave (C); index 11 is B.
+/// note (C); index 12 is C one octave above.
 const KEY_LAYOUT: [(egui::Key, u8); NUM_KEYS] = [
     (egui::Key::A, 0),  // C
     (egui::Key::W, 1),  // C#
@@ -46,14 +46,15 @@ const KEY_LAYOUT: [(egui::Key, u8); NUM_KEYS] = [
     (egui::Key::H, 9),  // A
     (egui::Key::U, 10), // A#
     (egui::Key::J, 11), // B
+    (egui::Key::K, 12), // C (octave above)
 ];
 
 /// Default octave base MIDI note (C3 = 48).
 const DEFAULT_OCTAVE_BASE: u8 = 48;
 /// Lower clamp on the octave base. Below this `Z` is a no-op.
 const OCTAVE_BASE_MIN: u8 = 0;
-/// Upper clamp on the octave base. The B key one octave above this
-/// (96 + 11 = 107) is the highest playable note.
+/// Upper clamp on the octave base. The K key (C one octave above the
+/// base: 96 + 12 = 108) is the highest playable note.
 const OCTAVE_BASE_MAX: u8 = 96;
 /// Velocity sent on every note-on. The computer keyboard can't sense
 /// velocity; MIDI hardware (M3.2) provides the real value.
@@ -187,10 +188,15 @@ mod tests {
     }
 
     #[test]
+    fn key_k_at_default_octave_is_c4() {
+        assert_eq!(note_for(egui::Key::K, DEFAULT_OCTAVE_BASE), Some(60));
+    }
+
+    #[test]
     fn whole_chromatic_octave_is_mapped() {
         let base = 60;
-        // Each semitone 0..=11 should be reachable from some key.
-        let mut seen = [false; 12];
+        // Each semitone 0..=12 should be reachable from some key (12 = top C).
+        let mut seen = [false; 13];
         for (key, _) in KEY_LAYOUT {
             let note = note_for(key, base).unwrap();
             seen[(note - base) as usize] = true;

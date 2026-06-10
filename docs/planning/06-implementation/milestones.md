@@ -60,7 +60,7 @@ Get the project's own engine producing sound.
 
 ---
 
-## M2 — Subtractive voice ✓ (tag `m02`)
+## M2 — Subtractive voice — **complete (2026-05-19, tag `m02`)**
 
 Build out the full single subtractive voice.
 
@@ -74,7 +74,7 @@ Build out the full single subtractive voice.
 
 ---
 
-## M3 — MIDI input + polyphony ✓ (tag `m03`)
+## M3 — MIDI input + polyphony — **complete (2026-05-19, tag `m03`)**
 
 Make the synth playable from real hardware.
 
@@ -92,7 +92,7 @@ Make the synth playable from real hardware.
 
 ---
 
-## M4 — Minimal playable UI ✓ (tag `m04`)
+## M4 — Minimal playable UI — **complete (2026-05-19, tag `m04`)**
 
 Make the synth tweakable from the window, not just from MIDI.
 
@@ -109,7 +109,7 @@ Make the synth tweakable from the window, not just from MIDI.
 
 ---
 
-## M5 — LFOs and Env2 ✓ (tag `m05`)
+## M5 — LFOs and Env2 — **complete (2026-05-25, tag `m05`)**
 
 Add the modulation sources that the matrix will route in M6.
 
@@ -122,7 +122,7 @@ Add the modulation sources that the matrix will route in M6.
 
 ---
 
-## M6 — Modulation matrix ✓ (tag `m06`)
+## M6 — Modulation matrix — **complete (2026-05-25, tag `m06`)**
 
 Wire the sources to anything.
 
@@ -135,7 +135,7 @@ Wire the sources to anything.
 
 ---
 
-## M7 — FM engine (4–5 weeks)
+## M7 — FM engine (4–5 weeks) — **complete (2026-06-01, tag `m07`)**
 
 > Implementation plan: [`m07-plan.md`](m07-plan.md) — sub-milestone breakdown, algorithm table, operator model, oversampling strategy.
 
@@ -151,7 +151,7 @@ The harder of the two synthesis methods. Conceptually new ground for someone lea
 
 ---
 
-## M8 — Effects chain (6–8 weeks)
+## M8 — Effects chain (6–8 weeks) — **complete (2026-06-01, tag `m08`)**
 
 Five effects, each a small DSP project in its own right. Tackle in order, listening between each.
 
@@ -166,7 +166,7 @@ Five effects, each a small DSP project in its own right. Tackle in order, listen
 
 ---
 
-## M9 — Arpeggiator (1–2 weeks)
+## M9 — Arpeggiator (1–2 weeks) — **complete (2026-06-02, tag `m09`)**
 
 - Modes: up, down, up/down, random, played order.
 - Octave range 1–4, rate sync (BPM or free), gate length, swing.
@@ -177,7 +177,7 @@ Five effects, each a small DSP project in its own right. Tackle in order, listen
 
 ---
 
-## M10 — Preset save / load (1–2 weeks)
+## M10 — Preset save / load (1–2 weeks) — **complete (2026-06-02, tag `m10`)**
 
 - RON format with metadata, parameter snapshot, mod matrix, MIDI Learn map.
 - Save, save-as, load, delete, duplicate from a simple UI surface (polished browser comes in M12).
@@ -188,7 +188,7 @@ Five effects, each a small DSP project in its own right. Tackle in order, listen
 
 ---
 
-## M11 — UI v1 polish (4–5 weeks)
+## M11 — UI v1 polish (4–5 weeks) — **complete (2026-06-07, tag `m11`)**
 
 Take the functional UI from M4 and the surfaces added through M6/M9/M10 and turn them into a flagship-class interface.
 
@@ -203,7 +203,7 @@ Take the functional UI from M4 and the surfaces added through M6/M9/M10 and turn
 
 ---
 
-## M12 — Preset browser (1–2 weeks)
+## M12 — Preset browser (1–2 weeks) — **complete (2026-06-08, tag `m12`)**
 
 - Category and tag filtering, search, sort.
 - Factory / user separation. Folder tree for user presets.
@@ -214,7 +214,7 @@ Take the functional UI from M4 and the surfaces added through M6/M9/M10 and turn
 
 ---
 
-## M13 — Settings + MIDI Learn polish (1–2 weeks)
+## M13 — Settings + MIDI Learn polish (1–2 weeks) — **complete (2026-06-09, tag `m13`)**
 
 - Audio device picker with live switching.
 - MIDI input picker (multi-select), channel filter per input.
@@ -226,7 +226,7 @@ Take the functional UI from M4 and the surfaces added through M6/M9/M10 and turn
 
 ---
 
-## M14 — Factory bank (4–6 weeks, can overlap with M11–M13)
+## M14 — Factory bank (4–6 weeks, can overlap with M11–M13) — **complete (2026-06-09, tag `m14`)**
 
 - Authoring of ~60–80 presets across categories per [`../05-design/dsp-and-sound.md`](../05-design/dsp-and-sound.md).
 - A QA pass: every preset listened to in context, levels normalised within a target loudness range, descriptions written.
@@ -236,7 +236,7 @@ Take the functional UI from M4 and the surfaces added through M6/M9/M10 and turn
 
 ---
 
-## M15 — Installer and release (1–2 weeks)
+## M15 — Installer and release (1–2 weeks) — **complete (2026-06-09, tag `v1.0.0`)**
 
 - Inno Setup script producing a signed (if cert available) or unsigned installer.
 - `xtask dist` produces all release artefacts.
@@ -244,6 +244,93 @@ Take the functional UI from M4 and the surfaces added through M6/M9/M10 and turn
 - v1.0 tag and GitHub Release.
 
 **Done when:** A clean Windows machine can download the installer, install, launch, and play a preset within 60 seconds.
+
+---
+
+---
+
+## M16 — Quick wins (1–3 days) — v1.1 — **complete (2026-06-10, tag `m16`)**
+
+Three self-contained UX improvements that can be implemented back-to-back before the heavier engine
+work begins.
+
+> Implementation plan: [`m16-plan.md`](m16-plan.md)
+
+- **K=C keyboard note** — add K as the 13th computer-keyboard note (C, one octave above J=B).
+- **Alphabetical preset ordering** — sort presets A-Z within each category in the preset browser.
+- **Conditional OSC/Sub panel** — hide OSC 1/2/3 + Sub controls in slot foldouts when the slot
+  is in FM mode; show them only when the slot is in Sub mode (mirrors the existing FM panel
+  behaviour).
+
+**Done when:** K plays C one octave above J; the browser lists presets in A-Z order per category;
+switching a slot to FM mode collapses the OSC panel and shows only FM operators.
+
+---
+
+## M17 — Engine expansion (4–6 weeks) — v1.1
+
+> Implementation plan: [`m17-plan.md`](m17-plan.md)
+
+Restores the three engine features deferred from v1.0.
+
+- **Second filter** per voice — same TPT SVF as the first filter; serial (`F1 → F2`) and parallel
+  (`F1 ∥ F2 summed`) routing, selected per patch; full mod-matrix addressability.
+- **24 dB/oct filter** option — 4-pole ZDF ladder or cascaded SVF, added as a third slope option
+  alongside the existing 12 dB/oct. Chosen after listening tests on representative patches.
+- **Env3** — second mod envelope (ADSR with curve shaping, same implementation as Env2) added as
+  a mod-matrix source and shown in its own envelope tab.
+- **Mod matrix expanded to 16 slots** — parameter model update (array size), UI table reflow,
+  Env3 wired in as a source.
+
+**Done when:** A patch can route Env3 through two filters in series at 24 dB/oct with all 16 mod
+slots in use; all paths audio-tested and round-trip serialised in the preset format.
+
+---
+
+## M18 — Step sequencer (2–3 weeks) — v1.1
+
+Adds a 16-step melodic/modulation sequencer alongside the arpeggiator.
+
+- 16 steps; per-step note offset (±24 semitones), velocity (0–127), gate (0–100%), rest toggle.
+- One assignable modulation lane (any mod-matrix destination, per-step CV value).
+- Sync to arp BPM / MIDI clock; playback modes: forward, reverse, ping-pong, random.
+- UI: step-grid widget; integrate into the existing Arp tab or add a dedicated Seq tab.
+
+**Done when:** A 16-step melodic line plays with independent velocity and gate per step; the mod
+lane drives a destination audibly; sequences survive preset save/load round-trips.
+
+---
+
+## M19 — Cross-platform installers (2–3 weeks) — v1.1
+
+Extends `cargo xtask dist` and the release CI to produce Linux and macOS builds.
+
+- **Linux:** CI job on `ubuntu-latest`; package as AppImage and/or `.tar.gz`; audio via `cpal`
+  (PipeWire/ALSA); MIDI via `midir`. Test on a clean Ubuntu 24.04 VM.
+- **macOS:** CI job on `macos-latest` (Apple Silicon); package as `.dmg`; audio via CoreAudio;
+  MIDI via CoreMIDI. Code-sign and notarize if a Developer ID certificate is available;
+  otherwise unsigned with instructions for bypassing Gatekeeper.
+- Update `xtask dist` to accept a `--target` flag (or run per-platform jobs) without breaking the
+  existing Windows path.
+- Update README, getting-started doc, and release workflow for three-platform artefacts.
+
+**Done when:** A clean Linux and macOS machine can download the respective package, launch Tone
+Smithy, and play a preset without extra setup steps.
+
+---
+
+## M20 — v1.1 factory expansion + release (2–4 weeks) — v1.1
+
+Content authoring and the v1.1 release cut.
+
+- Add 40–60 new presets to the factory bank to reach ~120 total; include patches that showcase
+  the second filter, Env3, and the step sequencer.
+- QA pass: listen to every new preset in context, normalise levels, write descriptions.
+- Update `CHANGELOG.md` with the v1.1 entry.
+- Tag `v1.1.0` on `main`; GitHub Release publishes the Windows, Linux, and macOS installers.
+
+**Done when:** Factory bank reaches ~120 presets; GitHub Release publishes three-platform
+installers; user has tested on at least Windows and signed off.
 
 ---
 
@@ -260,6 +347,15 @@ Take the functional UI from M4 and the surfaces added through M6/M9/M10 and turn
 - **M14 (factory bank)** needs the engine stable (M5–M9 complete) and the preset format (M10). Can run in parallel with M11–M13.
 - **M15** needs everything.
 
+**v1.1 dependencies:**
+
+- **M16** has no hard predecessors — it touches UI and keyboard input only.
+- **M17** is independent of M16; they can overlap if bandwidth allows.
+- **M18 (step sequencer)** is independent of M17 but shares the BPM/clock infrastructure with
+  the arpeggiator — start after M9 is stable, which it already is.
+- **M19** is independent of M17/M18; CI jobs run in parallel on three platforms.
+- **M20** needs M17 + M18 + M19 complete so new presets can use all new features.
+
 ## What's out of scope
 
-Anything in [`../02-scope/out-of-scope.md`](../02-scope/out-of-scope.md) or scheduled for v1.1+ in [`../02-scope/roadmap.md`](../02-scope/roadmap.md). If something feels missing, that's where to look first.
+Anything in [`../02-scope/out-of-scope.md`](../02-scope/out-of-scope.md) or scheduled for v1.2+ in [`../02-scope/roadmap.md`](../02-scope/roadmap.md). If something feels missing, that's where to look first.

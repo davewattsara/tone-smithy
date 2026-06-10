@@ -1,18 +1,13 @@
 //! A voice slot — one of the two synthesis lanes per voice.
 //!
-//! Per `docs/planning/02-scope/features-v1.md`, each voice has two
-//! oscillator slots; each slot is independently configured as either
-//! subtractive (3 unison main oscillators + 1 sub) or FM (4 operators).
-//! Slot outputs are mixed before the per-voice filter.
+//! Each voice has two slots with fixed roles:
+//! - **Slot 0** is always [`SlotMode::Subtractive`] — 3 unison main oscillators + 1 sub.
+//! - **Slot 1** is always [`SlotMode::Fm`] — 4-operator FM.
 //!
-//! M7.0 introduced the two-slot architecture in subtractive-only form;
-//! M7.2 wires the FM bank into [`Slot`] so a slot in [`SlotMode::Fm`]
-//! actually emits the FM bank's output. The mode dispatch is a single
-//! match per sample — no trait objects, no heap, all stack-allocated.
-//!
-//! Slot 0 defaults to subtractive mix level 1.0; slot 1 starts silent
-//! (mix level 0.0). Per-slot parameters (mode, level, pan, slot-1
-//! oscillator settings) reach the parameter bus in M7.3.
+//! Both slots are always allocated; the mode determines which bank's
+//! `next_sample()` is called. Slot outputs are mixed before the per-voice
+//! filter. The mode dispatch is a single match per sample — no trait
+//! objects, no heap, all stack-allocated.
 
 use crate::MAIN_OSCILLATOR_COUNT;
 use crate::fm::FmBank;
@@ -142,12 +137,14 @@ pub struct Slot {
 }
 
 impl Slot {
-    /// Creates a slot at the given sample rate in subtractive mode at
-    /// the given default mix level, centred pan.
+    /// Creates a slot at the given sample rate and mode, at the given default
+    /// mix level, centred pan. Slot 0 is always `Subtractive`; slot 1 is
+    /// always `Fm` — mode is fixed at voice construction and never changed at
+    /// runtime.
     #[must_use]
-    pub fn new(sample_rate_hz: f32, default_level: f32) -> Self {
+    pub fn new(sample_rate_hz: f32, default_level: f32, mode: SlotMode) -> Self {
         Self {
-            mode: SlotMode::Subtractive,
+            mode,
             level: default_level,
             pan: 0.0,
             subtractive: SubtractiveBank::new(sample_rate_hz),
@@ -266,7 +263,7 @@ mod tests {
 
     #[test]
     fn slot_at_level_zero_is_silent_and_skips_work() {
-        let mut slot = Slot::new(48_000.0, 0.0);
+        let mut slot = Slot::new(48_000.0, 0.0, SlotMode::Subtractive);
         let params = default_params();
         for _ in 0..1024 {
             assert_eq!(slot.next_sample(&params, Some(60)), (0.0, 0.0));
@@ -275,7 +272,7 @@ mod tests {
 
     #[test]
     fn subtractive_slot_with_unit_level_produces_audio() {
-        let mut slot = Slot::new(48_000.0, 1.0);
+        let mut slot = Slot::new(48_000.0, 1.0, SlotMode::Subtractive);
         slot.note_on(true);
         let params = default_params();
         let mut peak = 0.0_f32;
@@ -291,8 +288,7 @@ mod tests {
 
     #[test]
     fn fm_slot_produces_audio_after_note_on() {
-        let mut slot = Slot::new(48_000.0, 1.0);
-        slot.mode = SlotMode::Fm;
+        let mut slot = Slot::new(48_000.0, 1.0, SlotMode::Fm);
         // Snap op envelopes so the slot is audible within the test window.
         for i in 0..crate::fm::OPERATOR_COUNT {
             let op = slot.fm.operator_mut(i).unwrap();
@@ -313,7 +309,7 @@ mod tests {
 
     #[test]
     fn slot_pan_at_minus_one_silences_right_channel() {
-        let mut slot = Slot::new(48_000.0, 1.0);
+        let mut slot = Slot::new(48_000.0, 1.0, SlotMode::Subtractive);
         slot.pan = -1.0;
         slot.note_on(true);
         let params = default_params();
@@ -330,8 +326,7 @@ mod tests {
         // After note_off, held_note becomes None — the slot must keep
         // generating audio at the same pitch as the operator envelopes
         // drain, rather than stalling on a DC component.
-        let mut slot = Slot::new(48_000.0, 1.0);
-        slot.mode = SlotMode::Fm;
+        let mut slot = Slot::new(48_000.0, 1.0, SlotMode::Fm);
         for i in 0..crate::fm::OPERATOR_COUNT {
             let op = slot.fm.operator_mut(i).unwrap();
             op.set_attack_secs(0.001);
