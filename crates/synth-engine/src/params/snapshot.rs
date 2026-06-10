@@ -135,6 +135,22 @@ pub struct ParamSnapshot {
     /// Env2 Release stage curve, -1..=1.
     pub env2_release_curve: f32,
 
+    // ── Env3 parameter mirrors ─────────────────────────────────────────
+    /// Env3 attack time, seconds.
+    pub env3_attack_secs: f32,
+    /// Env3 decay time, seconds.
+    pub env3_decay_secs: f32,
+    /// Env3 sustain level, 0..=1.
+    pub env3_sustain_level: f32,
+    /// Env3 release time, seconds.
+    pub env3_release_secs: f32,
+    /// Env3 Attack stage curve, -1..=1.
+    pub env3_attack_curve: f32,
+    /// Env3 Decay stage curve, -1..=1.
+    pub env3_decay_curve: f32,
+    /// Env3 Release stage curve, -1..=1.
+    pub env3_release_curve: f32,
+
     // ── Global ─────────────────────────────────────────────────────────
     /// Global tempo in BPM.
     pub bpm: f32,
@@ -146,6 +162,8 @@ pub struct ParamSnapshot {
     pub lfo2_out: f32,
     /// Most recent Env2 output from the first active voice, or 0.0.
     pub env2_out: f32,
+    /// Most recent Env3 output from the first active voice, or 0.0.
+    pub env3_out: f32,
 
     // ── VU meter (peak per block, written by the engine) ──────────────
     /// Peak output level for the left channel over the last audio block,
@@ -273,12 +291,20 @@ impl Default for ParamSnapshot {
             env2_attack_curve: 0.0,
             env2_decay_curve: 0.0,
             env2_release_curve: 0.0,
+            env3_attack_secs: 0.010,
+            env3_decay_secs: 0.200,
+            env3_sustain_level: 0.8,
+            env3_release_secs: 0.200,
+            env3_attack_curve: 0.0,
+            env3_decay_curve: 0.0,
+            env3_release_curve: 0.0,
             bpm: 120.0,
             lfo1_out: 0.0,
             lfo2_out: 0.0,
             vu_peak_left: 0.0,
             vu_peak_right: 0.0,
             env2_out: 0.0,
+            env3_out: 0.0,
             mod_slot_enabled: [false; MOD_MATRIX_SLOTS],
             mod_slot_source: [0; MOD_MATRIX_SLOTS],
             mod_slot_dest: [0; MOD_MATRIX_SLOTS],

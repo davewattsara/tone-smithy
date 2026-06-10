@@ -346,6 +346,55 @@ impl VoiceManager {
         }
     }
 
+    /// Sets Env3 attack time (seconds) on every voice.
+    pub fn set_env3_attack_secs(&mut self, secs: f32) {
+        for v in &mut self.voices {
+            v.set_env3_attack_secs(secs);
+        }
+    }
+
+    /// Sets Env3 decay time (seconds) on every voice.
+    pub fn set_env3_decay_secs(&mut self, secs: f32) {
+        for v in &mut self.voices {
+            v.set_env3_decay_secs(secs);
+        }
+    }
+
+    /// Sets Env3 sustain level on every voice.
+    pub fn set_env3_sustain_level(&mut self, level: f32) {
+        for v in &mut self.voices {
+            v.set_env3_sustain_level(level);
+        }
+    }
+
+    /// Sets Env3 release time (seconds) on every voice.
+    pub fn set_env3_release_secs(&mut self, secs: f32) {
+        for v in &mut self.voices {
+            v.set_env3_release_secs(secs);
+        }
+    }
+
+    /// Sets Env3 Attack curve on every voice.
+    pub fn set_env3_attack_curve(&mut self, curve: f32) {
+        for v in &mut self.voices {
+            v.set_env3_attack_curve(curve);
+        }
+    }
+
+    /// Sets Env3 Decay curve on every voice.
+    pub fn set_env3_decay_curve(&mut self, curve: f32) {
+        for v in &mut self.voices {
+            v.set_env3_decay_curve(curve);
+        }
+    }
+
+    /// Sets Env3 Release curve on every voice.
+    pub fn set_env3_release_curve(&mut self, curve: f32) {
+        for v in &mut self.voices {
+            v.set_env3_release_curve(curve);
+        }
+    }
+
     // ── Mod matrix ───────────────────────────────────────────────────────────
 
     /// Enables or disables the slot at `index`.
@@ -502,21 +551,22 @@ impl VoiceManager {
                 mod_wheel: self.global_mod_wheel,
                 aftertouch: self.global_aftertouch,
                 pitch_bend: self.global_pitch_bend,
+                env3: v.env3_out(),
             };
             v.mod_offsets = self.matrix.compute_offsets(&sources);
         }
     }
 
-    /// Returns the LFO1/LFO2/Env2 outputs of the first active voice,
-    /// or `(0.0, 0.0, 0.0)` if no voice is active. Used for the UI
+    /// Returns the LFO1/LFO2/Env2/Env3 outputs of the first active voice,
+    /// or `(0.0, 0.0, 0.0, 0.0)` if no voice is active. Used for the UI
     /// live readout in the snapshot.
-    pub fn first_active_modulator_outputs(&self) -> (f32, f32, f32) {
+    pub fn first_active_modulator_outputs(&self) -> (f32, f32, f32, f32) {
         for v in &self.voices {
             if !v.is_idle() {
-                return (v.lfo1_out(), v.lfo2_out(), v.env2_out());
+                return (v.lfo1_out(), v.lfo2_out(), v.env2_out(), v.env3_out());
             }
         }
-        (0.0, 0.0, 0.0)
+        (0.0, 0.0, 0.0, 0.0)
     }
 
     /// Produces one stereo frame as the sum of every non-idle voice.

@@ -64,6 +64,7 @@ pub struct Voice {
     lfo1: Lfo,
     lfo2: Lfo,
     mod_env: ModEnv,
+    mod_env3: ModEnv,
 
     /// MIDI note currently being held by the voice, if any. Used so
     /// `note_off` only releases the matching note.
@@ -81,6 +82,8 @@ pub struct Voice {
     lfo2_out: f32,
     /// Most recent output of Env2 (the modulation envelope).
     env2_out: f32,
+    /// Most recent output of Env3 (the second modulation envelope).
+    env3_out: f32,
 
     /// Modulation offsets computed by the mod matrix once per block.
     /// Applied inside [`Voice::next_sample`]; cleared to zero at init.
@@ -113,11 +116,13 @@ impl Voice {
             lfo1: Lfo::new(sample_rate_hz, LFO1_SEED),
             lfo2: Lfo::new(sample_rate_hz, LFO2_SEED),
             mod_env: ModEnv::new(sample_rate_hz),
+            mod_env3: ModEnv::new(sample_rate_hz),
             held_note_midi: None,
             velocity_scale: 1.0,
             lfo1_out: 0.0,
             lfo2_out: 0.0,
             env2_out: 0.0,
+            env3_out: 0.0,
             mod_offsets: DestOffsets::default(),
             volume_mod: SmoothedParam::new(0.0, sample_rate_hz),
         }
@@ -149,6 +154,7 @@ impl Voice {
         self.lfo1.note_on();
         self.lfo2.note_on();
         self.mod_env.note_on();
+        self.mod_env3.note_on();
     }
 
     /// Releases the held note. Ignored if a different note is currently
@@ -162,6 +168,7 @@ impl Voice {
             }
             self.amp_envelope.note_off();
             self.mod_env.note_off();
+            self.mod_env3.note_off();
             self.held_note_midi = None;
         }
     }
@@ -249,6 +256,41 @@ impl Voice {
     /// Sets the Env2 Release stage curve, `[-1, +1]`.
     pub fn set_env2_release_curve(&mut self, curve: f32) {
         self.mod_env.set_release_curve(curve);
+    }
+
+    /// Sets the Env3 attack time in seconds.
+    pub fn set_env3_attack_secs(&mut self, secs: f32) {
+        self.mod_env3.set_attack_secs(secs);
+    }
+
+    /// Sets the Env3 decay time in seconds.
+    pub fn set_env3_decay_secs(&mut self, secs: f32) {
+        self.mod_env3.set_decay_secs(secs);
+    }
+
+    /// Sets the Env3 sustain level, clamped to `[0, 1]`.
+    pub fn set_env3_sustain_level(&mut self, level: f32) {
+        self.mod_env3.set_sustain_level(level);
+    }
+
+    /// Sets the Env3 release time in seconds.
+    pub fn set_env3_release_secs(&mut self, secs: f32) {
+        self.mod_env3.set_release_secs(secs);
+    }
+
+    /// Sets the Env3 Attack stage curve, `[-1, +1]`.
+    pub fn set_env3_attack_curve(&mut self, curve: f32) {
+        self.mod_env3.set_attack_curve(curve);
+    }
+
+    /// Sets the Env3 Decay stage curve, `[-1, +1]`.
+    pub fn set_env3_decay_curve(&mut self, curve: f32) {
+        self.mod_env3.set_decay_curve(curve);
+    }
+
+    /// Sets the Env3 Release stage curve, `[-1, +1]`.
+    pub fn set_env3_release_curve(&mut self, curve: f32) {
+        self.mod_env3.set_release_curve(curve);
     }
 
     /// Sets the mix level for slot `slot`, clamped to 0..=1.
@@ -344,12 +386,14 @@ impl Voice {
         }
     }
 
-    /// Advances LFO1, LFO2, and Env2 by `block_size` samples and caches
-    /// their outputs. Call once per inner block, before the per-sample loop.
+    /// Advances LFO1, LFO2, Env2, and Env3 by `block_size` samples and
+    /// caches their outputs. Call once per inner block, before the
+    /// per-sample loop.
     pub fn advance_modulators(&mut self, block_size: usize) {
         self.lfo1_out = self.lfo1.advance(block_size);
         self.lfo2_out = self.lfo2.advance(block_size);
         self.env2_out = self.mod_env.advance(block_size);
+        self.env3_out = self.mod_env3.advance(block_size);
     }
 
     /// Most recent LFO1 output from `advance_modulators`.
@@ -368,6 +412,12 @@ impl Voice {
     #[must_use]
     pub fn env2_out(&self) -> f32 {
         self.env2_out
+    }
+
+    /// Most recent Env3 output from `advance_modulators`.
+    #[must_use]
+    pub fn env3_out(&self) -> f32 {
+        self.env3_out
     }
 
     /// Sets the subtractive waveform on every main oscillator bank of
@@ -395,11 +445,12 @@ impl Voice {
     }
 
     /// Returns true if the voice is fully idle: both the amp envelope
-    /// and Env2 have completed. Env2 may still be releasing after the
-    /// amp goes silent, keeping the voice alive for M6 modulation use.
+    /// and both mod envelopes have completed. Env2/Env3 may still be
+    /// releasing after the amp goes silent, keeping the voice alive so
+    /// their modulation finishes.
     #[must_use]
     pub fn is_idle(&self) -> bool {
-        self.amp_envelope.is_idle() && self.mod_env.is_idle()
+        self.amp_envelope.is_idle() && self.mod_env.is_idle() && self.mod_env3.is_idle()
     }
 
     /// Returns true when the amp envelope has fully released and the

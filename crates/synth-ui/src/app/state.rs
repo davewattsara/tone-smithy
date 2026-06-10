@@ -49,7 +49,7 @@ pub(crate) const FM_OP_ENV_MIN_SECS: f32 = 0.001;
 pub(crate) const FM_OP_ENV_MAX_SECS: f32 = 10.0;
 
 pub(crate) const MOD_SOURCE_LABELS: &[&str] = &[
-    "Off", "LFO1", "LFO2", "Env2", "AmpEnv", "Vel", "Key", "ModWhl", "AfterT", "Bend",
+    "Off", "LFO1", "LFO2", "Env2", "AmpEnv", "Vel", "Key", "ModWhl", "AfterT", "Bend", "Env3",
 ];
 pub(crate) const MOD_DEST_LABELS: &[&str] = &["Cutoff", "Reso", "Pitch", "Vol", "Osc1Det", "Osc1Pan"];
 pub(crate) const MOD_AMOUNT_RANGES: &[f32] = &[
@@ -154,6 +154,15 @@ pub struct ToneSmithyApp {
     pub(crate) env2_attack_curve: f32,
     pub(crate) env2_decay_curve: f32,
     pub(crate) env2_release_curve: f32,
+
+    // ── Env3 ─────────────────────────────────────────────────────────────────
+    pub(crate) env3_attack_secs: f32,
+    pub(crate) env3_decay_secs: f32,
+    pub(crate) env3_sustain_level: f32,
+    pub(crate) env3_release_secs: f32,
+    pub(crate) env3_attack_curve: f32,
+    pub(crate) env3_decay_curve: f32,
+    pub(crate) env3_release_curve: f32,
 
     // ── Mod matrix ───────────────────────────────────────────────────────────
     pub(crate) mod_slot_enabled: [bool; MOD_MATRIX_SLOTS],
@@ -318,6 +327,13 @@ impl ToneSmithyApp {
             env2_attack_curve: snap.env2_attack_curve,
             env2_decay_curve: snap.env2_decay_curve,
             env2_release_curve: snap.env2_release_curve,
+            env3_attack_secs: snap.env3_attack_secs,
+            env3_decay_secs: snap.env3_decay_secs,
+            env3_sustain_level: snap.env3_sustain_level,
+            env3_release_secs: snap.env3_release_secs,
+            env3_attack_curve: snap.env3_attack_curve,
+            env3_decay_curve: snap.env3_decay_curve,
+            env3_release_curve: snap.env3_release_curve,
             mod_slot_enabled: snap.mod_slot_enabled,
             mod_slot_source: snap.mod_slot_source.map(|v| v as usize),
             mod_slot_dest: snap.mod_slot_dest.map(|v| v as usize),
@@ -521,6 +537,13 @@ impl ToneSmithyApp {
         self.env2_attack_curve = snap.env2_attack_curve;
         self.env2_decay_curve = snap.env2_decay_curve;
         self.env2_release_curve = snap.env2_release_curve;
+        self.env3_attack_secs = snap.env3_attack_secs;
+        self.env3_decay_secs = snap.env3_decay_secs;
+        self.env3_sustain_level = snap.env3_sustain_level;
+        self.env3_release_secs = snap.env3_release_secs;
+        self.env3_attack_curve = snap.env3_attack_curve;
+        self.env3_decay_curve = snap.env3_decay_curve;
+        self.env3_release_curve = snap.env3_release_curve;
         self.mod_slot_enabled = snap.mod_slot_enabled;
         self.mod_slot_source = snap.mod_slot_source.map(|v| v as usize);
         self.mod_slot_dest = snap.mod_slot_dest.map(|v| v as usize);

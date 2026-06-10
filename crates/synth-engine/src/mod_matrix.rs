@@ -42,11 +42,16 @@ pub enum ModSource {
     Aftertouch,
     /// MIDI pitch bend, -1..=1.
     PitchBend,
+    /// Second modulation envelope (Env3) output, 0..=1. Appended at the
+    /// end so existing source indices (and saved presets) keep their
+    /// meaning — `to_index` is the enum discriminant, so a mid-enum
+    /// insert would renumber everything after it.
+    Env3,
 }
 
 impl ModSource {
     /// Total number of variants; used to validate parameter bus values.
-    pub const COUNT: u8 = 10;
+    pub const COUNT: u8 = 11;
 
     /// Converts a `u8` index (as stored in the parameter bus) to a variant.
     /// Returns `None` if the index is out of range.
@@ -62,6 +67,7 @@ impl ModSource {
             7 => Some(Self::ModWheel),
             8 => Some(Self::Aftertouch),
             9 => Some(Self::PitchBend),
+            10 => Some(Self::Env3),
             _ => None,
         }
     }
@@ -127,6 +133,7 @@ pub struct ModSources {
     pub mod_wheel: f32,
     pub aftertouch: f32,
     pub pitch_bend: f32,
+    pub env3: f32,
 }
 
 impl ModSources {
@@ -142,6 +149,7 @@ impl ModSources {
             ModSource::ModWheel => self.mod_wheel,
             ModSource::Aftertouch => self.aftertouch,
             ModSource::PitchBend => self.pitch_bend,
+            ModSource::Env3 => self.env3,
         }
     }
 }

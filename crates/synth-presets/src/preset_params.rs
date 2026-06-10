@@ -76,6 +76,15 @@ pub fn snapshot_to_map(snap: &ParamSnapshot) -> BTreeMap<String, f32> {
     m.insert("env2_decay_curve".into(), snap.env2_decay_curve);
     m.insert("env2_release_curve".into(), snap.env2_release_curve);
 
+    // Env3
+    m.insert("env3_attack_secs".into(), snap.env3_attack_secs);
+    m.insert("env3_decay_secs".into(), snap.env3_decay_secs);
+    m.insert("env3_sustain_level".into(), snap.env3_sustain_level);
+    m.insert("env3_release_secs".into(), snap.env3_release_secs);
+    m.insert("env3_attack_curve".into(), snap.env3_attack_curve);
+    m.insert("env3_decay_curve".into(), snap.env3_decay_curve);
+    m.insert("env3_release_curve".into(), snap.env3_release_curve);
+
     // Mod matrix (MOD_MATRIX_SLOTS slots)
     for i in 0..MOD_MATRIX_SLOTS {
         m.insert(format!("mod_slot_enabled_{i}"), f32::from(snap.mod_slot_enabled[i]));
@@ -270,6 +279,13 @@ pub fn map_to_events(m: &BTreeMap<String, f32>) -> Vec<EngineEvent> {
     pc!("env2_attack_curve", ParamId::Env2AttackCurve);
     pc!("env2_decay_curve", ParamId::Env2DecayCurve);
     pc!("env2_release_curve", ParamId::Env2ReleaseCurve);
+    pc!("env3_attack_secs", ParamId::Env3AttackSecs);
+    pc!("env3_decay_secs", ParamId::Env3DecaySecs);
+    pc!("env3_sustain_level", ParamId::Env3SustainLevel);
+    pc!("env3_release_secs", ParamId::Env3ReleaseSecs);
+    pc!("env3_attack_curve", ParamId::Env3AttackCurve);
+    pc!("env3_decay_curve", ParamId::Env3DecayCurve);
+    pc!("env3_release_curve", ParamId::Env3ReleaseCurve);
 
     // Mod matrix
     for i in 0..MOD_MATRIX_SLOTS as u8 {
@@ -439,6 +455,13 @@ pub fn map_to_snapshot(m: &BTreeMap<String, f32>) -> ParamSnapshot {
     get!("env2_attack_curve", s.env2_attack_curve);
     get!("env2_decay_curve", s.env2_decay_curve);
     get!("env2_release_curve", s.env2_release_curve);
+    get!("env3_attack_secs", s.env3_attack_secs);
+    get!("env3_decay_secs", s.env3_decay_secs);
+    get!("env3_sustain_level", s.env3_sustain_level);
+    get!("env3_release_secs", s.env3_release_secs);
+    get!("env3_attack_curve", s.env3_attack_curve);
+    get!("env3_decay_curve", s.env3_decay_curve);
+    get!("env3_release_curve", s.env3_release_curve);
 
     for i in 0..MOD_MATRIX_SLOTS {
         get_bool!(&format!("mod_slot_enabled_{i}"), s.mod_slot_enabled[i]);
@@ -590,6 +613,13 @@ mod tests {
         orig.env2_attack_curve = 0.3;
         orig.env2_decay_curve = -0.2;
         orig.env2_release_curve = 0.5;
+        orig.env3_attack_secs = 0.03;
+        orig.env3_decay_secs = 0.6;
+        orig.env3_sustain_level = 0.6;
+        orig.env3_release_secs = 0.9;
+        orig.env3_attack_curve = -0.4;
+        orig.env3_decay_curve = 0.25;
+        orig.env3_release_curve = -0.5;
         for i in 0..MOD_MATRIX_SLOTS {
             orig.mod_slot_enabled[i] = i % 2 == 0;
             orig.mod_slot_source[i] = i as u8;
@@ -686,6 +716,13 @@ mod tests {
         assert_eq!(orig.env2_attack_curve, got.env2_attack_curve);
         assert_eq!(orig.env2_decay_curve, got.env2_decay_curve);
         assert_eq!(orig.env2_release_curve, got.env2_release_curve);
+        assert_eq!(orig.env3_attack_secs, got.env3_attack_secs);
+        assert_eq!(orig.env3_decay_secs, got.env3_decay_secs);
+        assert_eq!(orig.env3_sustain_level, got.env3_sustain_level);
+        assert_eq!(orig.env3_release_secs, got.env3_release_secs);
+        assert_eq!(orig.env3_attack_curve, got.env3_attack_curve);
+        assert_eq!(orig.env3_decay_curve, got.env3_decay_curve);
+        assert_eq!(orig.env3_release_curve, got.env3_release_curve);
         assert_eq!(orig.mod_slot_enabled, got.mod_slot_enabled);
         assert_eq!(orig.mod_slot_source, got.mod_slot_source);
         assert_eq!(orig.mod_slot_dest, got.mod_slot_dest);

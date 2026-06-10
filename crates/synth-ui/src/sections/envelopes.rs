@@ -11,7 +11,7 @@ use crate::theme;
 impl ToneSmithyApp {
     pub(crate) fn envelopes_tab(&mut self, ui: &mut egui::Ui, snapshot: &ParamSnapshot) {
         ui.add_space(theme::PANEL_PADDING);
-        ui.columns(4, |cols| {
+        ui.columns(5, |cols| {
             cols[0].vertical(|ui| {
                 ui.add_space(theme::PANEL_PADDING);
                 theme::section_label(ui, "AMP ENV");
@@ -24,10 +24,15 @@ impl ToneSmithyApp {
             });
             cols[2].vertical(|ui| {
                 ui.add_space(theme::PANEL_PADDING);
+                theme::section_label(ui, "ENV 3");
+                self.env3_section(ui, snapshot);
+            });
+            cols[3].vertical(|ui| {
+                ui.add_space(theme::PANEL_PADDING);
                 theme::section_label(ui, "LFO 1");
                 self.lfo_section(ui, 1, snapshot);
             });
-            cols[3].vertical(|ui| {
+            cols[4].vertical(|ui| {
                 ui.add_space(theme::PANEL_PADDING);
                 theme::section_label(ui, "LFO 2");
                 self.lfo_section(ui, 2, snapshot);
@@ -205,6 +210,117 @@ impl ToneSmithyApp {
 
         ui.add_space(4.0);
         ui.label(egui::RichText::new(format!("Out: {:.3}", snapshot.env2_out)).color(theme::FG2));
+    }
+
+    fn env3_section(&mut self, ui: &mut egui::Ui, snapshot: &ParamSnapshot) {
+        ui.horizontal(|ui| {
+            if ui
+                .add(
+                    Knob::new(&mut self.env3_attack_secs, ENV_MIN_SECS..=ENV_ATTACK_MAX_SECS, "A")
+                        .default_value(0.010)
+                        .param_key("env3_attack_secs")
+                        .format(secs_format),
+                )
+                .changed()
+            {
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::Env3AttackSecs,
+                    value: self.env3_attack_secs,
+                });
+            }
+            if ui
+                .add(
+                    Knob::new(&mut self.env3_decay_secs, ENV_MIN_SECS..=ENV_DECAY_MAX_SECS, "D")
+                        .default_value(0.200)
+                        .param_key("env3_decay_secs")
+                        .format(secs_format),
+                )
+                .changed()
+            {
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::Env3DecaySecs,
+                    value: self.env3_decay_secs,
+                });
+            }
+            if ui
+                .add(
+                    Knob::new(&mut self.env3_sustain_level, 0.0..=1.0, "S")
+                        .default_value(0.8)
+                        .param_key("env3_sustain_level")
+                        .format(|v| format!("{:.2}", v)),
+                )
+                .changed()
+            {
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::Env3SustainLevel,
+                    value: self.env3_sustain_level,
+                });
+            }
+            if ui
+                .add(
+                    Knob::new(&mut self.env3_release_secs, ENV_MIN_SECS..=ENV_RELEASE_MAX_SECS, "R")
+                        .default_value(0.200)
+                        .param_key("env3_release_secs")
+                        .format(secs_format),
+                )
+                .changed()
+            {
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::Env3ReleaseSecs,
+                    value: self.env3_release_secs,
+                });
+            }
+        });
+
+        ui.add_space(4.0);
+        ui.label(egui::RichText::new("Curve").color(theme::FG1).font(theme::font_small()));
+        ui.horizontal(|ui| {
+            if ui
+                .add(
+                    Knob::new(&mut self.env3_attack_curve, -ENV2_CURVE_RANGE..=ENV2_CURVE_RANGE, "A")
+                        .default_value(0.0)
+                        .param_key("env3_attack_curve")
+                        .format(|v| format!("{:+.2}", v)),
+                )
+                .changed()
+            {
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::Env3AttackCurve,
+                    value: self.env3_attack_curve,
+                });
+            }
+            if ui
+                .add(
+                    Knob::new(&mut self.env3_decay_curve, -ENV2_CURVE_RANGE..=ENV2_CURVE_RANGE, "D")
+                        .default_value(0.0)
+                        .param_key("env3_decay_curve")
+                        .format(|v| format!("{:+.2}", v)),
+                )
+                .changed()
+            {
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::Env3DecayCurve,
+                    value: self.env3_decay_curve,
+                });
+            }
+            if ui
+                .add(
+                    Knob::new(&mut self.env3_release_curve, -ENV2_CURVE_RANGE..=ENV2_CURVE_RANGE, "R")
+                        .default_value(0.0)
+                        .param_key("env3_release_curve")
+                        .format(|v| format!("{:+.2}", v)),
+                )
+                .changed()
+            {
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::Env3ReleaseCurve,
+                    value: self.env3_release_curve,
+                });
+            }
+        });
+
+        ui.add_space(4.0);
+        ui.label(egui::RichText::new(format!("Out: {:.3}", snapshot.env3_out)).color(theme::FG2));
     }
 
     fn lfo_section(&mut self, ui: &mut egui::Ui, lfo_num: u8, snapshot: &ParamSnapshot) {

@@ -84,6 +84,13 @@ impl Engine {
         voices.set_env2_attack_curve(params.env2_attack_curve());
         voices.set_env2_decay_curve(params.env2_decay_curve());
         voices.set_env2_release_curve(params.env2_release_curve());
+        voices.set_env3_attack_secs(params.env3_attack_secs());
+        voices.set_env3_decay_secs(params.env3_decay_secs());
+        voices.set_env3_sustain_level(params.env3_sustain_level());
+        voices.set_env3_release_secs(params.env3_release_secs());
+        voices.set_env3_attack_curve(params.env3_attack_curve());
+        voices.set_env3_decay_curve(params.env3_decay_curve());
+        voices.set_env3_release_curve(params.env3_release_curve());
         Self {
             sample_rate_hz,
             params,
@@ -221,6 +228,15 @@ impl Engine {
             ParamId::Env2AttackCurve => self.voices.set_env2_attack_curve(value),
             ParamId::Env2DecayCurve => self.voices.set_env2_decay_curve(value),
             ParamId::Env2ReleaseCurve => self.voices.set_env2_release_curve(value),
+
+            // ── Env3 ────────────────────────────────────────────────────────
+            ParamId::Env3AttackSecs => self.voices.set_env3_attack_secs(value),
+            ParamId::Env3DecaySecs => self.voices.set_env3_decay_secs(value),
+            ParamId::Env3SustainLevel => self.voices.set_env3_sustain_level(value),
+            ParamId::Env3ReleaseSecs => self.voices.set_env3_release_secs(value),
+            ParamId::Env3AttackCurve => self.voices.set_env3_attack_curve(value),
+            ParamId::Env3DecayCurve => self.voices.set_env3_decay_curve(value),
+            ParamId::Env3ReleaseCurve => self.voices.set_env3_release_curve(value),
 
             // ── Mod matrix ──────────────────────────────────────────────────
             ParamId::ModSlotEnabled(i) => {
@@ -426,8 +442,8 @@ impl Engine {
         #[allow(clippy::cast_possible_truncation)]
         let count = self.voices.active_count() as u8;
         self.params.set_active_voice_count(count);
-        let (lfo1, lfo2, env2) = self.voices.first_active_modulator_outputs();
-        self.params.set_modulator_outputs(lfo1, lfo2, env2);
+        let (lfo1, lfo2, env2, env3) = self.voices.first_active_modulator_outputs();
+        self.params.set_modulator_outputs(lfo1, lfo2, env2, env3);
         self.params.set_vu_peak(peak_l, peak_r);
     }
 

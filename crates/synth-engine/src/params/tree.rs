@@ -170,6 +170,15 @@ pub struct ParameterTree {
     pub(super) env2_decay_curve: f32,
     pub(super) env2_release_curve: f32,
 
+    // ── Env3 ───────────────────────────────────────────────────────────
+    pub(super) env3_attack_secs: f32,
+    pub(super) env3_decay_secs: f32,
+    pub(super) env3_sustain_level: f32,
+    pub(super) env3_release_secs: f32,
+    pub(super) env3_attack_curve: f32,
+    pub(super) env3_decay_curve: f32,
+    pub(super) env3_release_curve: f32,
+
     // ── Global ─────────────────────────────────────────────────────────
     pub(super) bpm: f32,
 
@@ -177,6 +186,7 @@ pub struct ParameterTree {
     pub(super) lfo1_out: f32,
     pub(super) lfo2_out: f32,
     pub(super) env2_out: f32,
+    pub(super) env3_out: f32,
     pub(super) vu_peak_left: f32,
     pub(super) vu_peak_right: f32,
 
@@ -293,10 +303,18 @@ impl ParameterTree {
             env2_attack_curve: defaults.env2_attack_curve,
             env2_decay_curve: defaults.env2_decay_curve,
             env2_release_curve: defaults.env2_release_curve,
+            env3_attack_secs: defaults.env3_attack_secs,
+            env3_decay_secs: defaults.env3_decay_secs,
+            env3_sustain_level: defaults.env3_sustain_level,
+            env3_release_secs: defaults.env3_release_secs,
+            env3_attack_curve: defaults.env3_attack_curve,
+            env3_decay_curve: defaults.env3_decay_curve,
+            env3_release_curve: defaults.env3_release_curve,
             bpm: defaults.bpm,
             lfo1_out: 0.0,
             lfo2_out: 0.0,
             env2_out: 0.0,
+            env3_out: 0.0,
             vu_peak_left: 0.0,
             vu_peak_right: 0.0,
             mod_slot_enabled: [false; MOD_MATRIX_SLOTS],
@@ -411,6 +429,13 @@ impl ParameterTree {
             ParamId::Env2AttackCurve => self.env2_attack_curve = value,
             ParamId::Env2DecayCurve => self.env2_decay_curve = value,
             ParamId::Env2ReleaseCurve => self.env2_release_curve = value,
+            ParamId::Env3AttackSecs => self.env3_attack_secs = value,
+            ParamId::Env3DecaySecs => self.env3_decay_secs = value,
+            ParamId::Env3SustainLevel => self.env3_sustain_level = value,
+            ParamId::Env3ReleaseSecs => self.env3_release_secs = value,
+            ParamId::Env3AttackCurve => self.env3_attack_curve = value,
+            ParamId::Env3DecayCurve => self.env3_decay_curve = value,
+            ParamId::Env3ReleaseCurve => self.env3_release_curve = value,
             ParamId::Bpm => self.bpm = value,
             ParamId::ModSlotEnabled(i) => {
                 if (i as usize) < MOD_MATRIX_SLOTS {
@@ -711,12 +736,55 @@ impl ParameterTree {
         self.env2_release_curve
     }
 
+    /// Returns Env3 attack time (seconds).
+    #[must_use]
+    pub fn env3_attack_secs(&self) -> f32 {
+        self.env3_attack_secs
+    }
+
+    /// Returns Env3 decay time (seconds).
+    #[must_use]
+    pub fn env3_decay_secs(&self) -> f32 {
+        self.env3_decay_secs
+    }
+
+    /// Returns Env3 sustain level.
+    #[must_use]
+    pub fn env3_sustain_level(&self) -> f32 {
+        self.env3_sustain_level
+    }
+
+    /// Returns Env3 release time (seconds).
+    #[must_use]
+    pub fn env3_release_secs(&self) -> f32 {
+        self.env3_release_secs
+    }
+
+    /// Returns Env3 Attack curve.
+    #[must_use]
+    pub fn env3_attack_curve(&self) -> f32 {
+        self.env3_attack_curve
+    }
+
+    /// Returns Env3 Decay curve.
+    #[must_use]
+    pub fn env3_decay_curve(&self) -> f32 {
+        self.env3_decay_curve
+    }
+
+    /// Returns Env3 Release curve.
+    #[must_use]
+    pub fn env3_release_curve(&self) -> f32 {
+        self.env3_release_curve
+    }
+
     /// Stores the live modulator outputs from the first active voice.
     /// Called by the engine each block, before the snapshot is published.
-    pub fn set_modulator_outputs(&mut self, lfo1: f32, lfo2: f32, env2: f32) {
+    pub fn set_modulator_outputs(&mut self, lfo1: f32, lfo2: f32, env2: f32, env3: f32) {
         self.lfo1_out = lfo1;
         self.lfo2_out = lfo2;
         self.env2_out = env2;
+        self.env3_out = env3;
     }
 
     /// Stores the per-block peak output level for the VU meter.
@@ -833,10 +901,18 @@ impl ParameterTree {
             env2_attack_curve: self.env2_attack_curve,
             env2_decay_curve: self.env2_decay_curve,
             env2_release_curve: self.env2_release_curve,
+            env3_attack_secs: self.env3_attack_secs,
+            env3_decay_secs: self.env3_decay_secs,
+            env3_sustain_level: self.env3_sustain_level,
+            env3_release_secs: self.env3_release_secs,
+            env3_attack_curve: self.env3_attack_curve,
+            env3_decay_curve: self.env3_decay_curve,
+            env3_release_curve: self.env3_release_curve,
             bpm: self.bpm,
             lfo1_out: self.lfo1_out,
             lfo2_out: self.lfo2_out,
             env2_out: self.env2_out,
+            env3_out: self.env3_out,
             vu_peak_left: self.vu_peak_left,
             vu_peak_right: self.vu_peak_right,
             mod_slot_enabled: self.mod_slot_enabled,
