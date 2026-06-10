@@ -249,7 +249,7 @@ Take the functional UI from M4 and the surfaces added through M6/M9/M10 and turn
 
 ---
 
-## M16 — Quick wins (1–3 days) — v1.1
+## M16 — Quick wins (1–3 days) — v1.1 — **complete (2026-06-10, tag `m16`)**
 
 Three self-contained UX improvements that can be implemented back-to-back before the heavier engine
 work begins.
