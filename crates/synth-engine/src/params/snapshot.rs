@@ -1,6 +1,7 @@
 use crate::MAIN_OSCILLATOR_COUNT;
 use crate::filter::FilterMode;
 use crate::fm::OPERATOR_COUNT;
+use crate::mod_matrix::MOD_MATRIX_SLOTS;
 use crate::oscillator::Waveform;
 
 use super::tree::{
@@ -154,16 +155,16 @@ pub struct ParamSnapshot {
     pub vu_peak_right: f32,
 
     // ── Mod matrix mirrors ─────────────────────────────────────────────
-    /// Enable flag for each of the 8 mod slots.
-    pub mod_slot_enabled: [bool; 8],
+    /// Enable flag for each of the [`MOD_MATRIX_SLOTS`] mod slots.
+    pub mod_slot_enabled: [bool; MOD_MATRIX_SLOTS],
     /// Source index for each slot (matches `ModSource::to_index`).
-    pub mod_slot_source: [u8; 8],
+    pub mod_slot_source: [u8; MOD_MATRIX_SLOTS],
     /// Destination index for each slot (matches `ModDest::to_index`).
-    pub mod_slot_dest: [u8; 8],
+    pub mod_slot_dest: [u8; MOD_MATRIX_SLOTS],
     /// Amount for each slot, in destination-natural units.
-    pub mod_slot_amount: [f32; 8],
+    pub mod_slot_amount: [f32; MOD_MATRIX_SLOTS],
     /// Via-source index for each slot (0 = Off = no scaling).
-    pub mod_slot_via: [u8; 8],
+    pub mod_slot_via: [u8; MOD_MATRIX_SLOTS],
 
     // ── FM synthesis mirrors ───────────────────────────────────────────
     /// Per-slot mix level, 0..=1.
@@ -278,11 +279,11 @@ impl Default for ParamSnapshot {
             vu_peak_left: 0.0,
             vu_peak_right: 0.0,
             env2_out: 0.0,
-            mod_slot_enabled: [false; 8],
-            mod_slot_source: [0; 8],
-            mod_slot_dest: [0; 8],
-            mod_slot_amount: [0.0; 8],
-            mod_slot_via: [0; 8],
+            mod_slot_enabled: [false; MOD_MATRIX_SLOTS],
+            mod_slot_source: [0; MOD_MATRIX_SLOTS],
+            mod_slot_dest: [0; MOD_MATRIX_SLOTS],
+            mod_slot_amount: [0.0; MOD_MATRIX_SLOTS],
+            mod_slot_via: [0; MOD_MATRIX_SLOTS],
             slot_level: [1.0, 0.0],
             slot_pan: [0.0; 2],
             fm_algorithm: [0; 2],

@@ -5,7 +5,7 @@ use std::sync::mpsc::Receiver;
 use notify::RecommendedWatcher;
 use synth_engine::ParamSnapshot;
 use synth_engine::param_bus::{EngineEventSender, SnapshotSlot, load_snapshot};
-use synth_engine::{FilterMode, Waveform};
+use synth_engine::{FilterMode, MOD_MATRIX_SLOTS, Waveform};
 use synth_presets::{
     AppSettings, MidiLearnEntry, PresetEntry, factory_entries, scan_dir, start_watcher, user_presets_dir,
 };
@@ -156,11 +156,11 @@ pub struct ToneSmithyApp {
     pub(crate) env2_release_curve: f32,
 
     // ── Mod matrix ───────────────────────────────────────────────────────────
-    pub(crate) mod_slot_enabled: [bool; 8],
-    pub(crate) mod_slot_source: [usize; 8],
-    pub(crate) mod_slot_dest: [usize; 8],
-    pub(crate) mod_slot_amount: [f32; 8],
-    pub(crate) mod_slot_via: [usize; 8],
+    pub(crate) mod_slot_enabled: [bool; MOD_MATRIX_SLOTS],
+    pub(crate) mod_slot_source: [usize; MOD_MATRIX_SLOTS],
+    pub(crate) mod_slot_dest: [usize; MOD_MATRIX_SLOTS],
+    pub(crate) mod_slot_amount: [f32; MOD_MATRIX_SLOTS],
+    pub(crate) mod_slot_via: [usize; MOD_MATRIX_SLOTS],
 
     // ── FM synthesis ─────────────────────────────────────────────────────────
     pub(crate) slot_level: [f32; 2],

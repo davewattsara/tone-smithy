@@ -26,7 +26,7 @@ use crate::MAIN_OSCILLATOR_COUNT;
 use crate::filter::FilterMode;
 use crate::fm::OPERATOR_COUNT;
 use crate::lfo::SyncDivision;
-use crate::mod_matrix::{ModDest, ModSource};
+use crate::mod_matrix::{MOD_MATRIX_SLOTS, ModDest, ModSource};
 use crate::oscillator::Waveform;
 use crate::smoothing::SmoothedParam;
 
@@ -181,11 +181,11 @@ pub struct ParameterTree {
     pub(super) vu_peak_right: f32,
 
     // ── Mod matrix mirrors ─────────────────────────────────────────────
-    pub(super) mod_slot_enabled: [bool; 8],
-    pub(super) mod_slot_source: [u8; 8],
-    pub(super) mod_slot_dest: [u8; 8],
-    pub(super) mod_slot_amount: [f32; 8],
-    pub(super) mod_slot_via: [u8; 8],
+    pub(super) mod_slot_enabled: [bool; MOD_MATRIX_SLOTS],
+    pub(super) mod_slot_source: [u8; MOD_MATRIX_SLOTS],
+    pub(super) mod_slot_dest: [u8; MOD_MATRIX_SLOTS],
+    pub(super) mod_slot_amount: [f32; MOD_MATRIX_SLOTS],
+    pub(super) mod_slot_via: [u8; MOD_MATRIX_SLOTS],
 
     // ── FM synthesis ───────────────────────────────────────────────────
     pub(super) slot_level: [f32; 2],
@@ -299,11 +299,11 @@ impl ParameterTree {
             env2_out: 0.0,
             vu_peak_left: 0.0,
             vu_peak_right: 0.0,
-            mod_slot_enabled: [false; 8],
-            mod_slot_source: [0; 8],
-            mod_slot_dest: [0; 8],
-            mod_slot_amount: [0.0; 8],
-            mod_slot_via: [0; 8],
+            mod_slot_enabled: [false; MOD_MATRIX_SLOTS],
+            mod_slot_source: [0; MOD_MATRIX_SLOTS],
+            mod_slot_dest: [0; MOD_MATRIX_SLOTS],
+            mod_slot_amount: [0.0; MOD_MATRIX_SLOTS],
+            mod_slot_via: [0; MOD_MATRIX_SLOTS],
             slot_level: defaults.slot_level,
             slot_pan: defaults.slot_pan,
             fm_algorithm: defaults.fm_algorithm,
@@ -413,28 +413,28 @@ impl ParameterTree {
             ParamId::Env2ReleaseCurve => self.env2_release_curve = value,
             ParamId::Bpm => self.bpm = value,
             ParamId::ModSlotEnabled(i) => {
-                if (i as usize) < 8 {
+                if (i as usize) < MOD_MATRIX_SLOTS {
                     self.mod_slot_enabled[i as usize] = value >= 0.5;
                 }
             }
             ParamId::ModSlotSource(i) => {
-                if (i as usize) < 8 {
+                if (i as usize) < MOD_MATRIX_SLOTS {
                     self.mod_slot_source[i as usize] =
                         ModSource::from_index(value as u8).unwrap_or_default().to_index();
                 }
             }
             ParamId::ModSlotDest(i) => {
-                if (i as usize) < 8 {
+                if (i as usize) < MOD_MATRIX_SLOTS {
                     self.mod_slot_dest[i as usize] = ModDest::from_index(value as u8).unwrap_or_default().to_index();
                 }
             }
             ParamId::ModSlotAmount(i) => {
-                if (i as usize) < 8 {
+                if (i as usize) < MOD_MATRIX_SLOTS {
                     self.mod_slot_amount[i as usize] = value;
                 }
             }
             ParamId::ModSlotVia(i) => {
-                if (i as usize) < 8 {
+                if (i as usize) < MOD_MATRIX_SLOTS {
                     self.mod_slot_via[i as usize] = ModSource::from_index(value as u8).unwrap_or_default().to_index();
                 }
             }

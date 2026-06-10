@@ -43,7 +43,7 @@ pub use crate::fm::{ALGORITHM_COUNT, ALGORITHMS, Algorithm, FmBank, OPERATOR_COU
 pub use crate::fx::FxChain;
 pub use crate::lfo::{Lfo, LfoShape, SyncDivision};
 pub use crate::mod_env::{ModEnv, ModEnvStage};
-pub use crate::mod_matrix::{DestOffsets, ModDest, ModMatrix, ModSlot, ModSource, ModSources};
+pub use crate::mod_matrix::{DestOffsets, MOD_MATRIX_SLOTS, ModDest, ModMatrix, ModSlot, ModSource, ModSources};
 pub use crate::oscillator::{Oscillator, UnisonOscillator, Waveform, midi_note_to_hz};
 pub use crate::params::{ParamId, ParamSnapshot, ParameterTree, SampleParams};
 pub use crate::slot::{Slot, SubtractiveBank};

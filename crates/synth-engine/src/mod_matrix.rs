@@ -1,4 +1,4 @@
-//! Modulation matrix — 8-slot source → destination routing.
+//! Modulation matrix — fixed-size source → destination routing.
 //!
 //! Each [`ModSlot`] connects one [`ModSource`] to one [`ModDest`] with a
 //! signed `amount`. An optional `via` source scales the amount so that, for
@@ -10,6 +10,11 @@
 //! before the per-sample inner loop.
 //!
 //! All types are `Copy`; no heap allocation occurs on the hot path.
+
+/// Number of modulation slots in a [`ModMatrix`]. Shared across the engine,
+/// parameter snapshot, parameter tree, UI, and preset serialization so the
+/// matrix size is defined in exactly one place.
+pub const MOD_MATRIX_SLOTS: usize = 16;
 
 /// A modulation source value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -178,10 +183,10 @@ impl Default for ModSlot {
     }
 }
 
-/// 8-slot modulation matrix.
+/// Fixed modulation matrix of [`MOD_MATRIX_SLOTS`] slots.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ModMatrix {
-    pub slots: [ModSlot; 8],
+    pub slots: [ModSlot; MOD_MATRIX_SLOTS],
 }
 
 impl ModMatrix {

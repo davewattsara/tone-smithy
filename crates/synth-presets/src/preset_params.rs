@@ -9,7 +9,7 @@
 use std::collections::BTreeMap;
 
 use synth_engine::EngineEvent;
-use synth_engine::{EngineEvent as Ev, FilterMode, ParamId, ParamSnapshot, Waveform};
+use synth_engine::{EngineEvent as Ev, FilterMode, MOD_MATRIX_SLOTS, ParamId, ParamSnapshot, Waveform};
 
 /// Serialises all saveable params from `snap` into a stable string-keyed
 /// map. Keys use snake_case matching the `ParamSnapshot` field names;
@@ -76,8 +76,8 @@ pub fn snapshot_to_map(snap: &ParamSnapshot) -> BTreeMap<String, f32> {
     m.insert("env2_decay_curve".into(), snap.env2_decay_curve);
     m.insert("env2_release_curve".into(), snap.env2_release_curve);
 
-    // Mod matrix (8 slots)
-    for i in 0..8usize {
+    // Mod matrix (MOD_MATRIX_SLOTS slots)
+    for i in 0..MOD_MATRIX_SLOTS {
         m.insert(format!("mod_slot_enabled_{i}"), f32::from(snap.mod_slot_enabled[i]));
         m.insert(format!("mod_slot_source_{i}"), f32::from(snap.mod_slot_source[i]));
         m.insert(format!("mod_slot_dest_{i}"), f32::from(snap.mod_slot_dest[i]));
@@ -272,7 +272,7 @@ pub fn map_to_events(m: &BTreeMap<String, f32>) -> Vec<EngineEvent> {
     pc!("env2_release_curve", ParamId::Env2ReleaseCurve);
 
     // Mod matrix
-    for i in 0..8u8 {
+    for i in 0..MOD_MATRIX_SLOTS as u8 {
         let ii = i as usize;
         pc!(&format!("mod_slot_enabled_{ii}"), ParamId::ModSlotEnabled(i));
         pc!(&format!("mod_slot_source_{ii}"), ParamId::ModSlotSource(i));
@@ -440,7 +440,7 @@ pub fn map_to_snapshot(m: &BTreeMap<String, f32>) -> ParamSnapshot {
     get!("env2_decay_curve", s.env2_decay_curve);
     get!("env2_release_curve", s.env2_release_curve);
 
-    for i in 0..8usize {
+    for i in 0..MOD_MATRIX_SLOTS {
         get_bool!(&format!("mod_slot_enabled_{i}"), s.mod_slot_enabled[i]);
         get_u8!(&format!("mod_slot_source_{i}"), s.mod_slot_source[i]);
         get_u8!(&format!("mod_slot_dest_{i}"), s.mod_slot_dest[i]);
@@ -590,7 +590,7 @@ mod tests {
         orig.env2_attack_curve = 0.3;
         orig.env2_decay_curve = -0.2;
         orig.env2_release_curve = 0.5;
-        for i in 0..8 {
+        for i in 0..MOD_MATRIX_SLOTS {
             orig.mod_slot_enabled[i] = i % 2 == 0;
             orig.mod_slot_source[i] = i as u8;
             orig.mod_slot_dest[i] = (i + 1) as u8;
