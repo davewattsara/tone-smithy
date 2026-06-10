@@ -27,7 +27,7 @@
 //! [`Slot`]: crate::slot::Slot
 
 use crate::envelope::Adsr;
-use crate::filter::{FilterMode, FilterRouting, StateVariableFilter};
+use crate::filter::{FilterMode, FilterRouting, FilterSlope, StateVariableFilter};
 use crate::lfo::{Lfo, LfoShape};
 use crate::mod_env::ModEnv;
 use crate::mod_matrix::DestOffsets;
@@ -454,6 +454,23 @@ impl Voice {
     /// Sets how filter 1 and filter 2 are connected.
     pub fn set_filter_routing(&mut self, routing: FilterRouting) {
         self.filter_routing = routing;
+    }
+
+    /// Sets the roll-off slope on both channels of one filter.
+    /// `filter_idx` 0 targets filter 1, 1 targets filter 2; other
+    /// values are ignored.
+    pub fn set_filter_slope(&mut self, filter_idx: u8, slope: FilterSlope) {
+        match filter_idx {
+            0 => {
+                self.filter_l.set_slope(slope);
+                self.filter_r.set_slope(slope);
+            }
+            1 => {
+                self.filter2_l.set_slope(slope);
+                self.filter2_r.set_slope(slope);
+            }
+            _ => {}
+        }
     }
 
     /// Sets the filter output mode on both channel filters. The

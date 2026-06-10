@@ -5,7 +5,7 @@ use std::sync::mpsc::Receiver;
 use notify::RecommendedWatcher;
 use synth_engine::ParamSnapshot;
 use synth_engine::param_bus::{EngineEventSender, SnapshotSlot, load_snapshot};
-use synth_engine::{FilterMode, FilterRouting, MOD_MATRIX_SLOTS, Waveform};
+use synth_engine::{FilterMode, FilterRouting, FilterSlope, MOD_MATRIX_SLOTS, Waveform};
 use synth_presets::{
     AppSettings, MidiLearnEntry, PresetEntry, factory_entries, scan_dir, start_watcher, user_presets_dir,
 };
@@ -131,6 +131,7 @@ pub struct ToneSmithyApp {
     pub(crate) filter2_cutoff_hz: f32,
     pub(crate) filter2_resonance: f32,
     pub(crate) filter_routing: FilterRouting,
+    pub(crate) filter_slope: [FilterSlope; 2],
 
     // ── Amp envelope ─────────────────────────────────────────────────────────
     pub(crate) amp_attack_secs: f32,
@@ -316,6 +317,7 @@ impl ToneSmithyApp {
             filter2_cutoff_hz: snap.filter2_cutoff_hz,
             filter2_resonance: snap.filter2_resonance,
             filter_routing: snap.filter_routing,
+            filter_slope: snap.filter_slope,
             amp_attack_secs: snap.amp_attack_secs,
             amp_decay_secs: snap.amp_decay_secs,
             amp_sustain_level: snap.amp_sustain_level,
@@ -530,6 +532,7 @@ impl ToneSmithyApp {
         self.filter2_cutoff_hz = snap.filter2_cutoff_hz;
         self.filter2_resonance = snap.filter2_resonance;
         self.filter_routing = snap.filter_routing;
+        self.filter_slope = snap.filter_slope;
         self.amp_attack_secs = snap.amp_attack_secs;
         self.amp_decay_secs = snap.amp_decay_secs;
         self.amp_sustain_level = snap.amp_sustain_level;

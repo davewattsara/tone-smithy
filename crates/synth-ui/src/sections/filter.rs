@@ -1,5 +1,5 @@
 use eframe::egui;
-use synth_engine::{EngineEvent, FilterMode, FilterRouting, ParamId};
+use synth_engine::{EngineEvent, FilterMode, FilterRouting, FilterSlope, ParamId};
 
 use crate::app::{CUTOFF_MAX_HZ, CUTOFF_MIN_HZ, ModDisplay, ToneSmithyApp};
 use crate::knob::Knob;
@@ -69,6 +69,9 @@ impl ToneSmithyApp {
                 });
             }
         });
+
+        ui.add_space(4.0);
+        self.slope_selector(ui, 0);
 
         ui.add_space(theme::GROUP_GAP);
 
@@ -147,6 +150,34 @@ impl ToneSmithyApp {
                 });
             }
         });
+
+        ui.add_space(4.0);
+        self.slope_selector(ui, 1);
+    }
+
+    /// Renders the 12 / 24 dB-per-octave slope toggle for one filter and
+    /// emits a `SetFilterSlope` event on change. `filter_idx` is 0 or 1.
+    fn slope_selector(&mut self, ui: &mut egui::Ui, filter_idx: usize) {
+        let current = &mut self.filter_slope[filter_idx];
+        let mut changed = false;
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new("Slope").color(theme::FG1).font(theme::font_small()));
+            for slope in [FilterSlope::TwelveDbOct, FilterSlope::TwentyFourDbOct] {
+                let label = match slope {
+                    FilterSlope::TwelveDbOct => "12 dB",
+                    FilterSlope::TwentyFourDbOct => "24 dB",
+                };
+                if ui.selectable_value(current, slope, label).clicked() {
+                    changed = true;
+                }
+            }
+        });
+        if changed {
+            self.events.send(EngineEvent::SetFilterSlope {
+                filter_idx: filter_idx as u8,
+                slope: self.filter_slope[filter_idx],
+            });
+        }
     }
 }
 

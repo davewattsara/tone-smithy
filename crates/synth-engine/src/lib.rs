@@ -38,7 +38,7 @@ pub const POLYPHONY: usize = 32;
 pub use crate::engine::{Engine, MAX_BLOCK_SIZE};
 pub use crate::envelope::Adsr;
 pub use crate::events::EngineEvent;
-pub use crate::filter::{FilterMode, FilterRouting, StateVariableFilter};
+pub use crate::filter::{FilterMode, FilterRouting, FilterSlope, StateVariableFilter};
 pub use crate::fm::{ALGORITHM_COUNT, ALGORITHMS, Algorithm, FmBank, OPERATOR_COUNT, Operator};
 pub use crate::fx::FxChain;
 pub use crate::lfo::{Lfo, LfoShape, SyncDivision};

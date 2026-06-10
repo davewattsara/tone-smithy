@@ -73,6 +73,9 @@ impl Engine {
         voices.set_filter_mode(params.filter_mode());
         voices.set_filter2_mode(params.filter2_mode());
         voices.set_filter_routing(params.filter_routing());
+        let slopes = params.filter_slope();
+        voices.set_filter_slope(0, slopes[0]);
+        voices.set_filter_slope(1, slopes[1]);
         voices.set_lfo1_rate_hz(params.lfo1_effective_rate_hz());
         voices.set_lfo1_shape(LfoShape::from_index(params.lfo1_shape_index()));
         voices.set_lfo1_reset_on_note_on(params.lfo1_reset_on_note_on());
@@ -157,6 +160,10 @@ impl Engine {
             EngineEvent::SetFilterRouting { routing } => {
                 self.params.set_filter_routing(routing);
                 self.voices.set_filter_routing(routing);
+            }
+            EngineEvent::SetFilterSlope { filter_idx, slope } => {
+                self.params.set_filter_slope(filter_idx, slope);
+                self.voices.set_filter_slope(filter_idx, slope);
             }
             EngineEvent::ParameterChange { id, value } => {
                 self.params.set_continuous(id, value);

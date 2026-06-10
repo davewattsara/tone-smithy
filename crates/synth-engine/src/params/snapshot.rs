@@ -1,5 +1,5 @@
 use crate::MAIN_OSCILLATOR_COUNT;
-use crate::filter::{FilterMode, FilterRouting};
+use crate::filter::{FilterMode, FilterRouting, FilterSlope};
 use crate::fm::OPERATOR_COUNT;
 use crate::mod_matrix::MOD_MATRIX_SLOTS;
 use crate::oscillator::Waveform;
@@ -63,6 +63,9 @@ pub struct ParamSnapshot {
 
     /// How filters 1 and 2 are connected (serial vs. parallel).
     pub filter_routing: FilterRouting,
+
+    /// Roll-off slope of each filter; index 0 = filter 1, 1 = filter 2.
+    pub filter_slope: [FilterSlope; 2],
 
     /// Per-main-oscillator levels (0..=1), indexed as the voice
     /// indexes its main oscillators.
@@ -278,6 +281,7 @@ impl Default for ParamSnapshot {
             filter2_resonance: DEFAULT_FILTER_RESONANCE,
             filter2_mode: FilterMode::LowPass,
             filter_routing: FilterRouting::Serial,
+            filter_slope: [FilterSlope::TwelveDbOct; 2],
             osc_main_levels: [DEFAULT_OSC_LEVEL; MAIN_OSCILLATOR_COUNT],
             sub_level: DEFAULT_OSC_LEVEL,
             osc_main_detune_cents: [DEFAULT_OSC_DETUNE_CENTS; MAIN_OSCILLATOR_COUNT],

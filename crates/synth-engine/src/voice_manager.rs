@@ -16,7 +16,7 @@
 //! [`Voice`]: crate::voice::Voice
 
 use crate::POLYPHONY;
-use crate::filter::{FilterMode, FilterRouting};
+use crate::filter::{FilterMode, FilterRouting, FilterSlope};
 use crate::lfo::LfoShape;
 use crate::mod_matrix::{ModDest, ModMatrix, ModSource, ModSources};
 use crate::oscillator::Waveform;
@@ -266,6 +266,13 @@ impl VoiceManager {
     pub fn set_filter_routing(&mut self, routing: FilterRouting) {
         for v in &mut self.voices {
             v.set_filter_routing(routing);
+        }
+    }
+
+    /// Sets the slope of the given filter on every voice.
+    pub fn set_filter_slope(&mut self, filter_idx: u8, slope: FilterSlope) {
+        for v in &mut self.voices {
+            v.set_filter_slope(filter_idx, slope);
         }
     }
 

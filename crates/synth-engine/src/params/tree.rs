@@ -23,7 +23,7 @@
 //! [`EngineEvent`]: crate::EngineEvent
 
 use crate::MAIN_OSCILLATOR_COUNT;
-use crate::filter::{FilterMode, FilterRouting};
+use crate::filter::{FilterMode, FilterRouting, FilterSlope};
 use crate::fm::OPERATOR_COUNT;
 use crate::lfo::SyncDivision;
 use crate::mod_matrix::{MOD_MATRIX_SLOTS, ModDest, ModSource};
@@ -144,6 +144,7 @@ pub struct ParameterTree {
     pub(super) filter_mode: FilterMode,
     pub(super) filter2_mode: FilterMode,
     pub(super) filter_routing: FilterRouting,
+    pub(super) filter_slope: [FilterSlope; 2],
 
     pub(super) active_voice_count: u8,
 
@@ -294,6 +295,7 @@ impl ParameterTree {
             filter_mode: defaults.filter_mode,
             filter2_mode: defaults.filter2_mode,
             filter_routing: defaults.filter_routing,
+            filter_slope: defaults.filter_slope,
             active_voice_count: defaults.active_voice_count,
             pitch_bend_semis: SmoothedParam::new(defaults.pitch_bend_semis, sample_rate_hz),
             mod_wheel: defaults.mod_wheel,
@@ -618,6 +620,14 @@ impl ParameterTree {
         self.filter_routing = routing;
     }
 
+    /// Sets the slope of one filter (0 = filter 1, 1 = filter 2).
+    /// Out-of-range indices are ignored. Discrete.
+    pub fn set_filter_slope(&mut self, filter_idx: u8, slope: FilterSlope) {
+        if let Some(s) = self.filter_slope.get_mut(filter_idx as usize) {
+            *s = slope;
+        }
+    }
+
     /// Mirrors the engine's active voice count into the next snapshot.
     /// Not driven by an `EngineEvent` — the engine writes this each
     /// block before publishing. At M2 the value is 0 or 1; the voice
@@ -658,6 +668,12 @@ impl ParameterTree {
     #[must_use]
     pub fn filter_routing(&self) -> FilterRouting {
         self.filter_routing
+    }
+
+    /// Returns the slope of each filter; index 0 = filter 1, 1 = filter 2.
+    #[must_use]
+    pub fn filter_slope(&self) -> [FilterSlope; 2] {
+        self.filter_slope
     }
 
     /// Returns the current amp attack time, in seconds.
@@ -894,6 +910,7 @@ impl ParameterTree {
             filter2_resonance: self.filter2_resonance.current(),
             filter2_mode: self.filter2_mode,
             filter_routing: self.filter_routing,
+            filter_slope: self.filter_slope,
             osc_main_levels: [
                 self.osc_main_levels[0].current(),
                 self.osc_main_levels[1].current(),

@@ -40,3 +40,34 @@ impl FilterRouting {
         }
     }
 }
+
+/// Roll-off slope of a [`StateVariableFilter`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FilterSlope {
+    /// 2-pole, 12 dB/oct — the original single-stage SVF response.
+    #[default]
+    TwelveDbOct,
+    /// 4-pole, 24 dB/oct, produced by cascading a second SVF stage.
+    TwentyFourDbOct,
+}
+
+impl FilterSlope {
+    /// Maps to the stable index used on the parameter bus and in presets.
+    #[must_use]
+    pub fn index(self) -> usize {
+        match self {
+            Self::TwelveDbOct => 0,
+            Self::TwentyFourDbOct => 1,
+        }
+    }
+
+    /// Inverse of [`index`](Self::index). Any out-of-range value maps to
+    /// the default (`TwelveDbOct`).
+    #[must_use]
+    pub fn from_index(i: usize) -> Self {
+        match i {
+            1 => Self::TwentyFourDbOct,
+            _ => Self::TwelveDbOct,
+        }
+    }
+}

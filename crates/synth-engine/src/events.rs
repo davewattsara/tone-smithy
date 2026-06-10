@@ -10,7 +10,7 @@
 //! wheel, channel aftertouch, and arbitrary CC. The mod-matrix wiring that
 //! routes these as modulation sources to destinations lives in M6.
 
-use crate::filter::{FilterMode, FilterRouting};
+use crate::filter::{FilterMode, FilterRouting, FilterSlope};
 use crate::oscillator::Waveform;
 use crate::params::ParamId;
 
@@ -74,6 +74,15 @@ pub enum EngineEvent {
     SetFilterRouting {
         /// New routing between filter 1 and filter 2.
         routing: FilterRouting,
+    },
+
+    /// Change the roll-off slope (12 or 24 dB/oct) of one filter.
+    /// Discrete; takes effect at the next block.
+    SetFilterSlope {
+        /// Which filter: 0 = filter 1, 1 = filter 2.
+        filter_idx: u8,
+        /// New slope for that filter.
+        slope: FilterSlope,
     },
 
     /// Change a continuous parameter identified by [`ParamId`]. The

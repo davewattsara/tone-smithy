@@ -9,7 +9,9 @@
 use std::collections::BTreeMap;
 
 use synth_engine::EngineEvent;
-use synth_engine::{EngineEvent as Ev, FilterMode, FilterRouting, MOD_MATRIX_SLOTS, ParamId, ParamSnapshot, Waveform};
+use synth_engine::{
+    EngineEvent as Ev, FilterMode, FilterRouting, FilterSlope, MOD_MATRIX_SLOTS, ParamId, ParamSnapshot, Waveform,
+};
 
 /// Serialises all saveable params from `snap` into a stable string-keyed
 /// map. Keys use snake_case matching the `ParamSnapshot` field names;
@@ -23,6 +25,8 @@ pub fn snapshot_to_map(snap: &ParamSnapshot) -> BTreeMap<String, f32> {
     m.insert("filter_mode".into(), snap.filter_mode.index() as f32);
     m.insert("filter2_mode".into(), snap.filter2_mode.index() as f32);
     m.insert("filter_routing".into(), snap.filter_routing.index() as f32);
+    m.insert("filter_slope_0".into(), snap.filter_slope[0].index() as f32);
+    m.insert("filter_slope_1".into(), snap.filter_slope[1].index() as f32);
 
     // Global
     m.insert("pitch_offset_semis".into(), snap.pitch_offset_semis);
@@ -198,6 +202,18 @@ pub fn map_to_events(m: &BTreeMap<String, f32>) -> Vec<EngineEvent> {
     if let Some(&v) = m.get("filter_routing") {
         ev.push(Ev::SetFilterRouting {
             routing: FilterRouting::from_index(v as usize),
+        });
+    }
+    if let Some(&v) = m.get("filter_slope_0") {
+        ev.push(Ev::SetFilterSlope {
+            filter_idx: 0,
+            slope: FilterSlope::from_index(v as usize),
+        });
+    }
+    if let Some(&v) = m.get("filter_slope_1") {
+        ev.push(Ev::SetFilterSlope {
+            filter_idx: 1,
+            slope: FilterSlope::from_index(v as usize),
         });
     }
 
@@ -433,6 +449,12 @@ pub fn map_to_snapshot(m: &BTreeMap<String, f32>) -> ParamSnapshot {
     if let Some(&v) = m.get("filter_routing") {
         s.filter_routing = FilterRouting::from_index(v as usize);
     }
+    if let Some(&v) = m.get("filter_slope_0") {
+        s.filter_slope[0] = FilterSlope::from_index(v as usize);
+    }
+    if let Some(&v) = m.get("filter_slope_1") {
+        s.filter_slope[1] = FilterSlope::from_index(v as usize);
+    }
 
     get!("pitch_offset_semis", s.pitch_offset_semis);
     get!("master_volume", s.master_volume);
@@ -616,6 +638,7 @@ mod tests {
         orig.filter2_resonance = 0.6;
         orig.filter2_mode = FilterMode::HighPass;
         orig.filter_routing = FilterRouting::Parallel;
+        orig.filter_slope = [FilterSlope::TwentyFourDbOct, FilterSlope::TwelveDbOct];
         for i in 0..3 {
             orig.osc_main_levels[i] = 0.8 - i as f32 * 0.1;
             orig.osc_main_detune_cents[i] = 5.0 + i as f32;
@@ -725,6 +748,7 @@ mod tests {
         assert_eq!(orig.filter2_resonance, got.filter2_resonance);
         assert_eq!(orig.filter2_mode, got.filter2_mode);
         assert_eq!(orig.filter_routing, got.filter_routing);
+        assert_eq!(orig.filter_slope, got.filter_slope);
         assert_eq!(orig.osc_main_levels, got.osc_main_levels);
         assert_eq!(orig.osc_main_detune_cents, got.osc_main_detune_cents);
         assert_eq!(orig.osc_main_pans, got.osc_main_pans);
