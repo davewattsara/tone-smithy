@@ -46,6 +46,20 @@ pub enum AudioError {
     /// surround layouts will be addressed when the project supports them.
     #[error("unsupported channel count {0}; engine currently expects 1 or 2 channels")]
     UnsupportedChannelCount(u16),
+
+    /// The cpal backend *panicked* (rather than returning an error) while
+    /// building or starting the stream. The WASAPI backend uses `unwrap` /
+    /// `expect` on COM failures — e.g. a device becoming unavailable during a
+    /// switch, or initialising an endpoint that is already in use — so we
+    /// catch the unwind and turn it into a recoverable error. This lets a
+    /// device switch fail gracefully instead of unwinding through winit's
+    /// window procedure and aborting the process (Windows reports that as
+    /// `STATUS_FATAL_USER_CALLBACK_EXCEPTION`, exit code `0xC000041D`).
+    ///
+    /// Has no effect under `panic = "abort"` (release builds), where the
+    /// backend panic aborts regardless.
+    #[error("audio backend panicked while opening the stream: {0}")]
+    BackendPanic(String),
 }
 
 /// Describes the format the default output device opens with, so the
@@ -72,12 +86,26 @@ pub struct DefaultOutputFormat {
 /// exists, or [`AudioError::DefaultConfig`] if its default config cannot
 /// be queried.
 pub fn default_output_format() -> Result<DefaultOutputFormat, AudioError> {
-    let host = cpal::default_host();
-    let device = host.default_output_device().ok_or(AudioError::NoDefaultDevice)?;
-    let supported = device.default_output_config()?;
-    let sample_rate = supported.sample_rate().0;
-    let channels = supported.channels();
-    let buffer_latency_hint = describe_buffer_latency(supported.buffer_size(), sample_rate);
+    output_format(None)
+}
+
+/// Queries the format a specific output device would open at, without
+/// starting a stream. Falls back to the OS default device when `name` is
+/// `None` or cannot be matched (same selection rule as [`start_on_device`]),
+/// so a device switch can size its engine at the *target* device's sample
+/// rate rather than the default device's.
+///
+/// # Errors
+///
+/// Returns [`AudioError::NoDefaultDevice`] if no usable device exists, or
+/// [`AudioError::DefaultConfig`] if its default config cannot be queried.
+pub fn output_format(name: Option<&str>) -> Result<DefaultOutputFormat, AudioError> {
+    let DeviceOpen {
+        sample_rate,
+        channels,
+        buffer_latency_hint,
+        ..
+    } = open_named_output(name)?;
     Ok(DefaultOutputFormat {
         sample_rate,
         channels,
@@ -268,50 +296,57 @@ pub fn start_on_device(
     let mut stereo_scratch: Vec<f32> = vec![0.0; synth_engine::MAX_BLOCK_SIZE * 2];
 
     let channels_usize = usize::from(channels);
-    let sample_rate_f32 = f32::from(sample_rate as u16); // safe: typical rates fit u16
+    let sample_rate_f32 = sample_rate as f32; // used for the CPU-load block-time divisor
 
     let cpu_load = Arc::new(AtomicU32::new(0));
     let cpu_load_cb = cpu_load.clone();
 
     let err_fn = |err: cpal::StreamError| tracing::error!("audio stream error: {err}");
 
-    let stream = device.build_output_stream(
-        &config,
-        move |data: &mut [f32], _info: &cpal::OutputCallbackInfo| {
-            // design-patterns.md §2.8: a panic on the audio thread must
-            // abort the process. Silent corruption of voices / filters /
-            // effect tails is worse than a clear crash. In release builds
-            // `panic = "abort"` makes catch_unwind a no-op, but keeping
-            // the wrapper means dev builds get the same hard-fail
-            // behaviour rather than unwinding into cpal's frame.
-            let frames = (data.len() / channels_usize).min(synth_engine::MAX_BLOCK_SIZE);
-            let t0 = Instant::now();
-            let result = catch_unwind(AssertUnwindSafe(|| {
-                render_block(
-                    data,
-                    channels_usize,
-                    &mut engine,
-                    &events,
-                    &mut stereo_scratch,
-                    &snapshot_slot,
-                );
-            }));
-            if result.is_err() {
-                eprintln!("FATAL: audio thread panicked");
-                std::process::abort();
-            }
-            // Compute block CPU% and publish. The block duration is
-            // frames / sample_rate; using sample_rate_f32 avoids a
-            // division-by-zero guard since sample rates are never zero.
-            let block_dur_secs = frames as f32 / sample_rate_f32;
-            let load_pct = (t0.elapsed().as_secs_f32() / block_dur_secs * 100.0).min(999.0);
-            cpu_load_cb.store(load_pct.to_bits(), Ordering::Relaxed);
-        },
-        err_fn,
-        None,
-    )?;
+    let data_callback = move |data: &mut [f32], _info: &cpal::OutputCallbackInfo| {
+        // design-patterns.md §2.8: a panic on the audio thread must
+        // abort the process. Silent corruption of voices / filters /
+        // effect tails is worse than a clear crash. In release builds
+        // `panic = "abort"` makes catch_unwind a no-op, but keeping
+        // the wrapper means dev builds get the same hard-fail
+        // behaviour rather than unwinding into cpal's frame.
+        let frames = (data.len() / channels_usize).min(synth_engine::MAX_BLOCK_SIZE);
+        let t0 = Instant::now();
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            render_block(
+                data,
+                channels_usize,
+                &mut engine,
+                &events,
+                &mut stereo_scratch,
+                &snapshot_slot,
+            );
+        }));
+        if result.is_err() {
+            eprintln!("FATAL: audio thread panicked");
+            std::process::abort();
+        }
+        // Compute block CPU% and publish. The block duration is
+        // frames / sample_rate; using sample_rate_f32 avoids a
+        // division-by-zero guard since sample rates are never zero.
+        let block_dur_secs = frames as f32 / sample_rate_f32;
+        let load_pct = (t0.elapsed().as_secs_f32() / block_dur_secs * 100.0).min(999.0);
+        cpu_load_cb.store(load_pct.to_bits(), Ordering::Relaxed);
+    };
 
-    stream.play()?;
+    // Build and start the stream behind catch_unwind: cpal's WASAPI backend
+    // panics (rather than returning `Err`) when a COM call fails — e.g. the
+    // device went away mid-switch, or the endpoint is already in use. Without
+    // this guard such a panic unwinds out of the caller (here, the egui frame
+    // update, which winit runs from the window procedure) and Windows aborts
+    // the process with STATUS_FATAL_USER_CALLBACK_EXCEPTION (0xC000041D).
+    // Catching it lets a device switch report the failure and keep running.
+    let stream = catch_unwind(AssertUnwindSafe(|| -> Result<cpal::Stream, AudioError> {
+        let stream = device.build_output_stream(&config, data_callback, err_fn, None)?;
+        stream.play()?;
+        Ok(stream)
+    }))
+    .map_err(|payload| AudioError::BackendPanic(panic_message(&payload)))??;
 
     Ok(AudioStream {
         _stream: stream,
@@ -425,6 +460,19 @@ fn open_named_output(name: Option<&str>) -> Result<DeviceOpen, AudioError> {
         sample_format,
         buffer_latency_hint,
     })
+}
+
+/// Extracts a human-readable message from a [`catch_unwind`] panic payload.
+/// Panic payloads are usually a `&str` or `String`; anything else is reported
+/// generically.
+fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
+    if let Some(s) = payload.downcast_ref::<&str>() {
+        (*s).to_string()
+    } else if let Some(s) = payload.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        "unknown panic".to_string()
+    }
 }
 
 fn log_open(channels: u16, sample_rate: u32, sample_format: cpal::SampleFormat, buffer_latency_hint: &str) {
