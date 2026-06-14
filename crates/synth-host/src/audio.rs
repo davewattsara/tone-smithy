@@ -268,7 +268,7 @@ pub fn start_with_engine(
 /// Returns [`AudioError`] if no suitable device can be opened.
 pub fn start_on_device(
     device_name: Option<&str>,
-    mut engine: Engine,
+    engine: Engine,
     events: EngineEventReceiver,
     snapshot_slot: SnapshotSlot,
 ) -> Result<AudioStream, AudioError> {
@@ -288,6 +288,16 @@ pub fn start_on_device(
     if channels != 1 && channels != 2 {
         return Err(AudioError::UnsupportedChannelCount(channels));
     }
+
+    // Move the engine to the heap before capturing it in the audio callback.
+    // `Engine` is large (~70 KB), and in debug builds the by-value capture is
+    // copied on the stack several times as the closure is wrapped (catch_unwind)
+    // and handed through cpal's stream builder — enough, on top of cpal's
+    // stack-heavy WASAPI init, to overflow the 1 MB main-thread stack at
+    // startup. Boxing it means the closure only carries an 8-byte pointer.
+    // This is a one-time setup allocation, not on the audio path, so it does
+    // not affect the no-alloc-in-callback rule (design-patterns.md §2.1).
+    let mut engine = Box::new(engine);
 
     // Pre-allocate the scratch buffer the callback uses for stereo
     // engine output. Sizing to MAX_BLOCK_SIZE keeps the audio callback
@@ -316,7 +326,7 @@ pub fn start_on_device(
             render_block(
                 data,
                 channels_usize,
-                &mut engine,
+                &mut engine, // &mut Box<Engine> -> &mut Engine via deref coercion
                 &events,
                 &mut stereo_scratch,
                 &snapshot_slot,
