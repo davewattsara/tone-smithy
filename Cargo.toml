@@ -60,7 +60,13 @@ assert_no_alloc = { version = "1.1", default-features = false }
 [profile.release]
 lto = "thin"
 codegen-units = 1
-panic = "abort"
+# NB: `panic = "abort"` is deliberately NOT set. We rely on unwinding so the
+# main thread can `catch_unwind` panics from the cpal WASAPI backend during a
+# device switch (it `unwrap`s on COM failures) and recover instead of the OS
+# aborting with STATUS_FATAL_USER_CALLBACK_EXCEPTION. The audio-thread
+# "panic = abort" guarantee is enforced independently by the explicit
+# `catch_unwind` -> `process::abort()` in the audio callback. See
+# design-patterns.md §2.8.
 
 # Optimise dependencies even in dev so DSP work is bearable.
 [profile.dev.package."*"]
