@@ -289,6 +289,8 @@ slots in use; all paths audio-tested and round-trip serialised in the preset for
 
 ## M18 — Step sequencer (2–3 weeks) — v1.1
 
+> Implementation plan: [`m18-plan.md`](m18-plan.md)
+
 Adds a 16-step melodic/modulation sequencer alongside the arpeggiator.
 
 - 16 steps; per-step note offset (±24 semitones), velocity (0–127), gate (0–100%), rest toggle.
