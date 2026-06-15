@@ -8,19 +8,19 @@ suite. Tick each box as you verify it.
 
 ## Build & run
 
-- [ ] `cargo run` launches the app (debug is fine for testing).
-- [ ] For representative listening / lowest CPU: `cargo run --release`.
+- [x] `cargo run` launches the app (debug is fine for testing).
+- [x] For representative listening / lowest CPU: `cargo run --release`.
 
 ## 1. Mod matrix — 16 slots (was 8)
 
-- [ ] **Modulation** tab shows **16 routing rows** (scroll if needed), not 8.
-- [ ] Set a routing in **slot 16** (e.g. source LFO1 → dest Filter 1 cutoff, non-zero amount)
+- [x] **Modulation** tab shows **16 routing rows** (scroll if needed), not 8.
+- [x] Set a routing in **slot 16** (e.g. source LFO1 → dest `F1 Cut`, non-zero amount)
       and confirm it audibly modulates — proves slots 9–16 are live, not just drawn.
 
 ## 2. Env3 — second mod envelope
 
-- [ ] **Envelopes** tab shows an **Env3** panel (A/D/S/R + curve knobs) alongside Env2.
-- [ ] Matrix slot with **source = Env3**, dest = Filter 1 cutoff, long attack → playing a note
+- [x] **Envelopes** tab shows an **Env3** panel (A/D/S/R + curve knobs) alongside Env2.
+- [ ] Matrix slot with **source = Env3**, dest = `F1 Cut`, long attack → playing a note
       produces a slow cutoff sweep.
 - [ ] Env2 and Env3 move **independently**: changing Env3's attack does not alter Env2's sweep
       (and vice versa).
@@ -34,7 +34,7 @@ suite. Tick each box as you verify it.
       (both shape the same chain).
 - [ ] **Parallel:** same modes, Routing = Parallel → F1 LP and F2 HP are summed (fuller, both
       bands present). The Series-vs-Parallel difference is clearly audible.
-- [ ] Route a matrix slot to **Filter 2 cutoff** and confirm F2 responds (F2 is mod-addressable).
+- [ ] Route a matrix slot to **`F2 Cut`** and confirm F2 responds (F2 is mod-addressable).
 
 ## 4. 24 dB/oct slope
 
