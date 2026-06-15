@@ -248,6 +248,8 @@ mod tests {
             pitch_offset_semis: snap.pitch_offset_semis,
             filter_cutoff_hz: 22_000.0,
             filter_resonance: 0.0,
+            filter2_cutoff_hz: 22_000.0,
+            filter2_resonance: 0.0,
             osc_main_levels: snap.osc_main_levels,
             sub_level: snap.sub_level,
             osc_main_detune_cents: snap.osc_main_detune_cents,

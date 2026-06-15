@@ -71,6 +71,11 @@ impl Engine {
         voices.set_release_secs(params.amp_release_secs());
         voices.set_main_waveform(params.waveform());
         voices.set_filter_mode(params.filter_mode());
+        voices.set_filter2_mode(params.filter2_mode());
+        voices.set_filter_routing(params.filter_routing());
+        let slopes = params.filter_slope();
+        voices.set_filter_slope(0, slopes[0]);
+        voices.set_filter_slope(1, slopes[1]);
         voices.set_lfo1_rate_hz(params.lfo1_effective_rate_hz());
         voices.set_lfo1_shape(LfoShape::from_index(params.lfo1_shape_index()));
         voices.set_lfo1_reset_on_note_on(params.lfo1_reset_on_note_on());
@@ -84,6 +89,13 @@ impl Engine {
         voices.set_env2_attack_curve(params.env2_attack_curve());
         voices.set_env2_decay_curve(params.env2_decay_curve());
         voices.set_env2_release_curve(params.env2_release_curve());
+        voices.set_env3_attack_secs(params.env3_attack_secs());
+        voices.set_env3_decay_secs(params.env3_decay_secs());
+        voices.set_env3_sustain_level(params.env3_sustain_level());
+        voices.set_env3_release_secs(params.env3_release_secs());
+        voices.set_env3_attack_curve(params.env3_attack_curve());
+        voices.set_env3_decay_curve(params.env3_decay_curve());
+        voices.set_env3_release_curve(params.env3_release_curve());
         Self {
             sample_rate_hz,
             params,
@@ -140,6 +152,18 @@ impl Engine {
             EngineEvent::SetFilterMode { mode } => {
                 self.params.set_filter_mode(mode);
                 self.voices.set_filter_mode(mode);
+            }
+            EngineEvent::SetFilter2Mode { mode } => {
+                self.params.set_filter2_mode(mode);
+                self.voices.set_filter2_mode(mode);
+            }
+            EngineEvent::SetFilterRouting { routing } => {
+                self.params.set_filter_routing(routing);
+                self.voices.set_filter_routing(routing);
+            }
+            EngineEvent::SetFilterSlope { filter_idx, slope } => {
+                self.params.set_filter_slope(filter_idx, slope);
+                self.voices.set_filter_slope(filter_idx, slope);
             }
             EngineEvent::ParameterChange { id, value } => {
                 self.params.set_continuous(id, value);
@@ -221,6 +245,15 @@ impl Engine {
             ParamId::Env2AttackCurve => self.voices.set_env2_attack_curve(value),
             ParamId::Env2DecayCurve => self.voices.set_env2_decay_curve(value),
             ParamId::Env2ReleaseCurve => self.voices.set_env2_release_curve(value),
+
+            // ── Env3 ────────────────────────────────────────────────────────
+            ParamId::Env3AttackSecs => self.voices.set_env3_attack_secs(value),
+            ParamId::Env3DecaySecs => self.voices.set_env3_decay_secs(value),
+            ParamId::Env3SustainLevel => self.voices.set_env3_sustain_level(value),
+            ParamId::Env3ReleaseSecs => self.voices.set_env3_release_secs(value),
+            ParamId::Env3AttackCurve => self.voices.set_env3_attack_curve(value),
+            ParamId::Env3DecayCurve => self.voices.set_env3_decay_curve(value),
+            ParamId::Env3ReleaseCurve => self.voices.set_env3_release_curve(value),
 
             // ── Mod matrix ──────────────────────────────────────────────────
             ParamId::ModSlotEnabled(i) => {
@@ -426,8 +459,8 @@ impl Engine {
         #[allow(clippy::cast_possible_truncation)]
         let count = self.voices.active_count() as u8;
         self.params.set_active_voice_count(count);
-        let (lfo1, lfo2, env2) = self.voices.first_active_modulator_outputs();
-        self.params.set_modulator_outputs(lfo1, lfo2, env2);
+        let (lfo1, lfo2, env2, env3) = self.voices.first_active_modulator_outputs();
+        self.params.set_modulator_outputs(lfo1, lfo2, env2, env3);
         self.params.set_vu_peak(peak_l, peak_r);
     }
 

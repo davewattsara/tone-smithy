@@ -1,12 +1,14 @@
 use crate::MAIN_OSCILLATOR_COUNT;
-use crate::filter::FilterMode;
+use crate::filter::{FilterMode, FilterRouting, FilterSlope};
 use crate::fm::OPERATOR_COUNT;
+use crate::mod_matrix::MOD_MATRIX_SLOTS;
 use crate::oscillator::Waveform;
 
 use super::tree::{
     DEFAULT_AMP_ATTACK_SECS, DEFAULT_AMP_DECAY_SECS, DEFAULT_AMP_RELEASE_SECS, DEFAULT_AMP_SUSTAIN_LEVEL,
-    DEFAULT_FILTER_CUTOFF_HZ, DEFAULT_FILTER_RESONANCE, DEFAULT_MASTER_VOLUME, DEFAULT_OSC_DETUNE_CENTS,
-    DEFAULT_OSC_LEVEL, DEFAULT_OSC_PAN, DEFAULT_UNISON_DETUNE_CENTS, DEFAULT_UNISON_SPREAD, DEFAULT_UNISON_VOICES,
+    DEFAULT_FILTER_CUTOFF_HZ, DEFAULT_FILTER_RESONANCE, DEFAULT_FILTER2_CUTOFF_HZ, DEFAULT_MASTER_VOLUME,
+    DEFAULT_OSC_DETUNE_CENTS, DEFAULT_OSC_LEVEL, DEFAULT_OSC_PAN, DEFAULT_UNISON_DETUNE_CENTS, DEFAULT_UNISON_SPREAD,
+    DEFAULT_UNISON_VOICES,
 };
 
 /// An immutable snapshot of the engine's outward-facing parameter
@@ -49,6 +51,21 @@ pub struct ParamSnapshot {
 
     /// Current filter output mode.
     pub filter_mode: FilterMode,
+
+    /// Current filter 2 cutoff frequency, in Hz.
+    pub filter2_cutoff_hz: f32,
+
+    /// Current filter 2 resonance on the 0..=1 user scale.
+    pub filter2_resonance: f32,
+
+    /// Current filter 2 output mode.
+    pub filter2_mode: FilterMode,
+
+    /// How filters 1 and 2 are connected (serial vs. parallel).
+    pub filter_routing: FilterRouting,
+
+    /// Roll-off slope of each filter; index 0 = filter 1, 1 = filter 2.
+    pub filter_slope: [FilterSlope; 2],
 
     /// Per-main-oscillator levels (0..=1), indexed as the voice
     /// indexes its main oscillators.
@@ -134,6 +151,22 @@ pub struct ParamSnapshot {
     /// Env2 Release stage curve, -1..=1.
     pub env2_release_curve: f32,
 
+    // ── Env3 parameter mirrors ─────────────────────────────────────────
+    /// Env3 attack time, seconds.
+    pub env3_attack_secs: f32,
+    /// Env3 decay time, seconds.
+    pub env3_decay_secs: f32,
+    /// Env3 sustain level, 0..=1.
+    pub env3_sustain_level: f32,
+    /// Env3 release time, seconds.
+    pub env3_release_secs: f32,
+    /// Env3 Attack stage curve, -1..=1.
+    pub env3_attack_curve: f32,
+    /// Env3 Decay stage curve, -1..=1.
+    pub env3_decay_curve: f32,
+    /// Env3 Release stage curve, -1..=1.
+    pub env3_release_curve: f32,
+
     // ── Global ─────────────────────────────────────────────────────────
     /// Global tempo in BPM.
     pub bpm: f32,
@@ -145,6 +178,8 @@ pub struct ParamSnapshot {
     pub lfo2_out: f32,
     /// Most recent Env2 output from the first active voice, or 0.0.
     pub env2_out: f32,
+    /// Most recent Env3 output from the first active voice, or 0.0.
+    pub env3_out: f32,
 
     // ── VU meter (peak per block, written by the engine) ──────────────
     /// Peak output level for the left channel over the last audio block,
@@ -154,16 +189,16 @@ pub struct ParamSnapshot {
     pub vu_peak_right: f32,
 
     // ── Mod matrix mirrors ─────────────────────────────────────────────
-    /// Enable flag for each of the 8 mod slots.
-    pub mod_slot_enabled: [bool; 8],
+    /// Enable flag for each of the [`MOD_MATRIX_SLOTS`] mod slots.
+    pub mod_slot_enabled: [bool; MOD_MATRIX_SLOTS],
     /// Source index for each slot (matches `ModSource::to_index`).
-    pub mod_slot_source: [u8; 8],
+    pub mod_slot_source: [u8; MOD_MATRIX_SLOTS],
     /// Destination index for each slot (matches `ModDest::to_index`).
-    pub mod_slot_dest: [u8; 8],
+    pub mod_slot_dest: [u8; MOD_MATRIX_SLOTS],
     /// Amount for each slot, in destination-natural units.
-    pub mod_slot_amount: [f32; 8],
+    pub mod_slot_amount: [f32; MOD_MATRIX_SLOTS],
     /// Via-source index for each slot (0 = Off = no scaling).
-    pub mod_slot_via: [u8; 8],
+    pub mod_slot_via: [u8; MOD_MATRIX_SLOTS],
 
     // ── FM synthesis mirrors ───────────────────────────────────────────
     /// Per-slot mix level, 0..=1.
@@ -242,6 +277,11 @@ impl Default for ParamSnapshot {
             filter_cutoff_hz: DEFAULT_FILTER_CUTOFF_HZ,
             filter_resonance: DEFAULT_FILTER_RESONANCE,
             filter_mode: FilterMode::LowPass,
+            filter2_cutoff_hz: DEFAULT_FILTER2_CUTOFF_HZ,
+            filter2_resonance: DEFAULT_FILTER_RESONANCE,
+            filter2_mode: FilterMode::LowPass,
+            filter_routing: FilterRouting::Serial,
+            filter_slope: [FilterSlope::TwelveDbOct; 2],
             osc_main_levels: [DEFAULT_OSC_LEVEL; MAIN_OSCILLATOR_COUNT],
             sub_level: DEFAULT_OSC_LEVEL,
             osc_main_detune_cents: [DEFAULT_OSC_DETUNE_CENTS; MAIN_OSCILLATOR_COUNT],
@@ -272,17 +312,25 @@ impl Default for ParamSnapshot {
             env2_attack_curve: 0.0,
             env2_decay_curve: 0.0,
             env2_release_curve: 0.0,
+            env3_attack_secs: 0.010,
+            env3_decay_secs: 0.200,
+            env3_sustain_level: 0.8,
+            env3_release_secs: 0.200,
+            env3_attack_curve: 0.0,
+            env3_decay_curve: 0.0,
+            env3_release_curve: 0.0,
             bpm: 120.0,
             lfo1_out: 0.0,
             lfo2_out: 0.0,
             vu_peak_left: 0.0,
             vu_peak_right: 0.0,
             env2_out: 0.0,
-            mod_slot_enabled: [false; 8],
-            mod_slot_source: [0; 8],
-            mod_slot_dest: [0; 8],
-            mod_slot_amount: [0.0; 8],
-            mod_slot_via: [0; 8],
+            env3_out: 0.0,
+            mod_slot_enabled: [false; MOD_MATRIX_SLOTS],
+            mod_slot_source: [0; MOD_MATRIX_SLOTS],
+            mod_slot_dest: [0; MOD_MATRIX_SLOTS],
+            mod_slot_amount: [0.0; MOD_MATRIX_SLOTS],
+            mod_slot_via: [0; MOD_MATRIX_SLOTS],
             slot_level: [1.0, 0.0],
             slot_pan: [0.0; 2],
             fm_algorithm: [0; 2],
@@ -350,6 +398,12 @@ pub struct SampleParams {
 
     /// Filter resonance for this sample, on the 0..=1 user scale.
     pub filter_resonance: f32,
+
+    /// Filter 2 cutoff frequency for this sample, in Hz.
+    pub filter2_cutoff_hz: f32,
+
+    /// Filter 2 resonance for this sample, on the 0..=1 user scale.
+    pub filter2_resonance: f32,
 
     /// Per-main-oscillator levels for this sample.
     pub osc_main_levels: [f32; MAIN_OSCILLATOR_COUNT],

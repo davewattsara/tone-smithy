@@ -16,6 +16,8 @@
 
 use core::f32::consts::PI;
 
+use super::FilterSlope;
+
 /// Lowest cutoff the filter accepts, in Hz. Below this the prewarp
 /// `tan(π·fc/fs)` is essentially zero and the filter passes input
 /// straight through, which is the right musical answer; pinning to a
@@ -36,6 +38,16 @@ const MIN_Q: f32 = 0.5;
 /// LP / BP taps; chosen so resonance = 1 is dramatic but the
 /// integrator state cannot diverge for a clipped input.
 const MAX_Q: f32 = 25.0;
+
+/// How hard to attenuate the filter input as resonance climbs, to keep
+/// the resonant peak (gain ≈ Q at the corner, ~+28 dB at MAX_Q) from
+/// slamming the output into clipping. At resonance 0 the factor is 1.0
+/// (no change); at resonance 1 the input is scaled by
+/// `1 - RESONANCE_GAIN_COMP`. Scaling the input rather than normalising
+/// the peak also mimics the classic ladder-filter behaviour where the
+/// body thins as resonance rises, so it reads as musical rather than as
+/// a volume drop.
+const RESONANCE_GAIN_COMP: f32 = 0.5;
 
 /// Which output tap the filter exposes.
 ///
@@ -98,6 +110,7 @@ impl FilterMode {
 pub struct StateVariableFilter {
     sample_rate_hz: f32,
     mode: FilterMode,
+    slope: FilterSlope,
 
     // Cached parameter inputs. Stored so we can decide cheaply whether
     // coefficients actually need to be recomputed on a `set_params`
@@ -115,9 +128,26 @@ pub struct StateVariableFilter {
     a2: f32,
     a3: f32,
 
-    // Trapezoidal-integrator state.
+    // Input attenuation that rises with resonance to keep the resonant
+    // peak from clipping the output. 1.0 at resonance 0. See
+    // `RESONANCE_GAIN_COMP`.
+    gain_comp: f32,
+
+    // Second-stage coefficients for the 24 dB/oct cascade. Same cutoff
+    // (so `g` is shared) but a flat Butterworth response (no resonant
+    // peak), so the cascade has a single resonant peak from stage one
+    // rather than the product of two — see `recompute_coefficients`.
+    k2: f32,
+    a1_2: f32,
+    a2_2: f32,
+    a3_2: f32,
+
+    // Trapezoidal-integrator state. The `_2` pair is the second cascade
+    // stage, used only when `slope` is 24 dB/oct.
     ic1eq: f32,
     ic2eq: f32,
+    ic1eq_2: f32,
+    ic2eq_2: f32,
 }
 
 impl StateVariableFilter {
@@ -130,6 +160,7 @@ impl StateVariableFilter {
         let mut svf = Self {
             sample_rate_hz,
             mode: FilterMode::default(),
+            slope: FilterSlope::default(),
             cutoff_hz: NYQUIST_HEADROOM * sample_rate_hz,
             resonance: 0.0,
             g: 0.0,
@@ -137,8 +168,15 @@ impl StateVariableFilter {
             a1: 0.0,
             a2: 0.0,
             a3: 0.0,
+            gain_comp: 1.0,
+            k2: 0.0,
+            a1_2: 0.0,
+            a2_2: 0.0,
+            a3_2: 0.0,
             ic1eq: 0.0,
             ic2eq: 0.0,
+            ic1eq_2: 0.0,
+            ic2eq_2: 0.0,
         };
         svf.recompute_coefficients();
         svf
@@ -157,6 +195,19 @@ impl StateVariableFilter {
         self.mode
     }
 
+    /// Sets the roll-off slope. 24 dB/oct engages a second cascaded
+    /// stage; switching is click-free because the second stage's
+    /// integrators stay warm and simply stop being read at 12 dB/oct.
+    pub fn set_slope(&mut self, slope: FilterSlope) {
+        self.slope = slope;
+    }
+
+    /// Returns the current slope.
+    #[must_use]
+    pub fn slope(&self) -> FilterSlope {
+        self.slope
+    }
+
     /// Updates cutoff and resonance and recomputes the filter
     /// coefficients. Designed to be called once per sample with the
     /// smoothed values from the parameter tree.
@@ -173,24 +224,66 @@ impl StateVariableFilter {
     pub fn reset(&mut self) {
         self.ic1eq = 0.0;
         self.ic2eq = 0.0;
+        self.ic1eq_2 = 0.0;
+        self.ic2eq_2 = 0.0;
     }
 
-    /// Processes one sample. Returns the selected output tap.
+    /// Processes one sample. Returns the selected output tap. At
+    /// 24 dB/oct the output of the first stage is fed through a second
+    /// cascaded stage for a 4-pole roll-off.
     pub fn next_sample(&mut self, input: f32) -> f32 {
-        // State-increment form (Simper). v1 is the band-pass output,
-        // v2 is the low-pass output, and the high-pass / notch taps
-        // are derived from these and the input.
-        let v3 = input - self.ic2eq;
-        let v1 = self.a1 * self.ic1eq + self.a2 * v3;
-        let v2 = self.ic2eq + self.a2 * self.ic1eq + self.a3 * v3;
-        self.ic1eq = 2.0 * v1 - self.ic1eq;
-        self.ic2eq = 2.0 * v2 - self.ic2eq;
+        let input = input * self.gain_comp;
+        let out1 = Self::process_stage(
+            input,
+            self.a1,
+            self.a2,
+            self.a3,
+            self.k,
+            self.mode,
+            &mut self.ic1eq,
+            &mut self.ic2eq,
+        );
+        match self.slope {
+            FilterSlope::TwelveDbOct => out1,
+            FilterSlope::TwentyFourDbOct => Self::process_stage(
+                out1,
+                self.a1_2,
+                self.a2_2,
+                self.a3_2,
+                self.k2,
+                self.mode,
+                &mut self.ic1eq_2,
+                &mut self.ic2eq_2,
+            ),
+        }
+    }
 
-        match self.mode {
+    /// One TPT SVF stage in state-increment form (Simper). `v1` is the
+    /// band-pass output and `v2` the low-pass; the HP / notch taps are
+    /// derived from these and the input. Factored out so the 24 dB/oct
+    /// cascade can reuse it with a second set of coefficients and state.
+    #[allow(clippy::too_many_arguments)]
+    fn process_stage(
+        input: f32,
+        a1: f32,
+        a2: f32,
+        a3: f32,
+        k: f32,
+        mode: FilterMode,
+        ic1eq: &mut f32,
+        ic2eq: &mut f32,
+    ) -> f32 {
+        let v3 = input - *ic2eq;
+        let v1 = a1 * *ic1eq + a2 * v3;
+        let v2 = *ic2eq + a2 * *ic1eq + a3 * v3;
+        *ic1eq = 2.0 * v1 - *ic1eq;
+        *ic2eq = 2.0 * v2 - *ic2eq;
+
+        match mode {
             FilterMode::LowPass => v2,
             FilterMode::BandPass => v1,
-            FilterMode::HighPass => input - self.k * v1 - v2,
-            FilterMode::Notch => input - self.k * v1,
+            FilterMode::HighPass => input - k * v1 - v2,
+            FilterMode::Notch => input - k * v1,
         }
     }
 
@@ -199,11 +292,24 @@ impl StateVariableFilter {
             .cutoff_hz
             .clamp(MIN_CUTOFF_HZ, NYQUIST_HEADROOM * self.sample_rate_hz);
         let q = resonance_to_q(self.resonance);
+        self.gain_comp = 1.0 - RESONANCE_GAIN_COMP * self.resonance.clamp(0.0, 1.0);
         self.g = (PI * fc / self.sample_rate_hz).tan();
         self.k = 1.0 / q;
         self.a1 = 1.0 / (1.0 + self.g * (self.g + self.k));
         self.a2 = self.g * self.a1;
         self.a3 = self.g * self.a2;
+
+        // Second cascade stage shares the cutoff (`g`) but is fixed at a
+        // flat Butterworth Q (no resonant peak). All the resonance lives
+        // in stage one, so the 4-pole filter has a single resonant peak
+        // (~Q) with steeper skirts rather than the *product* of two
+        // stacked peaks (~Q²), which previously blew the 24 dB/oct path
+        // far louder than the 12 dB/oct path at high resonance.
+        let q2 = core::f32::consts::FRAC_1_SQRT_2;
+        self.k2 = 1.0 / q2;
+        self.a1_2 = 1.0 / (1.0 + self.g * (self.g + self.k2));
+        self.a2_2 = self.g * self.a1_2;
+        self.a3_2 = self.g * self.a2_2;
     }
 }
 
@@ -227,8 +333,13 @@ mod tests {
     /// settings and return the peak |sample| of the steady-state tail
     /// (warmup discarded).
     fn measure_peak(mode: FilterMode, cutoff_hz: f32, resonance: f32, signal_hz: f32) -> f32 {
+        measure_peak_slope(mode, FilterSlope::TwelveDbOct, cutoff_hz, resonance, signal_hz)
+    }
+
+    fn measure_peak_slope(mode: FilterMode, slope: FilterSlope, cutoff_hz: f32, resonance: f32, signal_hz: f32) -> f32 {
         let mut filter = StateVariableFilter::new(SAMPLE_RATE_HZ);
         filter.set_mode(mode);
+        filter.set_slope(slope);
         filter.set_params(cutoff_hz, resonance);
 
         // Warm the filter up so the impulse-response transient is past.
@@ -318,6 +429,36 @@ mod tests {
     }
 
     #[test]
+    fn resonance_gain_compensation_tames_peak() {
+        // The resonant peak at the corner should still rise with
+        // resonance (see `resonance_amplifies_at_cutoff`), but the input
+        // attenuation must scale it down by `1 - RESONANCE_GAIN_COMP`
+        // relative to the raw boost (which tops out around 25x at
+        // MAX_Q), so a hot saw does not detonate the master meter.
+        // Bound stays valid as the comp constant is tuned.
+        let peak = measure_peak(FilterMode::LowPass, 1_000.0, 1.0, 1_000.0);
+        let bound = ((1.0 - RESONANCE_GAIN_COMP) * 30.0).max(1.0);
+        assert!(
+            peak < bound,
+            "expected compensated peak under {bound} (raw ~25x scaled by 1-comp), got {peak}"
+        );
+    }
+
+    #[test]
+    fn resonance_gain_compensation_tames_24db_peak() {
+        // The 24 dB/oct cascade stacks two resonant stages, so without
+        // per-stage compensation the peak would overshoot the 12 dB path.
+        // Compensating the second stage's input too must keep the 4-pole
+        // peak in the same bounded ballpark as the 2-pole one.
+        let twelve = measure_peak_slope(FilterMode::LowPass, FilterSlope::TwelveDbOct, 1_000.0, 1.0, 1_000.0);
+        let twenty_four = measure_peak_slope(FilterMode::LowPass, FilterSlope::TwentyFourDbOct, 1_000.0, 1.0, 1_000.0);
+        assert!(
+            twenty_four < twelve * 1.5,
+            "expected compensated 24 dB peak near the 12 dB peak: 12 {twelve}, 24 {twenty_four}"
+        );
+    }
+
+    #[test]
     fn extreme_resonance_does_not_diverge() {
         // Bounded input plus the clamped Q means the integrator state
         // must stay finite over a long run.
@@ -329,6 +470,35 @@ mod tests {
         for _ in 0..SAMPLE_RATE_HZ as usize {
             let s = filter.next_sample(phase.sin());
             assert!(s.is_finite(), "filter diverged: {s}");
+            phase += dphase;
+        }
+    }
+
+    #[test]
+    fn twenty_four_db_rolls_off_steeper_than_twelve() {
+        // One octave above a low-pass corner: the 4-pole cascade should
+        // attenuate the signal noticeably more than the 2-pole stage.
+        let twelve = measure_peak_slope(FilterMode::LowPass, FilterSlope::TwelveDbOct, 1_000.0, 0.0, 2_000.0);
+        let twenty_four = measure_peak_slope(FilterMode::LowPass, FilterSlope::TwentyFourDbOct, 1_000.0, 0.0, 2_000.0);
+        assert!(
+            twenty_four < twelve * 0.7,
+            "expected 24 dB/oct to attenuate more than 12 dB/oct: 12 {twelve}, 24 {twenty_four}"
+        );
+    }
+
+    #[test]
+    fn twenty_four_db_high_resonance_does_not_diverge() {
+        // The damped second stage must keep the cascade bounded even at
+        // max resonance with the input sitting on the corner.
+        let mut filter = StateVariableFilter::new(SAMPLE_RATE_HZ);
+        filter.set_mode(FilterMode::LowPass);
+        filter.set_slope(FilterSlope::TwentyFourDbOct);
+        filter.set_params(2_000.0, 1.0);
+        let mut phase = 0.0_f32;
+        let dphase = TAU * 2_000.0 / SAMPLE_RATE_HZ;
+        for _ in 0..SAMPLE_RATE_HZ as usize {
+            let s = filter.next_sample(phase.sin());
+            assert!(s.is_finite(), "24 dB/oct filter diverged: {s}");
             phase += dphase;
         }
     }

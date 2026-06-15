@@ -1,7 +1,7 @@
 use eframe::egui;
-use synth_engine::{EngineEvent, ParamId};
+use synth_engine::{EngineEvent, MOD_MATRIX_SLOTS, ParamId};
 
-use crate::app::{MOD_AMOUNT_RANGES, MOD_DEST_LABELS, MOD_SOURCE_LABELS, ToneSmithyApp};
+use crate::app::{MOD_AMOUNT_RANGES, MOD_DEST_LABELS, MOD_SOURCE_LABELS, MOD_SOURCE_ORDER, ToneSmithyApp};
 use crate::knob::Knob;
 use crate::theme;
 use crate::toggle::Toggle;
@@ -24,23 +24,13 @@ impl ToneSmithyApp {
                 ui.label(hdr("Via"));
                 ui.end_row();
 
-                const MOD_ENABLED_KEYS: [&str; 8] = [
-                    "mod_slot_enabled_0",
-                    "mod_slot_enabled_1",
-                    "mod_slot_enabled_2",
-                    "mod_slot_enabled_3",
-                    "mod_slot_enabled_4",
-                    "mod_slot_enabled_5",
-                    "mod_slot_enabled_6",
-                    "mod_slot_enabled_7",
-                ];
-                const MOD_SLOT_LABELS: [&str; 8] = ["1", "2", "3", "4", "5", "6", "7", "8"];
-                for i in 0..8usize {
+                for i in 0..MOD_MATRIX_SLOTS {
+                    // Keys and labels are built per row; with 16 slots the old
+                    // static arrays would just duplicate `format!` output.
+                    let slot_label = (i + 1).to_string();
+                    let enabled_key = format!("mod_slot_enabled_{i}");
                     if ui
-                        .add(
-                            Toggle::new(&mut self.mod_slot_enabled[i], MOD_SLOT_LABELS[i])
-                                .param_key(MOD_ENABLED_KEYS[i]),
-                        )
+                        .add(Toggle::new(&mut self.mod_slot_enabled[i], &slot_label).param_key(&enabled_key))
                         .changed()
                     {
                         self.events.send(EngineEvent::ParameterChange {
@@ -53,7 +43,8 @@ impl ToneSmithyApp {
                     egui::ComboBox::from_id_salt(format!("mod_src_{i}"))
                         .selected_text(src_label)
                         .show_ui(ui, |ui| {
-                            for (idx, &label) in MOD_SOURCE_LABELS.iter().enumerate() {
+                            for &idx in MOD_SOURCE_ORDER {
+                                let label = MOD_SOURCE_LABELS.get(idx).copied().unwrap_or("?");
                                 if ui.selectable_value(&mut self.mod_slot_source[i], idx, label).changed() {
                                     self.events.send(EngineEvent::ParameterChange {
                                         id: ParamId::ModSlotSource(i as u8),
@@ -83,21 +74,12 @@ impl ToneSmithyApp {
                         });
 
                     let range = MOD_AMOUNT_RANGES.get(self.mod_slot_dest[i]).copied().unwrap_or(1.0);
-                    let mod_amount_key: &'static str = [
-                        "mod_slot_amount_0",
-                        "mod_slot_amount_1",
-                        "mod_slot_amount_2",
-                        "mod_slot_amount_3",
-                        "mod_slot_amount_4",
-                        "mod_slot_amount_5",
-                        "mod_slot_amount_6",
-                        "mod_slot_amount_7",
-                    ][i];
+                    let mod_amount_key = format!("mod_slot_amount_{i}");
                     if ui
                         .add(
                             Knob::new(&mut self.mod_slot_amount[i], -range..=range, "")
                                 .default_value(0.0)
-                                .param_key(mod_amount_key)
+                                .param_key(&mod_amount_key)
                                 .format(move |v| {
                                     if range >= 100.0 {
                                         format!("{:+.0}", v)
@@ -118,7 +100,8 @@ impl ToneSmithyApp {
                     egui::ComboBox::from_id_salt(format!("mod_via_{i}"))
                         .selected_text(via_label)
                         .show_ui(ui, |ui| {
-                            for (idx, &label) in MOD_SOURCE_LABELS.iter().enumerate() {
+                            for &idx in MOD_SOURCE_ORDER {
+                                let label = MOD_SOURCE_LABELS.get(idx).copied().unwrap_or("?");
                                 if ui.selectable_value(&mut self.mod_slot_via[i], idx, label).changed() {
                                     self.events.send(EngineEvent::ParameterChange {
                                         id: ParamId::ModSlotVia(i as u8),
