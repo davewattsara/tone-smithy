@@ -388,7 +388,7 @@ OSC2; and the sequencer, LFO mode, and new oscillator dests all survive preset s
 - [x] Phase 2 — Sequencer engine core
 - [x] Phase 3 — Sequencer mod lane
 - [x] Phase 4 — Sequencer UI
-- [ ] Phase 5 — Global (mono) LFO mode
+- [x] Phase 5 — Global (mono) LFO mode
 - [ ] Phase 6 — Per-oscillator detune dests
 
 Not started — decisions confirmed; awaiting explicit go-ahead to begin implementation on a

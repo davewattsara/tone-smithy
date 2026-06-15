@@ -154,6 +154,7 @@ pub struct ToneSmithyApp {
     pub(crate) lfo1_reset_on_note_on: bool,
     pub(crate) lfo1_sync_enabled: bool,
     pub(crate) lfo1_sync_division_index: usize,
+    pub(crate) lfo1_global: bool,
 
     // ── LFO 2 ────────────────────────────────────────────────────────────────
     pub(crate) lfo2_rate_hz: f32,
@@ -161,6 +162,7 @@ pub struct ToneSmithyApp {
     pub(crate) lfo2_reset_on_note_on: bool,
     pub(crate) lfo2_sync_enabled: bool,
     pub(crate) lfo2_sync_division_index: usize,
+    pub(crate) lfo2_global: bool,
 
     // ── Env2 ─────────────────────────────────────────────────────────────────
     pub(crate) env2_attack_secs: f32,
@@ -347,11 +349,13 @@ impl ToneSmithyApp {
             lfo1_reset_on_note_on: snap.lfo1_reset_on_note_on,
             lfo1_sync_enabled: snap.lfo1_sync_enabled,
             lfo1_sync_division_index: snap.lfo1_sync_division_index,
+            lfo1_global: snap.lfo1_global,
             lfo2_rate_hz: snap.lfo2_rate_hz,
             lfo2_shape_index: snap.lfo2_shape_index,
             lfo2_reset_on_note_on: snap.lfo2_reset_on_note_on,
             lfo2_sync_enabled: snap.lfo2_sync_enabled,
             lfo2_sync_division_index: snap.lfo2_sync_division_index,
+            lfo2_global: snap.lfo2_global,
             env2_attack_secs: snap.env2_attack_secs,
             env2_decay_secs: snap.env2_decay_secs,
             env2_sustain_level: snap.env2_sustain_level,
@@ -571,11 +575,13 @@ impl ToneSmithyApp {
         self.lfo1_reset_on_note_on = snap.lfo1_reset_on_note_on;
         self.lfo1_sync_enabled = snap.lfo1_sync_enabled;
         self.lfo1_sync_division_index = snap.lfo1_sync_division_index;
+        self.lfo1_global = snap.lfo1_global;
         self.lfo2_rate_hz = snap.lfo2_rate_hz;
         self.lfo2_shape_index = snap.lfo2_shape_index;
         self.lfo2_reset_on_note_on = snap.lfo2_reset_on_note_on;
         self.lfo2_sync_enabled = snap.lfo2_sync_enabled;
         self.lfo2_sync_division_index = snap.lfo2_sync_division_index;
+        self.lfo2_global = snap.lfo2_global;
         self.env2_attack_secs = snap.env2_attack_secs;
         self.env2_decay_secs = snap.env2_decay_secs;
         self.env2_sustain_level = snap.env2_sustain_level;

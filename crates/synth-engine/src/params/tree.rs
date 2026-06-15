@@ -164,6 +164,7 @@ pub struct ParameterTree {
     pub(super) lfo1_reset_on_note_on: bool,
     pub(super) lfo1_sync_enabled: bool,
     pub(super) lfo1_sync_division: SyncDivision,
+    pub(super) lfo1_global: bool,
 
     // ── LFO 2 ──────────────────────────────────────────────────────────
     pub(super) lfo2_rate_hz: f32,
@@ -171,6 +172,7 @@ pub struct ParameterTree {
     pub(super) lfo2_reset_on_note_on: bool,
     pub(super) lfo2_sync_enabled: bool,
     pub(super) lfo2_sync_division: SyncDivision,
+    pub(super) lfo2_global: bool,
 
     // ── Env2 ───────────────────────────────────────────────────────────
     pub(super) env2_attack_secs: f32,
@@ -319,11 +321,13 @@ impl ParameterTree {
             lfo1_reset_on_note_on: defaults.lfo1_reset_on_note_on,
             lfo1_sync_enabled: defaults.lfo1_sync_enabled,
             lfo1_sync_division: SyncDivision::from_index(defaults.lfo1_sync_division_index),
+            lfo1_global: defaults.lfo1_global,
             lfo2_rate_hz: defaults.lfo2_rate_hz,
             lfo2_shape_index: defaults.lfo2_shape_index,
             lfo2_reset_on_note_on: defaults.lfo2_reset_on_note_on,
             lfo2_sync_enabled: defaults.lfo2_sync_enabled,
             lfo2_sync_division: SyncDivision::from_index(defaults.lfo2_sync_division_index),
+            lfo2_global: defaults.lfo2_global,
             env2_attack_secs: defaults.env2_attack_secs,
             env2_decay_secs: defaults.env2_decay_secs,
             env2_sustain_level: defaults.env2_sustain_level,
@@ -455,6 +459,7 @@ impl ParameterTree {
             ParamId::Lfo1SyncDivision => {
                 self.lfo1_sync_division = SyncDivision::from_index(value as usize);
             }
+            ParamId::Lfo1Global => self.lfo1_global = value >= 0.5,
             ParamId::Lfo2RateHz => self.lfo2_rate_hz = value,
             ParamId::Lfo2Shape => self.lfo2_shape_index = value as usize,
             ParamId::Lfo2ResetOnNoteOn => self.lfo2_reset_on_note_on = value >= 0.5,
@@ -462,6 +467,7 @@ impl ParameterTree {
             ParamId::Lfo2SyncDivision => {
                 self.lfo2_sync_division = SyncDivision::from_index(value as usize);
             }
+            ParamId::Lfo2Global => self.lfo2_global = value >= 0.5,
             ParamId::Env2AttackSecs => self.env2_attack_secs = value,
             ParamId::Env2DecaySecs => self.env2_decay_secs = value,
             ParamId::Env2SustainLevel => self.env2_sustain_level = value,
@@ -789,6 +795,12 @@ impl ParameterTree {
         self.lfo1_reset_on_note_on
     }
 
+    /// Returns true if LFO1 runs in global (mono) mode.
+    #[must_use]
+    pub fn lfo1_global(&self) -> bool {
+        self.lfo1_global
+    }
+
     /// Returns LFO2 shape index.
     #[must_use]
     pub fn lfo2_shape_index(&self) -> usize {
@@ -799,6 +811,12 @@ impl ParameterTree {
     #[must_use]
     pub fn lfo2_reset_on_note_on(&self) -> bool {
         self.lfo2_reset_on_note_on
+    }
+
+    /// Returns true if LFO2 runs in global (mono) mode.
+    #[must_use]
+    pub fn lfo2_global(&self) -> bool {
+        self.lfo2_global
     }
 
     /// Returns all Env2 stepped params as a flat tuple for engine fan-out.
@@ -1009,11 +1027,13 @@ impl ParameterTree {
             lfo1_reset_on_note_on: self.lfo1_reset_on_note_on,
             lfo1_sync_enabled: self.lfo1_sync_enabled,
             lfo1_sync_division_index: self.lfo1_sync_division.index(),
+            lfo1_global: self.lfo1_global,
             lfo2_rate_hz: self.lfo2_rate_hz,
             lfo2_shape_index: self.lfo2_shape_index,
             lfo2_reset_on_note_on: self.lfo2_reset_on_note_on,
             lfo2_sync_enabled: self.lfo2_sync_enabled,
             lfo2_sync_division_index: self.lfo2_sync_division.index(),
+            lfo2_global: self.lfo2_global,
             env2_attack_secs: self.env2_attack_secs,
             env2_decay_secs: self.env2_decay_secs,
             env2_sustain_level: self.env2_sustain_level,

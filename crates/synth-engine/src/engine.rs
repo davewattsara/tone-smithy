@@ -246,6 +246,9 @@ impl Engine {
             ParamId::Lfo1ResetOnNoteOn => {
                 self.voices.set_lfo1_reset_on_note_on(value >= 0.5);
             }
+            ParamId::Lfo1Global => {
+                self.voices.set_lfo1_global(value >= 0.5);
+            }
 
             // ── LFO 2 ───────────────────────────────────────────────────────
             ParamId::Lfo2RateHz | ParamId::Lfo2SyncEnabled | ParamId::Lfo2SyncDivision => {
@@ -256,6 +259,9 @@ impl Engine {
             }
             ParamId::Lfo2ResetOnNoteOn => {
                 self.voices.set_lfo2_reset_on_note_on(value >= 0.5);
+            }
+            ParamId::Lfo2Global => {
+                self.voices.set_lfo2_global(value >= 0.5);
             }
 
             // ── Env2 ────────────────────────────────────────────────────────

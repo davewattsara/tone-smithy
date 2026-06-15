@@ -116,6 +116,9 @@ pub enum ParamId {
     /// LFO1 BPM-sync division; value is the zero-based `SyncDivision`
     /// index. Only used when sync is enabled.
     Lfo1SyncDivision,
+    /// LFO1 global (mono) mode; 0.0 = per-voice, 1.0 = one shared instance
+    /// across all voices. Stepped.
+    Lfo1Global,
 
     // ── LFO 2 ──────────────────────────────────────────────────────────
     /// LFO2 rate in Hz when sync is off.
@@ -128,6 +131,8 @@ pub enum ParamId {
     Lfo2SyncEnabled,
     /// LFO2 BPM-sync division index.
     Lfo2SyncDivision,
+    /// LFO2 global (mono) mode; 0.0 = per-voice, 1.0 = one shared instance.
+    Lfo2Global,
 
     // ── Env2 (modulation envelope) ─────────────────────────────────────
     /// Env2 attack time, in seconds.

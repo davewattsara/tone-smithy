@@ -324,13 +324,14 @@ impl ToneSmithyApp {
     }
 
     fn lfo_section(&mut self, ui: &mut egui::Ui, lfo_num: u8, snapshot: &ParamSnapshot) {
-        let (rate_id, shape_id, reset_id, sync_id, div_id) = if lfo_num == 1 {
+        let (rate_id, shape_id, reset_id, sync_id, div_id, global_id) = if lfo_num == 1 {
             (
                 ParamId::Lfo1RateHz,
                 ParamId::Lfo1Shape,
                 ParamId::Lfo1ResetOnNoteOn,
                 ParamId::Lfo1SyncEnabled,
                 ParamId::Lfo1SyncDivision,
+                ParamId::Lfo1Global,
             )
         } else {
             (
@@ -339,6 +340,7 @@ impl ToneSmithyApp {
                 ParamId::Lfo2ResetOnNoteOn,
                 ParamId::Lfo2SyncEnabled,
                 ParamId::Lfo2SyncDivision,
+                ParamId::Lfo2Global,
             )
         };
         let mut rate_hz = if lfo_num == 1 {
@@ -365,6 +367,11 @@ impl ToneSmithyApp {
             self.lfo1_sync_division_index
         } else {
             self.lfo2_sync_division_index
+        };
+        let mut global = if lfo_num == 1 {
+            self.lfo1_global
+        } else {
+            self.lfo2_global
         };
         let live_out = if lfo_num == 1 {
             snapshot.lfo1_out
@@ -406,11 +413,25 @@ impl ToneSmithyApp {
                     value: rate_hz,
                 });
             }
-            if ui.selectable_label(reset_on_note_on, "Reset").clicked() {
-                reset_on_note_on = !reset_on_note_on;
+            // Reset has no meaning in global mode (no per-note phase to reset).
+            ui.add_enabled_ui(!global, |ui| {
+                if ui.selectable_label(reset_on_note_on, "Reset").clicked() {
+                    reset_on_note_on = !reset_on_note_on;
+                    events.send(EngineEvent::ParameterChange {
+                        id: reset_id,
+                        value: if reset_on_note_on { 1.0 } else { 0.0 },
+                    });
+                }
+            });
+            if ui
+                .selectable_label(global, "Global")
+                .on_hover_text("One shared LFO across all voices (chords stay phase-locked)")
+                .clicked()
+            {
+                global = !global;
                 events.send(EngineEvent::ParameterChange {
-                    id: reset_id,
-                    value: if reset_on_note_on { 1.0 } else { 0.0 },
+                    id: global_id,
+                    value: if global { 1.0 } else { 0.0 },
                 });
             }
         });
@@ -447,12 +468,14 @@ impl ToneSmithyApp {
             self.lfo1_reset_on_note_on = reset_on_note_on;
             self.lfo1_sync_enabled = sync_enabled;
             self.lfo1_sync_division_index = div_index;
+            self.lfo1_global = global;
         } else {
             self.lfo2_rate_hz = rate_hz;
             self.lfo2_shape_index = shape_index;
             self.lfo2_reset_on_note_on = reset_on_note_on;
             self.lfo2_sync_enabled = sync_enabled;
             self.lfo2_sync_division_index = div_index;
+            self.lfo2_global = global;
         }
     }
 }

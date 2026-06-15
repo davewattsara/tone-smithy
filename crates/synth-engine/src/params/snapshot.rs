@@ -123,6 +123,8 @@ pub struct ParamSnapshot {
     pub lfo1_sync_enabled: bool,
     /// LFO1 BPM-sync division as a zero-based `SyncDivision` index.
     pub lfo1_sync_division_index: usize,
+    /// LFO1 global (mono) mode flag: one shared instance across all voices.
+    pub lfo1_global: bool,
 
     // ── LFO 2 parameter mirrors ────────────────────────────────────────
     /// LFO2 rate in Hz (free-running).
@@ -135,6 +137,8 @@ pub struct ParamSnapshot {
     pub lfo2_sync_enabled: bool,
     /// LFO2 BPM-sync division index.
     pub lfo2_sync_division_index: usize,
+    /// LFO2 global (mono) mode flag.
+    pub lfo2_global: bool,
 
     // ── Env2 parameter mirrors ─────────────────────────────────────────
     /// Env2 attack time, seconds.
@@ -323,11 +327,13 @@ impl Default for ParamSnapshot {
             lfo1_reset_on_note_on: false,
             lfo1_sync_enabled: false,
             lfo1_sync_division_index: 5, // 1 bar
+            lfo1_global: false,
             lfo2_rate_hz: 1.0,
             lfo2_shape_index: 0,
             lfo2_reset_on_note_on: false,
             lfo2_sync_enabled: false,
             lfo2_sync_division_index: 5,
+            lfo2_global: false,
             env2_attack_secs: 0.010,
             env2_decay_secs: 0.200,
             env2_sustain_level: 0.8,
