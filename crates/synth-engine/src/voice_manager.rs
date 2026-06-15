@@ -89,6 +89,9 @@ pub struct VoiceManager {
     global_mod_wheel: f32,
     global_aftertouch: f32,
     global_pitch_bend: f32,
+    /// Step-sequencer mod-lane value for the active step (-1..=1), pushed by
+    /// the engine each block and read as the `Seq` mod source.
+    global_seq_mod: f32,
 }
 
 impl VoiceManager {
@@ -107,6 +110,7 @@ impl VoiceManager {
             global_mod_wheel: 0.0,
             global_aftertouch: 0.0,
             global_pitch_bend: 0.0,
+            global_seq_mod: 0.0,
         }
     }
 
@@ -470,6 +474,11 @@ impl VoiceManager {
         self.global_pitch_bend = value;
     }
 
+    /// Updates the step-sequencer mod-lane value (-1..=1) for the active step.
+    pub fn set_global_seq_mod(&mut self, value: f32) {
+        self.global_seq_mod = value;
+    }
+
     // ── FM synthesis ─────────────────────────────────────────────────────────
 
     /// Sets the mix level on slot `slot` of every voice.
@@ -573,6 +582,7 @@ impl VoiceManager {
                 aftertouch: self.global_aftertouch,
                 pitch_bend: self.global_pitch_bend,
                 env3: v.env3_out(),
+                seq: self.global_seq_mod,
             };
             v.mod_offsets = self.matrix.compute_offsets(&sources);
         }

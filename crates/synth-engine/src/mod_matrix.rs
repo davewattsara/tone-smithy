@@ -47,11 +47,15 @@ pub enum ModSource {
     /// meaning — `to_index` is the enum discriminant, so a mid-enum
     /// insert would renumber everything after it.
     Env3,
+    /// Step-sequencer mod lane: the active step's CV value, -1..=1. Appended
+    /// at the end (same append-only rule as Env3) so existing source indices
+    /// and saved presets keep their meaning.
+    Seq,
 }
 
 impl ModSource {
     /// Total number of variants; used to validate parameter bus values.
-    pub const COUNT: u8 = 11;
+    pub const COUNT: u8 = 12;
 
     /// Converts a `u8` index (as stored in the parameter bus) to a variant.
     /// Returns `None` if the index is out of range.
@@ -68,6 +72,7 @@ impl ModSource {
             8 => Some(Self::Aftertouch),
             9 => Some(Self::PitchBend),
             10 => Some(Self::Env3),
+            11 => Some(Self::Seq),
             _ => None,
         }
     }
@@ -141,6 +146,7 @@ pub struct ModSources {
     pub aftertouch: f32,
     pub pitch_bend: f32,
     pub env3: f32,
+    pub seq: f32,
 }
 
 impl ModSources {
@@ -157,6 +163,7 @@ impl ModSources {
             ModSource::Aftertouch => self.aftertouch,
             ModSource::PitchBend => self.pitch_bend,
             ModSource::Env3 => self.env3,
+            ModSource::Seq => self.seq,
         }
     }
 }
@@ -279,6 +286,13 @@ mod tests {
         let m = single_slot(ModSource::Env2, ModDest::FilterCutoffHz, 5000.0, ModSource::Off);
         let s = sources_with(|s| s.env2 = 0.8);
         assert!((m.compute_offsets(&s).filter_cutoff_hz - 4000.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn seq_lane_to_filter_cutoff() {
+        let m = single_slot(ModSource::Seq, ModDest::FilterCutoffHz, 3000.0, ModSource::Off);
+        let s = sources_with(|s| s.seq = -0.5);
+        assert!((m.compute_offsets(&s).filter_cutoff_hz - -1500.0).abs() < 1e-4);
     }
 
     #[test]

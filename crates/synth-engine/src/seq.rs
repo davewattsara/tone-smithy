@@ -151,8 +151,6 @@ impl SeqEngine {
     /// Current mod-lane value (the active step's `mod_value`), or 0.0 when the
     /// sequencer is not running. Read by the engine and published as the
     /// `Seq` mod source.
-    // Wired into the mod matrix in Phase 3; unused until then.
-    #[allow(dead_code)]
     #[must_use]
     pub fn mod_value(&self) -> f32 {
         if self.enabled && self.held_count > 0 {
