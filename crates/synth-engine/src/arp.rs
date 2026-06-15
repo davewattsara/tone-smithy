@@ -26,14 +26,14 @@ pub struct ArpEvents {
 }
 
 impl ArpEvents {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             buf: [ArpEvent::NoteOff { note: 0 }; 4],
             count: 0,
         }
     }
 
-    fn push(&mut self, ev: ArpEvent) {
+    pub(crate) fn push(&mut self, ev: ArpEvent) {
         if self.count < self.buf.len() {
             self.buf[self.count] = ev;
             self.count += 1;

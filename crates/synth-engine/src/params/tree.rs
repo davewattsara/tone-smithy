@@ -28,6 +28,7 @@ use crate::fm::OPERATOR_COUNT;
 use crate::lfo::SyncDivision;
 use crate::mod_matrix::{MOD_MATRIX_SLOTS, ModDest, ModSource};
 use crate::oscillator::Waveform;
+use crate::seq::SEQ_MAX_STEPS;
 use crate::smoothing::SmoothedParam;
 
 use super::ids::ParamId;
@@ -199,6 +200,8 @@ pub struct ParameterTree {
     pub(super) env3_out: f32,
     pub(super) vu_peak_left: f32,
     pub(super) vu_peak_right: f32,
+    /// Step index currently under the sequencer playhead, or -1 when idle.
+    pub(super) seq_current_step: i8,
 
     // ── Mod matrix mirrors ─────────────────────────────────────────────
     pub(super) mod_slot_enabled: [bool; MOD_MATRIX_SLOTS],
@@ -256,6 +259,17 @@ pub struct ParameterTree {
     pub(super) arp_rate: u8,
     pub(super) arp_gate: f32,
     pub(super) arp_swing: f32,
+    // ── Step sequencer ───────────────────────────────────────────────────
+    pub(super) seq_enabled: bool,
+    pub(super) seq_length: u8,
+    pub(super) seq_mode: u8,
+    pub(super) seq_rate: u8,
+    pub(super) seq_swing: f32,
+    pub(super) seq_step_note: [i8; SEQ_MAX_STEPS],
+    pub(super) seq_step_velocity: [u8; SEQ_MAX_STEPS],
+    pub(super) seq_step_gate: [f32; SEQ_MAX_STEPS],
+    pub(super) seq_step_rest: [bool; SEQ_MAX_STEPS],
+    pub(super) seq_step_mod: [f32; SEQ_MAX_STEPS],
 }
 
 impl ParameterTree {
@@ -331,6 +345,7 @@ impl ParameterTree {
             env3_out: 0.0,
             vu_peak_left: 0.0,
             vu_peak_right: 0.0,
+            seq_current_step: -1,
             mod_slot_enabled: [false; MOD_MATRIX_SLOTS],
             mod_slot_source: [0; MOD_MATRIX_SLOTS],
             mod_slot_dest: [0; MOD_MATRIX_SLOTS],
@@ -381,6 +396,16 @@ impl ParameterTree {
             arp_rate: defaults.arp_rate,
             arp_gate: defaults.arp_gate,
             arp_swing: defaults.arp_swing,
+            seq_enabled: defaults.seq_enabled,
+            seq_length: defaults.seq_length,
+            seq_mode: defaults.seq_mode,
+            seq_rate: defaults.seq_rate,
+            seq_swing: defaults.seq_swing,
+            seq_step_note: defaults.seq_step_note,
+            seq_step_velocity: defaults.seq_step_velocity,
+            seq_step_gate: defaults.seq_step_gate,
+            seq_step_rest: defaults.seq_step_rest,
+            seq_step_mod: defaults.seq_step_mod,
         }
     }
 
@@ -583,6 +608,38 @@ impl ParameterTree {
             ParamId::ArpRate => self.arp_rate = (value as u8).min(4),
             ParamId::ArpGate => self.arp_gate = value.clamp(0.01, 1.0),
             ParamId::ArpSwing => self.arp_swing = value.clamp(0.5, 0.75),
+            ParamId::SeqEnabled => self.seq_enabled = value >= 0.5,
+            ParamId::SeqLength => {
+                self.seq_length = (value as u8).clamp(1, SEQ_MAX_STEPS as u8);
+            }
+            ParamId::SeqMode => self.seq_mode = (value as u8).min(3),
+            ParamId::SeqRate => self.seq_rate = (value as u8).min(4),
+            ParamId::SeqSwing => self.seq_swing = value.clamp(0.5, 0.75),
+            ParamId::SeqStepNote(i) => {
+                if (i as usize) < SEQ_MAX_STEPS {
+                    self.seq_step_note[i as usize] = (value.round() as i32).clamp(-24, 24) as i8;
+                }
+            }
+            ParamId::SeqStepVelocity(i) => {
+                if (i as usize) < SEQ_MAX_STEPS {
+                    self.seq_step_velocity[i as usize] = (value.round() as i32).clamp(0, 127) as u8;
+                }
+            }
+            ParamId::SeqStepGate(i) => {
+                if (i as usize) < SEQ_MAX_STEPS {
+                    self.seq_step_gate[i as usize] = value.clamp(0.0, 1.0);
+                }
+            }
+            ParamId::SeqStepRest(i) => {
+                if (i as usize) < SEQ_MAX_STEPS {
+                    self.seq_step_rest[i as usize] = value >= 0.5;
+                }
+            }
+            ParamId::SeqStepMod(i) => {
+                if (i as usize) < SEQ_MAX_STEPS {
+                    self.seq_step_mod[i as usize] = value.clamp(-1.0, 1.0);
+                }
+            }
         }
     }
 
@@ -837,6 +894,12 @@ impl ParameterTree {
         self.env3_out = env3;
     }
 
+    /// Stores the live sequencer playhead position (-1 when idle).
+    /// Called by the engine each block, before the snapshot is published.
+    pub fn set_seq_current_step(&mut self, step: i8) {
+        self.seq_current_step = step;
+    }
+
     /// Stores the per-block peak output level for the VU meter.
     /// Called by the engine immediately after the per-sample loop.
     pub fn set_vu_peak(&mut self, left: f32, right: f32) {
@@ -1022,6 +1085,17 @@ impl ParameterTree {
             arp_rate: self.arp_rate,
             arp_gate: self.arp_gate,
             arp_swing: self.arp_swing,
+            seq_enabled: self.seq_enabled,
+            seq_length: self.seq_length,
+            seq_mode: self.seq_mode,
+            seq_rate: self.seq_rate,
+            seq_swing: self.seq_swing,
+            seq_step_note: self.seq_step_note,
+            seq_step_velocity: self.seq_step_velocity,
+            seq_step_gate: self.seq_step_gate,
+            seq_step_rest: self.seq_step_rest,
+            seq_step_mod: self.seq_step_mod,
+            seq_current_step: self.seq_current_step,
         }
     }
 }

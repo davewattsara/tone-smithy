@@ -283,4 +283,26 @@ pub enum ParamId {
     ArpGate,
     /// Swing fraction, 0.5–0.75.
     ArpSwing,
+
+    // ── Step sequencer ─────────────────────────────────────────────────────
+    /// Sequencer master enable (mutually exclusive with the arp).
+    SeqEnabled,
+    /// Active step count, 1–16.
+    SeqLength,
+    /// Playback mode: 0=Forward 1=Reverse 2=PingPong 3=Random.
+    SeqMode,
+    /// Step rate: 0=1/32 1=1/16 2=1/8 3=1/4 4=1/2.
+    SeqRate,
+    /// Swing fraction, 0.5–0.75.
+    SeqSwing,
+    /// Per-step note offset from the held root, -24..=24 semitones.
+    SeqStepNote(u8),
+    /// Per-step velocity, 0–127.
+    SeqStepVelocity(u8),
+    /// Per-step gate fraction, 0.0–1.0.
+    SeqStepGate(u8),
+    /// Per-step rest toggle (≥0.5 = rest).
+    SeqStepRest(u8),
+    /// Per-step mod-lane CV value, -1.0..=1.0.
+    SeqStepMod(u8),
 }

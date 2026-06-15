@@ -10,7 +10,8 @@ use std::collections::BTreeMap;
 
 use synth_engine::EngineEvent;
 use synth_engine::{
-    EngineEvent as Ev, FilterMode, FilterRouting, FilterSlope, MOD_MATRIX_SLOTS, ParamId, ParamSnapshot, Waveform,
+    EngineEvent as Ev, FilterMode, FilterRouting, FilterSlope, MOD_MATRIX_SLOTS, ParamId, ParamSnapshot, SEQ_MAX_STEPS,
+    Waveform,
 };
 
 /// Serialises all saveable params from `snap` into a stable string-keyed
@@ -161,6 +162,20 @@ pub fn snapshot_to_map(snap: &ParamSnapshot) -> BTreeMap<String, f32> {
     m.insert("arp_rate".into(), f32::from(snap.arp_rate));
     m.insert("arp_gate".into(), snap.arp_gate);
     m.insert("arp_swing".into(), snap.arp_swing);
+
+    // Step sequencer
+    m.insert("seq_enabled".into(), f32::from(snap.seq_enabled));
+    m.insert("seq_length".into(), f32::from(snap.seq_length));
+    m.insert("seq_mode".into(), f32::from(snap.seq_mode));
+    m.insert("seq_rate".into(), f32::from(snap.seq_rate));
+    m.insert("seq_swing".into(), snap.seq_swing);
+    for i in 0..SEQ_MAX_STEPS {
+        m.insert(format!("seq_step{i}_note"), f32::from(snap.seq_step_note[i]));
+        m.insert(format!("seq_step{i}_velocity"), f32::from(snap.seq_step_velocity[i]));
+        m.insert(format!("seq_step{i}_gate"), snap.seq_step_gate[i]);
+        m.insert(format!("seq_step{i}_rest"), f32::from(snap.seq_step_rest[i]));
+        m.insert(format!("seq_step{i}_mod"), snap.seq_step_mod[i]);
+    }
 
     m
 }
@@ -398,6 +413,21 @@ pub fn map_to_events(m: &BTreeMap<String, f32>) -> Vec<EngineEvent> {
     pc!("arp_gate", ParamId::ArpGate);
     pc!("arp_swing", ParamId::ArpSwing);
 
+    // Step sequencer
+    pc!("seq_enabled", ParamId::SeqEnabled);
+    pc!("seq_length", ParamId::SeqLength);
+    pc!("seq_mode", ParamId::SeqMode);
+    pc!("seq_rate", ParamId::SeqRate);
+    pc!("seq_swing", ParamId::SeqSwing);
+    for i in 0..SEQ_MAX_STEPS as u8 {
+        let ii = i as usize;
+        pc!(&format!("seq_step{ii}_note"), ParamId::SeqStepNote(i));
+        pc!(&format!("seq_step{ii}_velocity"), ParamId::SeqStepVelocity(i));
+        pc!(&format!("seq_step{ii}_gate"), ParamId::SeqStepGate(i));
+        pc!(&format!("seq_step{ii}_rest"), ParamId::SeqStepRest(i));
+        pc!(&format!("seq_step{ii}_mod"), ParamId::SeqStepMod(i));
+    }
+
     ev
 }
 
@@ -427,6 +457,13 @@ pub fn map_to_snapshot(m: &BTreeMap<String, f32>) -> ParamSnapshot {
         ($key:expr, $field:expr) => {
             if let Some(&v) = m.get($key) {
                 $field = v as u8;
+            }
+        };
+    }
+    macro_rules! get_i8 {
+        ($key:expr, $field:expr) => {
+            if let Some(&v) = m.get($key) {
+                $field = v as i8;
             }
         };
     }
@@ -609,6 +646,20 @@ pub fn map_to_snapshot(m: &BTreeMap<String, f32>) -> ParamSnapshot {
     get!("arp_gate", s.arp_gate);
     get!("arp_swing", s.arp_swing);
 
+    // Step sequencer
+    get_bool!("seq_enabled", s.seq_enabled);
+    get_u8!("seq_length", s.seq_length);
+    get_u8!("seq_mode", s.seq_mode);
+    get_u8!("seq_rate", s.seq_rate);
+    get!("seq_swing", s.seq_swing);
+    for i in 0..SEQ_MAX_STEPS {
+        get_i8!(&format!("seq_step{i}_note"), s.seq_step_note[i]);
+        get_u8!(&format!("seq_step{i}_velocity"), s.seq_step_velocity[i]);
+        get!(&format!("seq_step{i}_gate"), s.seq_step_gate[i]);
+        get_bool!(&format!("seq_step{i}_rest"), s.seq_step_rest[i]);
+        get!(&format!("seq_step{i}_mod"), s.seq_step_mod[i]);
+    }
+
     s
 }
 
@@ -729,6 +780,18 @@ mod tests {
         orig.arp_rate = 1;
         orig.arp_gate = 0.7;
         orig.arp_swing = 0.6;
+        orig.seq_enabled = true;
+        orig.seq_length = 12;
+        orig.seq_mode = 2;
+        orig.seq_rate = 3;
+        orig.seq_swing = 0.65;
+        for i in 0..SEQ_MAX_STEPS {
+            orig.seq_step_note[i] = (i as i8) - 5;
+            orig.seq_step_velocity[i] = (i as u8) * 4;
+            orig.seq_step_gate[i] = (i as f32) / 16.0;
+            orig.seq_step_rest[i] = i % 3 == 0;
+            orig.seq_step_mod[i] = (i as f32) / 16.0 - 0.5;
+        }
 
         let map = snapshot_to_map(&orig);
         let got = map_to_snapshot(&map);
@@ -830,6 +893,16 @@ mod tests {
         assert_eq!(orig.arp_rate, got.arp_rate);
         assert_eq!(orig.arp_gate, got.arp_gate);
         assert_eq!(orig.arp_swing, got.arp_swing);
+        assert_eq!(orig.seq_enabled, got.seq_enabled);
+        assert_eq!(orig.seq_length, got.seq_length);
+        assert_eq!(orig.seq_mode, got.seq_mode);
+        assert_eq!(orig.seq_rate, got.seq_rate);
+        assert_eq!(orig.seq_swing, got.seq_swing);
+        assert_eq!(orig.seq_step_note, got.seq_step_note);
+        assert_eq!(orig.seq_step_velocity, got.seq_step_velocity);
+        assert_eq!(orig.seq_step_gate, got.seq_step_gate);
+        assert_eq!(orig.seq_step_rest, got.seq_step_rest);
+        assert_eq!(orig.seq_step_mod, got.seq_step_mod);
     }
 
     /// A sparse preset (only a few keys set) must expand to the *full*

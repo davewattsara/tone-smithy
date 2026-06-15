@@ -3,6 +3,7 @@ use crate::filter::{FilterMode, FilterRouting, FilterSlope};
 use crate::fm::OPERATOR_COUNT;
 use crate::mod_matrix::MOD_MATRIX_SLOTS;
 use crate::oscillator::Waveform;
+use crate::seq::SEQ_MAX_STEPS;
 
 use super::tree::{
     DEFAULT_AMP_ATTACK_SECS, DEFAULT_AMP_DECAY_SECS, DEFAULT_AMP_RELEASE_SECS, DEFAULT_AMP_SUSTAIN_LEVEL,
@@ -261,6 +262,29 @@ pub struct ParamSnapshot {
     pub arp_rate: u8,
     pub arp_gate: f32,
     pub arp_swing: f32,
+
+    // ── Step sequencer ─────────────────────────────────────────────────────
+    pub seq_enabled: bool,
+    /// Active step count, 1–16.
+    pub seq_length: u8,
+    /// Playback mode: 0=Forward 1=Reverse 2=PingPong 3=Random.
+    pub seq_mode: u8,
+    /// Step rate: 0=1/32 1=1/16 2=1/8 3=1/4 4=1/2.
+    pub seq_rate: u8,
+    /// Swing fraction, 0.5–0.75.
+    pub seq_swing: f32,
+    /// Per-step note offset from the held root, -24..=24.
+    pub seq_step_note: [i8; SEQ_MAX_STEPS],
+    /// Per-step velocity, 0–127.
+    pub seq_step_velocity: [u8; SEQ_MAX_STEPS],
+    /// Per-step gate fraction, 0.0–1.0.
+    pub seq_step_gate: [f32; SEQ_MAX_STEPS],
+    /// Per-step rest toggle.
+    pub seq_step_rest: [bool; SEQ_MAX_STEPS],
+    /// Per-step mod-lane CV, -1.0..=1.0.
+    pub seq_step_mod: [f32; SEQ_MAX_STEPS],
+    /// Live: step index currently under the playhead, or -1 when idle.
+    pub seq_current_step: i8,
 }
 
 impl Default for ParamSnapshot {
@@ -375,6 +399,17 @@ impl Default for ParamSnapshot {
             arp_rate: 2, // 1/8
             arp_gate: 0.5,
             arp_swing: 0.5,
+            seq_enabled: false,
+            seq_length: SEQ_MAX_STEPS as u8,
+            seq_mode: 0,    // Forward
+            seq_rate: 1,    // 1/16
+            seq_swing: 0.5, // straight
+            seq_step_note: [0; SEQ_MAX_STEPS],
+            seq_step_velocity: [100; SEQ_MAX_STEPS],
+            seq_step_gate: [0.5; SEQ_MAX_STEPS],
+            seq_step_rest: [false; SEQ_MAX_STEPS],
+            seq_step_mod: [0.0; SEQ_MAX_STEPS],
+            seq_current_step: -1,
         }
     }
 }
