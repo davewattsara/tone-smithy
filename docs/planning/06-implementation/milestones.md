@@ -296,8 +296,22 @@ Adds a 16-step melodic/modulation sequencer alongside the arpeggiator.
 - Sync to arp BPM / MIDI clock; playback modes: forward, reverse, ping-pong, random.
 - UI: step-grid widget; integrate into the existing Arp tab or add a dedicated Seq tab.
 
+**Also in this milestone — global (mono) LFO mode** (a small engine addition bundled here, not part
+of the sequencer):
+
+- Per-LFO **Global** toggle so LFO1 / LFO2 can run as a single shared instance across all voices
+  instead of one-per-voice. In global mode every held note reads the same continuously-running LFO
+  phase, so chords stay phase-locked; per-voice (the current behaviour) stays the default.
+- Completes the *"per-voice or global mode"* LFO spec in
+  [`features-v1.md`](../02-scope/features-v1.md) that was deferred from v1.0 (only per-voice shipped).
+- `Reset` (note-on phase reset) is greyed out when an LFO is global — there is no per-note phase to
+  reset. New `Lfo{1,2}Global` params follow the existing `Lfo{1,2}ResetOnNoteOn` plumbing pattern
+  (ids → tree → snapshot → engine → UI → preset round-trip); the shared LFO lives on
+  `VoiceManager`. No new DSP math and no new event type.
+
 **Done when:** A 16-step melodic line plays with independent velocity and gate per step; the mod
-lane drives a destination audibly; sequences survive preset save/load round-trips.
+lane drives a destination audibly; switching an LFO to global mode locks all held voices to one
+shared phase; sequences and the LFO mode survive preset save/load round-trips.
 
 ---
 
