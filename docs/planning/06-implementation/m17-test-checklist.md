@@ -39,8 +39,12 @@ suite. Tick each box as you verify it.
 ## 4. 24 dB/oct slope
 
 - [ ] Each filter has a **Slope** toggle: **12 dB** / **24 dB**.
-- [ ] On a bright sawtooth at a moderate cutoff, switching F1 to **24 dB** sounds noticeably
-      darker / steeper than 12 dB.
+- [ ] Build a patch that exposes the slope: **sawtooth** osc, **F1 cutoff ~300 Hz** (low-mids,
+      so most harmonics sit *above* the corner), **low resonance (~0.2-0.3)**, playing a **low
+      sustained note (C2-C3)**. Hold the note and toggle F1 **12 <-> 24 dB**: 24 dB is distinctly
+      **darker / tighter**, 12 dB **buzzier / more open** up top. (The difference is ~4x more
+      attenuation one octave above cutoff; with the filter wide open the two slopes sound nearly
+      identical, so keep the cutoff low for this test.) A slow cutoff sweep makes it clearest.
 - [ ] High resonance + 24 dB + cutoff sweep does **not** run away into uncontrolled
       self-oscillation — for **Filter 1**.
 - [ ] Same high-resonance 24 dB check passes for **Filter 2** independently.
