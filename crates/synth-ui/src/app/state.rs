@@ -255,6 +255,7 @@ pub struct ToneSmithyApp {
     pub(crate) seq_step_velocity: [u8; SEQ_MAX_STEPS],
     pub(crate) seq_step_gate: [f32; SEQ_MAX_STEPS],
     pub(crate) seq_step_rest: [bool; SEQ_MAX_STEPS],
+    pub(crate) seq_step_tie: [bool; SEQ_MAX_STEPS],
     pub(crate) seq_step_mod: [f32; SEQ_MAX_STEPS],
 
     // ── Global ───────────────────────────────────────────────────────────────
@@ -434,6 +435,7 @@ impl ToneSmithyApp {
             seq_step_velocity: snap.seq_step_velocity,
             seq_step_gate: snap.seq_step_gate,
             seq_step_rest: snap.seq_step_rest,
+            seq_step_tie: snap.seq_step_tie,
             seq_step_mod: snap.seq_step_mod,
             pitch_offset_semis: snap.pitch_offset_semis,
             master_volume: snap.master_volume,
@@ -660,6 +662,7 @@ impl ToneSmithyApp {
         self.seq_step_velocity = snap.seq_step_velocity;
         self.seq_step_gate = snap.seq_step_gate;
         self.seq_step_rest = snap.seq_step_rest;
+        self.seq_step_tie = snap.seq_step_tie;
         self.seq_step_mod = snap.seq_step_mod;
         self.pitch_offset_semis = snap.pitch_offset_semis;
         self.master_volume = snap.master_volume;

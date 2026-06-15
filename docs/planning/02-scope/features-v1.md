@@ -45,7 +45,7 @@ The full v1 feature set. Anything not listed here is out of scope — see [`out-
 
 - Modes: up, down, up/down, random, played order. Octave range 1–4. Rate sync to BPM or free. Gate length. Swing.
 
-> **Deferred to v1.1:** 16-step sequencer with notes, velocities, gates, and one assignable mod lane.
+> **Deferred to v1.1:** 16-step sequencer with notes, velocities, gates, ties, rests, and one assignable mod lane.
 
 ## Effects (post-mix, fixed insert chain)
 

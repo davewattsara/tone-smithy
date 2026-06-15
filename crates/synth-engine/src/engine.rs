@@ -474,6 +474,9 @@ impl Engine {
             ParamId::SeqStepRest(i) if (i as usize) < crate::seq::SEQ_MAX_STEPS => {
                 self.seq.steps[i as usize].rest = value >= 0.5;
             }
+            ParamId::SeqStepTie(i) if (i as usize) < crate::seq::SEQ_MAX_STEPS => {
+                self.seq.steps[i as usize].tie = value >= 0.5;
+            }
             ParamId::SeqStepMod(i) if (i as usize) < crate::seq::SEQ_MAX_STEPS => {
                 self.seq.steps[i as usize].mod_value = value.clamp(-1.0, 1.0);
             }

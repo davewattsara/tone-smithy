@@ -176,6 +176,7 @@ pub fn snapshot_to_map(snap: &ParamSnapshot) -> BTreeMap<String, f32> {
         m.insert(format!("seq_step{i}_velocity"), f32::from(snap.seq_step_velocity[i]));
         m.insert(format!("seq_step{i}_gate"), snap.seq_step_gate[i]);
         m.insert(format!("seq_step{i}_rest"), f32::from(snap.seq_step_rest[i]));
+        m.insert(format!("seq_step{i}_tie"), f32::from(snap.seq_step_tie[i]));
         m.insert(format!("seq_step{i}_mod"), snap.seq_step_mod[i]);
     }
 
@@ -429,6 +430,7 @@ pub fn map_to_events(m: &BTreeMap<String, f32>) -> Vec<EngineEvent> {
         pc!(&format!("seq_step{ii}_velocity"), ParamId::SeqStepVelocity(i));
         pc!(&format!("seq_step{ii}_gate"), ParamId::SeqStepGate(i));
         pc!(&format!("seq_step{ii}_rest"), ParamId::SeqStepRest(i));
+        pc!(&format!("seq_step{ii}_tie"), ParamId::SeqStepTie(i));
         pc!(&format!("seq_step{ii}_mod"), ParamId::SeqStepMod(i));
     }
 
@@ -663,6 +665,7 @@ pub fn map_to_snapshot(m: &BTreeMap<String, f32>) -> ParamSnapshot {
         get_u8!(&format!("seq_step{i}_velocity"), s.seq_step_velocity[i]);
         get!(&format!("seq_step{i}_gate"), s.seq_step_gate[i]);
         get_bool!(&format!("seq_step{i}_rest"), s.seq_step_rest[i]);
+        get_bool!(&format!("seq_step{i}_tie"), s.seq_step_tie[i]);
         get!(&format!("seq_step{i}_mod"), s.seq_step_mod[i]);
     }
 
@@ -798,6 +801,7 @@ mod tests {
             orig.seq_step_velocity[i] = (i as u8) * 4;
             orig.seq_step_gate[i] = (i as f32) / 16.0;
             orig.seq_step_rest[i] = i % 3 == 0;
+            orig.seq_step_tie[i] = i % 4 == 1;
             orig.seq_step_mod[i] = (i as f32) / 16.0 - 0.5;
         }
 
@@ -912,6 +916,7 @@ mod tests {
         assert_eq!(orig.seq_step_velocity, got.seq_step_velocity);
         assert_eq!(orig.seq_step_gate, got.seq_step_gate);
         assert_eq!(orig.seq_step_rest, got.seq_step_rest);
+        assert_eq!(orig.seq_step_tie, got.seq_step_tie);
         assert_eq!(orig.seq_step_mod, got.seq_step_mod);
     }
 

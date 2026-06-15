@@ -390,6 +390,20 @@ OSC2; and the sequencer, LFO mode, and new oscillator dests all survive preset s
 - [x] Phase 4 — Sequencer UI
 - [x] Phase 5 — Global (mono) LFO mode
 - [x] Phase 6 — Per-oscillator detune dests
+- [x] Post-plan addition — per-step **tie** (user request, 2026-06-15)
 
 All six phases implemented on `milestone/m18-step-sequencer`. Awaiting user testing of a build
 before close-out (merge to `development`/`main`, tag `m18`).
+
+### Post-plan addition — per-step tie
+
+Added after the six phases at the user's request. A per-step `tie` flag (`SeqStep.tie`,
+`ParamId::SeqStepTie(u8)`) holds the previously sounding note across the step instead of
+retriggering — there was previously no way for a note to ring longer than a single step (gate
+maxes at 100% of one step). Ties chain: a run of tie steps rings continuously and the last step
+in the run governs the release via its own gate. The engine uses a one-step look-ahead
+(`next_step_is_tie`) to suppress the gate-off that would otherwise gap the note before the tie.
+A leading tie (nothing held) is silent, like a rest. Ties are ignored in `Random` mode (no
+reliable look-ahead). New `SeqStepTie` param follows the `SeqStepRest` plumbing through
+ids → tree → snapshot → engine → preset round-trip, with a **T** toggle beside the rest **R** in
+the step grid. Old presets omit the key and default to no tie.

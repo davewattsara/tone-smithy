@@ -285,6 +285,8 @@ pub struct ParamSnapshot {
     pub seq_step_gate: [f32; SEQ_MAX_STEPS],
     /// Per-step rest toggle.
     pub seq_step_rest: [bool; SEQ_MAX_STEPS],
+    /// Per-step tie toggle (hold the previous note).
+    pub seq_step_tie: [bool; SEQ_MAX_STEPS],
     /// Per-step mod-lane CV, -1.0..=1.0.
     pub seq_step_mod: [f32; SEQ_MAX_STEPS],
     /// Live: step index currently under the playhead, or -1 when idle.
@@ -414,6 +416,7 @@ impl Default for ParamSnapshot {
             seq_step_velocity: [100; SEQ_MAX_STEPS],
             seq_step_gate: [0.5; SEQ_MAX_STEPS],
             seq_step_rest: [false; SEQ_MAX_STEPS],
+            seq_step_tie: [false; SEQ_MAX_STEPS],
             seq_step_mod: [0.0; SEQ_MAX_STEPS],
             seq_current_step: -1,
         }

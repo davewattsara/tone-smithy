@@ -8,27 +8,31 @@ suite. Tick each box as you verify it.
 
 ## Build & run
 
-- [ ] `cargo run` launches the app (debug is fine for testing).
+- [x] `cargo run` launches the app (debug is fine for testing).
 - [ ] For representative listening / lowest CPU: `cargo run --release`.
 
 ## 1. Unified transport BPM
 
-- [ ] The **Master** tab still has a single **BPM** knob; the **Arp** tab no longer has its own
+- [x] The **Master** tab still has a single **BPM** knob; the **Arp** tab no longer has its own
       BPM knob.
-- [ ] Enable the **arp**, hold a chord, and change the Master **BPM** — the arp speed follows.
-- [ ] With an **LFO sync**-enabled patch, changing Master **BPM** retempos the LFO too (same one
+- [x] Enable the **arp**, hold a chord, and change the Master **BPM** — the arp speed follows.
+- [x] With an **LFO sync**-enabled patch, changing Master **BPM** retempos the LFO too (same one
       knob drives both).
 - [ ] After Phase 2 is wired, the **sequencer** also follows the same Master BPM (verified in §2).
 
 ## 2. Step sequencer — core + UI
 
-- [ ] A new **Seq** tab sits between **Arp** and **FX** in the tab bar.
-- [ ] **Enabled** toggle starts the sequencer; hold a key and a 16-step line plays.
-- [ ] **Step note offsets** transpose correctly: the line follows the **lowest held note**
+- [x] A new **Seq** tab sits between **Arp** and **FX** in the tab bar.
+- [x] **Enabled** toggle starts the sequencer; hold a key and a 16-step line plays.
+- [x] **Step note offsets** transpose correctly: the line follows the **lowest held note**
       (hold a different key → the whole sequence transposes).
-- [ ] **Per-step velocity** is audible (set some steps loud, some quiet).
+- [x] **Per-step velocity** is audible (set some steps loud, some quiet).
 - [ ] **Per-step gate** changes note length (short vs sustained steps).
-- [ ] **Rest** steps are silent and still consume their time slot.
+- [x] **Rest** steps are silent and still consume their time slot.
+- [ ] **Tie** (the **T** toggle): a tie step holds the previous note across its slot instead of
+      retriggering — set step 1 to a note and step 2 to a tie and the note rings through both with
+      no re-attack. Chained ties ring continuously; the last tie's gate sets where it ends. A
+      leading tie (nothing held) is silent.
 - [ ] **Length** (1–16) shortens the active pattern; steps beyond the length are dimmed/disabled.
 - [ ] **Rate** (1/32…1/2) changes step speed; **Swing** shuffles the timing.
 - [ ] **Playback modes** all walk correctly: **Fwd**, **Rev**, **Ping** (no doubled endpoints),
@@ -81,7 +85,7 @@ Build one patch that exercises everything at once:
 - [ ] Load a factory/default patch to clear state.
 - [ ] Reload the saved patch; confirm these all come back **identical**:
   - [ ] Sequencer enabled, length, mode, rate, swing
-  - [ ] All 16 steps (note offset, velocity, gate, rest, mod value)
+  - [ ] All 16 steps (note offset, velocity, gate, rest, tie, mod value)
   - [ ] Both LFO **Global** flags
   - [ ] The `Osc2Det` / `Osc3Det` matrix routings
 - [ ] An **old v1.0 / v1.1 preset** still opens cleanly and **sounds identical** — sequencer

@@ -308,6 +308,8 @@ pub enum ParamId {
     SeqStepGate(u8),
     /// Per-step rest toggle (≥0.5 = rest).
     SeqStepRest(u8),
+    /// Per-step tie toggle (≥0.5 = hold the previous note).
+    SeqStepTie(u8),
     /// Per-step mod-lane CV value, -1.0..=1.0.
     SeqStepMod(u8),
 }
