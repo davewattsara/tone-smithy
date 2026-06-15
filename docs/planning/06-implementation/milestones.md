@@ -296,22 +296,32 @@ Adds a 16-step melodic/modulation sequencer alongside the arpeggiator.
 - Sync to arp BPM / MIDI clock; playback modes: forward, reverse, ping-pong, random.
 - UI: step-grid widget; integrate into the existing Arp tab or add a dedicated Seq tab.
 
-**Also in this milestone — global (mono) LFO mode** (a small engine addition bundled here, not part
-of the sequencer):
+**Also in this milestone — small engine additions** (bundled here, not part of the sequencer):
 
-- Per-LFO **Global** toggle so LFO1 / LFO2 can run as a single shared instance across all voices
-  instead of one-per-voice. In global mode every held note reads the same continuously-running LFO
-  phase, so chords stay phase-locked; per-voice (the current behaviour) stays the default.
-- Completes the *"per-voice or global mode"* LFO spec in
+- **Global (mono) LFO mode.** Per-LFO **Global** toggle so LFO1 / LFO2 can run as a single shared
+  instance across all voices instead of one-per-voice. In global mode every held note reads the same
+  continuously-running LFO phase, so chords stay phase-locked; per-voice (the current behaviour)
+  stays the default. Completes the *"per-voice or global mode"* LFO spec in
   [`features-v1.md`](../02-scope/features-v1.md) that was deferred from v1.0 (only per-voice shipped).
-- `Reset` (note-on phase reset) is greyed out when an LFO is global — there is no per-note phase to
+  `Reset` (note-on phase reset) is greyed out when an LFO is global — there is no per-note phase to
   reset. New `Lfo{1,2}Global` params follow the existing `Lfo{1,2}ResetOnNoteOn` plumbing pattern
   (ids → tree → snapshot → engine → UI → preset round-trip); the shared LFO lives on
   `VoiceManager`. No new DSP math and no new event type.
+- **Per-oscillator detune mod destinations (OSC2 / OSC3).** Today only OSC1 is mod-addressable
+  (`Osc1Det` / `Osc1Pan`), even though the engine has three equal main oscillators
+  (`osc_main_detune_cents[3]`). Add `Osc2Det` and `Osc3Det` as matrix destinations so each
+  oscillator's detune can be modulated independently (evolving chorus/width that the global `Pitch`
+  dest can't do, since `Pitch` shifts all oscillators together). Optional nice-to-have: `Osc2Pan` /
+  `Osc3Pan` for symmetry. **Backward-compatible** — new destinations are *appended* to the
+  `ModDest` index list (as `F2 Cut`/`F2 Res` were), so existing presets keep their stored dest
+  indices and need no migration. Each new dest touches `ModDest` (variant + `from_index`),
+  `DestOffsets`, the apply line in `voice_manager`, the UI label, and — easy to forget — the
+  `MOD_AMOUNT_RANGES` table (the array whose mismatch silently broke `F2 Cut` during M17 testing).
 
 **Done when:** A 16-step melodic line plays with independent velocity and gate per step; the mod
 lane drives a destination audibly; switching an LFO to global mode locks all held voices to one
-shared phase; sequences and the LFO mode survive preset save/load round-trips.
+shared phase; an LFO routed to `Osc2Det` audibly detunes only OSC2; sequences, the LFO mode, and
+the new oscillator dests survive preset save/load round-trips.
 
 ---
 

@@ -28,6 +28,9 @@ improvements and platform expansion:
 - **Global (mono) LFO mode** — per-LFO toggle to share one LFO instance across all voices so chords
   stay phase-locked; completes the "per-voice or global mode" LFO spec deferred from v1.0. Delivered
   in the M18 milestone.
+- **Per-oscillator detune mod destinations** — add `Osc2Det` / `Osc3Det` (and optionally pan) as
+  matrix destinations so OSC2/OSC3 detune can be modulated independently, not just OSC1. A
+  backward-compatible matrix extension (new dest indices appended). Delivered in the M18 milestone.
 
 ### Step sequencer
 - **Step sequencer** — 16 steps with note offset, velocity, gate, and one assignable mod lane.
