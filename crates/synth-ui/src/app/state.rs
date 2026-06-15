@@ -5,7 +5,7 @@ use std::sync::mpsc::Receiver;
 use notify::RecommendedWatcher;
 use synth_engine::ParamSnapshot;
 use synth_engine::param_bus::{EngineEventSender, SnapshotSlot, load_snapshot};
-use synth_engine::{FilterMode, FilterRouting, FilterSlope, MOD_MATRIX_SLOTS, Waveform};
+use synth_engine::{FilterMode, FilterRouting, FilterSlope, MOD_MATRIX_SLOTS, SEQ_MAX_STEPS, Waveform};
 use synth_presets::{
     AppSettings, MidiLearnEntry, PresetEntry, factory_entries, scan_dir, start_watcher, user_presets_dir,
 };
@@ -80,6 +80,7 @@ pub enum Tab {
     Envelopes,
     Modulation,
     Arp,
+    Seq,
     Fx,
     Master,
     Presets,
@@ -93,6 +94,7 @@ impl Tab {
         (Tab::Envelopes, "Envelopes"),
         (Tab::Modulation, "Modulation"),
         (Tab::Arp, "Arp"),
+        (Tab::Seq, "Seq"),
         (Tab::Fx, "FX"),
         (Tab::Master, "Master"),
         (Tab::Presets, "Presets"),
@@ -235,6 +237,18 @@ pub struct ToneSmithyApp {
     pub(crate) arp_rate: u8,
     pub(crate) arp_gate: f32,
     pub(crate) arp_swing: f32,
+
+    // ── Step sequencer ─────────────────────────────────────────────────────────
+    pub(crate) seq_enabled: bool,
+    pub(crate) seq_length: u8,
+    pub(crate) seq_mode: u8,
+    pub(crate) seq_rate: u8,
+    pub(crate) seq_swing: f32,
+    pub(crate) seq_step_note: [i8; SEQ_MAX_STEPS],
+    pub(crate) seq_step_velocity: [u8; SEQ_MAX_STEPS],
+    pub(crate) seq_step_gate: [f32; SEQ_MAX_STEPS],
+    pub(crate) seq_step_rest: [bool; SEQ_MAX_STEPS],
+    pub(crate) seq_step_mod: [f32; SEQ_MAX_STEPS],
 
     // ── Global ───────────────────────────────────────────────────────────────
     pub(crate) pitch_offset_semis: f32,
@@ -402,6 +416,16 @@ impl ToneSmithyApp {
             arp_rate: snap.arp_rate,
             arp_gate: snap.arp_gate,
             arp_swing: snap.arp_swing,
+            seq_enabled: snap.seq_enabled,
+            seq_length: snap.seq_length,
+            seq_mode: snap.seq_mode,
+            seq_rate: snap.seq_rate,
+            seq_swing: snap.seq_swing,
+            seq_step_note: snap.seq_step_note,
+            seq_step_velocity: snap.seq_step_velocity,
+            seq_step_gate: snap.seq_step_gate,
+            seq_step_rest: snap.seq_step_rest,
+            seq_step_mod: snap.seq_step_mod,
             pitch_offset_semis: snap.pitch_offset_semis,
             master_volume: snap.master_volume,
             bpm: snap.bpm,
@@ -616,6 +640,16 @@ impl ToneSmithyApp {
         self.arp_rate = snap.arp_rate;
         self.arp_gate = snap.arp_gate;
         self.arp_swing = snap.arp_swing;
+        self.seq_enabled = snap.seq_enabled;
+        self.seq_length = snap.seq_length;
+        self.seq_mode = snap.seq_mode;
+        self.seq_rate = snap.seq_rate;
+        self.seq_swing = snap.seq_swing;
+        self.seq_step_note = snap.seq_step_note;
+        self.seq_step_velocity = snap.seq_step_velocity;
+        self.seq_step_gate = snap.seq_step_gate;
+        self.seq_step_rest = snap.seq_step_rest;
+        self.seq_step_mod = snap.seq_step_mod;
         self.pitch_offset_semis = snap.pitch_offset_semis;
         self.master_volume = snap.master_volume;
         self.bpm = snap.bpm;

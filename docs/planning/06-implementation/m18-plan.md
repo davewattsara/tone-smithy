@@ -387,7 +387,7 @@ OSC2; and the sequencer, LFO mode, and new oscillator dests all survive preset s
 - [x] Phase 1 — Unify transport BPM
 - [x] Phase 2 — Sequencer engine core
 - [x] Phase 3 — Sequencer mod lane
-- [ ] Phase 4 — Sequencer UI
+- [x] Phase 4 — Sequencer UI
 - [ ] Phase 5 — Global (mono) LFO mode
 - [ ] Phase 6 — Per-oscillator detune dests
 

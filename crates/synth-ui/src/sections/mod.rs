@@ -7,4 +7,5 @@ pub mod fx;
 pub mod master;
 pub mod modulation;
 pub mod osc;
+pub mod seq;
 pub mod settings;

@@ -103,6 +103,7 @@ impl eframe::App for ToneSmithyApp {
                 Tab::Envelopes => self.envelopes_tab(ui, &snapshot),
                 Tab::Modulation => self.modulation_tab(ui),
                 Tab::Arp => self.arp_tab(ui),
+                Tab::Seq => self.seq_tab(ui, &snapshot),
                 Tab::Fx => self.fx_tab(ui),
                 Tab::Master => self.master_tab(ui, &snapshot, mod_display),
                 Tab::Presets => self.presets_tab(ui),
