@@ -6,7 +6,7 @@ How the v1 build reaches the user.
 
 **Tool:** Inno Setup.
 
-- Free for commercial use, mature, widely-used on Windows.
+- Mature, widely-used on Windows. The licence permits free commercial use — a purchase is *not strictly required* — but the author's FAQ requests that commercial users buy a licence. Treat that as a goodwill ask to honour **if/when Tone Smithy earns revenue**, not a blocker to shipping. (Fully free, no-ask alternatives if that request is unwelcome: NSIS or WiX/MSI — both more work.)
 - Produces a single `.exe` installer; familiar UX (Welcome → Licence → Destination → Components → Install → Finish).
 - Lightweight script (`installer/installer.iss`) — no XML, no MSI tooling burden.
 - Alternative considered and rejected: WiX/MSI (more powerful, more ceremony, less developer-friendly for our scale).
