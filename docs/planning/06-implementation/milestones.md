@@ -294,9 +294,15 @@ slots in use; all paths audio-tested and round-trip serialised in the preset for
 Adds a 16-step melodic/modulation sequencer alongside the arpeggiator.
 
 - 16 steps; per-step note offset (±24 semitones), velocity (0–127), gate (0–100%), rest toggle.
-- One assignable modulation lane (any mod-matrix destination, per-step CV value).
-- Sync to arp BPM / MIDI clock; playback modes: forward, reverse, ping-pong, random.
-- UI: step-grid widget; integrate into the existing Arp tab or add a dedicated Seq tab.
+  Step note offset is relative to the lowest held note.
+- One assignable modulation lane — exposed as a new global `Seq` mod **source** so it can route to
+  any mod-matrix destination, per-step CV value.
+- **Unify transport BPM:** merge the separate arp BPM and global (LFO-sync) BPM into one BPM in the
+  Master tab that the arp, sequencer, and LFO sync all follow. Internal BPM only — external MIDI
+  clock sync is deferred to a later item (no MIDI-clock infrastructure exists yet).
+- Sequencer and arp are **mutually exclusive** (one note engine at a time).
+- Playback modes: forward, reverse, ping-pong, random.
+- UI: step-grid widget on a dedicated Seq tab.
 
 **Also in this milestone — small engine additions** (bundled here, not part of the sequencer):
 
