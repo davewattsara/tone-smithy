@@ -500,5 +500,7 @@ Specifically:
 
 All four phases implemented on `milestone/m17-engine-expansion` and
 verified green (build, `cargo fmt --check`, `cargo clippy -D warnings`,
-full test suite). Awaiting user audio testing before milestone close-out
-(sign-off date, merge to `main`, tag `m17`).
+full test suite). User audio-tested on 2026-06-15; milestone closed out
+and tagged `m17`. Follow-up fixes from testing (resonance gain
+compensation, 24 dB second-stage flattening, F2 Cut mod amount range)
+landed on the same branch before close-out.

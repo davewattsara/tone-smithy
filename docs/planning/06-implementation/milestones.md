@@ -267,7 +267,7 @@ switching a slot to FM mode collapses the OSC panel and shows only FM operators.
 
 ---
 
-## M17 — Engine expansion (4–6 weeks) — v1.1
+## M17 — Engine expansion (4–6 weeks) — v1.1 — **complete (2026-06-15, tag `m17`)**
 
 > Implementation plan: [`m17-plan.md`](m17-plan.md)
 
