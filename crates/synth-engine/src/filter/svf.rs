@@ -47,7 +47,7 @@ const MAX_Q: f32 = 25.0;
 /// the peak also mimics the classic ladder-filter behaviour where the
 /// body thins as resonance rises, so it reads as musical rather than as
 /// a volume drop.
-const RESONANCE_GAIN_COMP: f32 = 0.75;
+const RESONANCE_GAIN_COMP: f32 = 0.5;
 
 /// Which output tap the filter exposes.
 ///
