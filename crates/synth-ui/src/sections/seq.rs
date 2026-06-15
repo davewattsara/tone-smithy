@@ -227,24 +227,10 @@ impl ToneSmithyApp {
             });
         }
 
-        // Rest (R) and tie (T) toggles, side by side.
+        // Tie (T) and rest (R) toggles, side by side. T sits first because it
+        // holds the *previous* note into this step — reading left-to-right it
+        // lines up with the note coming from the step before.
         ui.horizontal(|ui| {
-            let rest = self.seq_step_rest[i];
-            let rest_label = egui::RichText::new("R")
-                .color(if rest { theme::WARN } else { theme::FG2 })
-                .font(theme::font_small());
-            if ui
-                .selectable_label(rest, rest_label)
-                .on_hover_text("Rest (silent step)")
-                .clicked()
-            {
-                self.seq_step_rest[i] = !rest;
-                self.events.send(EngineEvent::ParameterChange {
-                    id: ParamId::SeqStepRest(i as u8),
-                    value: if self.seq_step_rest[i] { 1.0 } else { 0.0 },
-                });
-            }
-
             let tie = self.seq_step_tie[i];
             let tie_label = egui::RichText::new("T")
                 .color(if tie { theme::ACCENT } else { theme::FG2 })
@@ -258,6 +244,22 @@ impl ToneSmithyApp {
                 self.events.send(EngineEvent::ParameterChange {
                     id: ParamId::SeqStepTie(i as u8),
                     value: if self.seq_step_tie[i] { 1.0 } else { 0.0 },
+                });
+            }
+
+            let rest = self.seq_step_rest[i];
+            let rest_label = egui::RichText::new("R")
+                .color(if rest { theme::WARN } else { theme::FG2 })
+                .font(theme::font_small());
+            if ui
+                .selectable_label(rest, rest_label)
+                .on_hover_text("Rest (silent step)")
+                .clicked()
+            {
+                self.seq_step_rest[i] = !rest;
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::SeqStepRest(i as u8),
+                    value: if self.seq_step_rest[i] { 1.0 } else { 0.0 },
                 });
             }
         });
