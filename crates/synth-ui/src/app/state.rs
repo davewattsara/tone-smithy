@@ -51,8 +51,12 @@ pub(crate) const FM_OP_ENV_MAX_SECS: f32 = 10.0;
 pub(crate) const MOD_SOURCE_LABELS: &[&str] = &[
     "Off", "LFO1", "LFO2", "Env2", "AmpEnv", "Vel", "Key", "ModWhl", "AfterT", "Bend", "Env3",
 ];
+/// Display order for the source dropdowns. The stored value is still the
+/// `ModSource` index, but Env3 (index 10, appended for preset back-compat) is
+/// shown right after Env2 instead of last.
+pub(crate) const MOD_SOURCE_ORDER: &[usize] = &[0, 1, 2, 3, 10, 4, 5, 6, 7, 8, 9];
 pub(crate) const MOD_DEST_LABELS: &[&str] = &[
-    "Cutoff", "Reso", "Pitch", "Vol", "Osc1Det", "Osc1Pan", "F2 Cut", "F2 Res",
+    "F1 Cut", "F1 Res", "Pitch", "Vol", "Osc1Det", "Osc1Pan", "F2 Cut", "F2 Res",
 ];
 pub(crate) const MOD_AMOUNT_RANGES: &[f32] = &[
     10_000.0, // FilterCutoffHz
