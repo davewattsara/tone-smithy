@@ -16,6 +16,12 @@ impl ToneSmithyApp {
             .add(Toggle::new(&mut self.seq_enabled, "Enabled").param_key("seq_enabled"))
             .changed()
         {
+            // Mutually exclusive with the arp: the engine forces the arp off
+            // when the sequencer turns on, so mirror that locally too (the
+            // snapshot only re-syncs the toggles on preset load).
+            if self.seq_enabled {
+                self.arp_enabled = false;
+            }
             self.events.send(EngineEvent::ParameterChange {
                 id: ParamId::SeqEnabled,
                 value: if self.seq_enabled { 1.0 } else { 0.0 },
