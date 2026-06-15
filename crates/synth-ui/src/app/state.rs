@@ -65,6 +65,8 @@ pub(crate) const MOD_AMOUNT_RANGES: &[f32] = &[
     1.0,      // Volume
     2400.0,   // Osc1DetuneCents
     1.0,      // Osc1Pan
+    10_000.0, // Filter2CutoffHz
+    1.0,      // Filter2Resonance
 ];
 
 // ── Tab enum ──────────────────────────────────────────────────────────────────
