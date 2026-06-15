@@ -29,10 +29,10 @@ suite. Tick each box as you verify it.
 - [x] **Per-step velocity** is audible (set some steps loud, some quiet).
 - [ ] **Per-step gate** changes note length (short vs sustained steps).
 - [x] **Rest** steps are silent and still consume their time slot.
-- [ ] **Tie** (the **T** toggle): a tie step holds the previous note across its slot instead of
-      retriggering — set step 1 to a note and step 2 to a tie and the note rings through both with
-      no re-attack. Chained ties ring continuously; the last tie's gate sets where it ends. A
-      leading tie (nothing held) is silent.
+- [ ] **Tie** (the **T** toggle): a tie extends *this* step's note forward into the next step —
+      tie **step 1** and its note rings through step 2 with no re-attack (step 2's own note is
+      consumed). Chained ties ring continuously; the first non-tie step after the run sets where
+      it ends. A tie step still plays its own note.
 - [ ] **Length** (1–16) shortens the active pattern; steps beyond the length are dimmed/disabled.
 - [ ] **Rate** (1/32…1/2) changes step speed; **Swing** shuffles the timing.
 - [ ] **Playback modes** all walk correctly: **Fwd**, **Rev**, **Ping** (no doubled endpoints),

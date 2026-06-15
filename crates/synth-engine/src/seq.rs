@@ -38,11 +38,11 @@ pub struct SeqStep {
     pub gate: f32,
     /// When true the step is silent.
     pub rest: bool,
-    /// When true the step holds the previously sounding note (no retrigger).
-    /// A tie with nothing currently sounding is silent. Ties chain: a run of
-    /// tie steps rings continuously, and the last step in the run governs the
-    /// release point via its own `gate`. Ignored in `Random` mode (no reliable
-    /// look-ahead to bridge the gate).
+    /// When true the step's note extends forward into the following step(s)
+    /// instead of releasing — the step itself still plays its own note, but the
+    /// *next* step does not retrigger (its note is consumed by the held one).
+    /// Ties chain: a run of tie steps rings continuously, and the first non-tie
+    /// step after the run governs the release via its own `gate`.
     pub tie: bool,
     /// Mod-lane CV value, -1.0..=1.0.
     pub mod_value: f32,
@@ -212,9 +212,9 @@ impl SeqEngine {
             self.even_step = true;
             self.advance_step();
             let step = self.steps[self.step_index];
-            // A rest is silent; a tie on the first step has nothing to hold, so
-            // it is silent too.
-            if step.rest || step.tie {
+            // A rest is silent. A tie step still plays its own note (the tie
+            // only extends it forward at the next boundary).
+            if step.rest {
                 self.gate_open = false;
                 return false;
             }
@@ -280,13 +280,11 @@ impl SeqEngine {
         let prev_phase = self.phase;
         self.phase += phase_advance;
 
-        // Gate-off threshold crossed (within the current step)? Suppressed
-        // when the next step ties: the note must bridge into it without a gap.
-        if self.gate_open
-            && !self.next_step_is_tie()
-            && prev_phase < self.current_gate
-            && self.phase >= self.current_gate
-        {
+        // A tie marks the *originating* step: its note extends forward into the
+        // following step(s). So while the cursor sits on a tie step its gate-off
+        // is suppressed — the note rings on instead of releasing within the step.
+        let current_is_tie = self.step_index != usize::MAX && self.steps[self.step_index].tie;
+        if self.gate_open && !current_is_tie && prev_phase < self.current_gate && self.phase >= self.current_gate {
             out.push(ArpEvent::NoteOff {
                 note: self.current_note,
             });
@@ -298,14 +296,17 @@ impl SeqEngine {
             self.phase -= 1.0;
             self.even_step = !self.even_step;
 
+            // Did the step we are leaving tie its note forward into this one?
+            let extend = self.step_index != usize::MAX && self.steps[self.step_index].tie;
+
             self.advance_step();
             let step = self.steps[self.step_index];
 
-            if step.tie && self.gate_open {
-                // Tie: keep the currently sounding note ringing into this step;
-                // no NoteOff, no retrigger. This step's gate now governs where
-                // the held note ends (deferred to the gate-off check above,
-                // unless a further tie bridges past it).
+            if extend && self.gate_open {
+                // The previous step tied its note onward: hold it across this
+                // step (no NoteOff, no retrigger — this step's own note is
+                // consumed). This step's gate governs the release once the tie
+                // chain reaches a non-tie step.
                 self.current_gate = step.gate;
             } else {
                 // Silence any still-open gate from the previous step.
@@ -316,9 +317,10 @@ impl SeqEngine {
                     self.gate_open = false;
                 }
 
-                // A rest stays silent; a tie with nothing to hold also stays
-                // silent (acts like a rest). Otherwise trigger the step.
-                if !step.rest && !step.tie {
+                // A rest stays silent; otherwise trigger this step's note. A
+                // tie step still plays its own note here — the tie only affects
+                // what happens at the *next* boundary.
+                if !step.rest {
                     let note = self.note_at(self.step_index);
                     self.current_note = note;
                     self.current_velocity = step.velocity;
@@ -330,8 +332,8 @@ impl SeqEngine {
                     self.gate_open = true;
 
                     // Very short gate that closes before the next block: fire
-                    // off now — unless the next step ties this note onward.
-                    if !self.next_step_is_tie() && self.current_gate <= self.phase {
+                    // off now — unless this step ties its note onward.
+                    if !step.tie && self.current_gate <= self.phase {
                         out.push(ArpEvent::NoteOff { note });
                         self.gate_open = false;
                     }
@@ -340,40 +342,6 @@ impl SeqEngine {
         }
 
         out
-    }
-
-    /// Peek at the index the cursor will advance to next, without mutating
-    /// runtime state. Returns `None` for `Random` (nondeterministic) and before
-    /// the first step has been taken.
-    fn peek_next_index(&self) -> Option<usize> {
-        let len = self.active_len();
-        if self.step_index == usize::MAX {
-            return None;
-        }
-        let idx = self.step_index.min(len - 1);
-        let next = match self.mode {
-            SeqMode::Forward => (idx + 1) % len,
-            SeqMode::Reverse => idx.checked_sub(1).unwrap_or(len - 1),
-            SeqMode::PingPong => {
-                if len <= 1 {
-                    0
-                } else if self.going_up {
-                    if idx + 1 >= len { len - 2 } else { idx + 1 }
-                } else if idx == 0 {
-                    1.min(len - 1)
-                } else {
-                    idx - 1
-                }
-            }
-            SeqMode::Random => return None,
-        };
-        Some(next)
-    }
-
-    /// Whether the step the cursor will advance to next is a tie. Drives the
-    /// gate-off suppression that bridges a held note across a tie step.
-    fn next_step_is_tie(&self) -> bool {
-        self.peek_next_index().map(|i| self.steps[i].tie).unwrap_or(false)
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
@@ -534,15 +502,17 @@ mod tests {
     }
 
     #[test]
-    fn tie_holds_note_across_steps() {
+    fn tie_extends_note_forward_over_next_step() {
         let mut s = make_seq(SeqMode::Forward, 2, 60);
-        s.steps[1].tie = true;
-        s.steps[1].gate = 1.0;
-        // Step 0 (note 60) was dispatched on key-down. Stepping into the tie
-        // must not retrigger or release — the held note rings on.
+        // Step 0 ties its note (60) forward, consuming step 1. Full gate so the
+        // note rings the whole of step 0.
+        s.steps[0].tie = true;
+        s.steps[0].gate = 1.0;
+        // Step 0 (note 60) was dispatched on key-down. Extending into step 1
+        // must not retrigger or release — the note rings on.
         let evs = s.process(12_000);
-        assert_eq!(evs.iter().count(), 0, "tie step must emit no events");
-        // Stepping back to step 0 ends the held note and re-articulates it.
+        assert_eq!(evs.iter().count(), 0, "tied note must ring on with no events");
+        // Back to step 0: the held note ends and re-articulates.
         let evs = s.process(12_000);
         assert!(
             evs.iter().any(|e| matches!(e, ArpEvent::NoteOff { note: 60 })),
@@ -555,17 +525,21 @@ mod tests {
     }
 
     #[test]
-    fn tie_with_nothing_held_is_silent() {
-        // First step is a tie: there is no prior note to hold, so it stays
-        // silent rather than triggering its own note.
-        let mut s = make_seq(SeqMode::Forward, 2, 60);
-        s.clear();
-        s.steps[0].tie = true;
-        let fired = s.note_on(60);
-        assert!(!fired, "a leading tie has nothing to hold");
+    fn tie_step_plays_its_note_then_consumes_the_next() {
+        let mut s = make_seq(SeqMode::Forward, 3, 60); // offsets 0,1,2 -> 60,61,62
+        s.steps[1].tie = true;
+        // Into step 1: it still plays its own note (61) before extending.
         let evs = s.process(12_000);
-        // Only when the cursor reaches the non-tie step 1 does a note sound.
-        assert!(evs.iter().any(|e| matches!(e, ArpEvent::NoteOn { .. })));
+        assert!(
+            evs.iter().any(|e| matches!(e, ArpEvent::NoteOn { note: 61, .. })),
+            "a tie step still articulates its own note"
+        );
+        // Into step 2: step 1's tie holds 61, so step 2's note is consumed.
+        let evs = s.process(12_000);
+        assert!(
+            !evs.iter().any(|e| matches!(e, ArpEvent::NoteOn { .. })),
+            "the step after a tie is consumed by the held note"
+        );
     }
 
     #[test]

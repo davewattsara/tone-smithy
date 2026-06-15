@@ -398,12 +398,17 @@ before close-out (merge to `development`/`main`, tag `m18`).
 ### Post-plan addition — per-step tie
 
 Added after the six phases at the user's request. A per-step `tie` flag (`SeqStep.tie`,
-`ParamId::SeqStepTie(u8)`) holds the previously sounding note across the step instead of
-retriggering — there was previously no way for a note to ring longer than a single step (gate
-maxes at 100% of one step). Ties chain: a run of tie steps rings continuously and the last step
-in the run governs the release via its own gate. The engine uses a one-step look-ahead
-(`next_step_is_tie`) to suppress the gate-off that would otherwise gap the note before the tie.
-A leading tie (nothing held) is silent, like a rest. Ties are ignored in `Random` mode (no
-reliable look-ahead). New `SeqStepTie` param follows the `SeqStepRest` plumbing through
+`ParamId::SeqStepTie(u8)`) marks the *originating* step: its note still articulates, but it then
+**extends forward** into the following step(s) instead of releasing — the next step does not
+retrigger (its note is consumed by the held one). There was previously no way for a note to ring
+longer than a single step (gate maxes at 100% of one step). Ties chain: a run of tie steps rings
+continuously and the first non-tie step after the run governs the release via its own gate.
+Because the tie is read off the *current* step, no look-ahead is needed — the gate-off is
+suppressed while the cursor sits on a tie step, and at the boundary the step being left decides
+whether to hold or retrigger. New `SeqStepTie` param follows the `SeqStepRest` plumbing through
 ids → tree → snapshot → engine → preset round-trip, with a **T** toggle beside the rest **R** in
 the step grid. Old presets omit the key and default to no tie.
+
+> The tie convention was flipped once after first implementation: it originally marked the
+> *continuation* step (hold the previous note), which read off-by-one; it now marks the
+> originating step ("extend this note forward").

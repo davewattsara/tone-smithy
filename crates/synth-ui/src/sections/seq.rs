@@ -154,7 +154,7 @@ impl ToneSmithyApp {
         ui.add_space(theme::GROUP_GAP);
         ui.label(
             egui::RichText::new(
-                "Per step: note offset (semitones from lowest held note), velocity, gate, mod lane, rest (R), and tie (T = hold the previous note).",
+                "Per step: note offset (semitones from lowest held note), velocity, gate, mod lane, rest (R), and tie (T = extend this note into the next step).",
             )
             .color(theme::FG2)
             .font(theme::font_micro()),
@@ -227,26 +227,9 @@ impl ToneSmithyApp {
             });
         }
 
-        // Tie (T) and rest (R) toggles, side by side. T sits first because it
-        // holds the *previous* note into this step — reading left-to-right it
-        // lines up with the note coming from the step before.
+        // Rest (R) and tie (T) toggles, side by side. A tie extends *this*
+        // step's note forward into the next step.
         ui.horizontal(|ui| {
-            let tie = self.seq_step_tie[i];
-            let tie_label = egui::RichText::new("T")
-                .color(if tie { theme::ACCENT } else { theme::FG2 })
-                .font(theme::font_small());
-            if ui
-                .selectable_label(tie, tie_label)
-                .on_hover_text("Tie (hold the previous note across this step)")
-                .clicked()
-            {
-                self.seq_step_tie[i] = !tie;
-                self.events.send(EngineEvent::ParameterChange {
-                    id: ParamId::SeqStepTie(i as u8),
-                    value: if self.seq_step_tie[i] { 1.0 } else { 0.0 },
-                });
-            }
-
             let rest = self.seq_step_rest[i];
             let rest_label = egui::RichText::new("R")
                 .color(if rest { theme::WARN } else { theme::FG2 })
@@ -260,6 +243,22 @@ impl ToneSmithyApp {
                 self.events.send(EngineEvent::ParameterChange {
                     id: ParamId::SeqStepRest(i as u8),
                     value: if self.seq_step_rest[i] { 1.0 } else { 0.0 },
+                });
+            }
+
+            let tie = self.seq_step_tie[i];
+            let tie_label = egui::RichText::new("T")
+                .color(if tie { theme::ACCENT } else { theme::FG2 })
+                .font(theme::font_small());
+            if ui
+                .selectable_label(tie, tie_label)
+                .on_hover_text("Tie (extend this step's note into the next step)")
+                .clicked()
+            {
+                self.seq_step_tie[i] = !tie;
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::SeqStepTie(i as u8),
+                    value: if self.seq_step_tie[i] { 1.0 } else { 0.0 },
                 });
             }
         });
