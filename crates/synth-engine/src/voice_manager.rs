@@ -688,6 +688,8 @@ impl VoiceManager {
             vp.filter2_resonance = (vp.filter2_resonance + off.filter2_resonance).clamp(0.0, 1.0);
             vp.pitch_offset_semis += off.pitch_semis;
             vp.osc_main_detune_cents[0] += off.osc1_detune_cents;
+            vp.osc_main_detune_cents[1] += off.osc2_detune_cents;
+            vp.osc_main_detune_cents[2] += off.osc3_detune_cents;
             vp.osc_main_pans[0] = (vp.osc_main_pans[0] + off.osc1_pan).clamp(-1.0, 1.0);
 
             let (l, r) = v.next_sample(&vp);

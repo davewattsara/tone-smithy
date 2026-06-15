@@ -57,8 +57,11 @@ pub(crate) const MOD_SOURCE_LABELS: &[&str] = &[
 /// shown last.
 pub(crate) const MOD_SOURCE_ORDER: &[usize] = &[0, 1, 2, 3, 10, 4, 5, 6, 7, 8, 9, 11];
 pub(crate) const MOD_DEST_LABELS: &[&str] = &[
-    "F1 Cut", "F1 Res", "Pitch", "Vol", "Osc1Det", "Osc1Pan", "F2 Cut", "F2 Res",
+    "F1 Cut", "F1 Res", "Pitch", "Vol", "Osc1Det", "Osc1Pan", "F2 Cut", "F2 Res", "Osc2Det", "Osc3Det",
 ];
+// One entry per `ModDest` variant, in index order. **This slice must stay the
+// same length and order as `ModDest`** — a mismatch silently misranges a
+// destination (it broke F2 Cut during M17 testing).
 pub(crate) const MOD_AMOUNT_RANGES: &[f32] = &[
     10_000.0, // FilterCutoffHz
     1.0,      // FilterResonance
@@ -68,6 +71,8 @@ pub(crate) const MOD_AMOUNT_RANGES: &[f32] = &[
     1.0,      // Osc1Pan
     10_000.0, // Filter2CutoffHz
     1.0,      // Filter2Resonance
+    2400.0,   // Osc2DetuneCents
+    2400.0,   // Osc3DetuneCents
 ];
 
 // ── Tab enum ──────────────────────────────────────────────────────────────────
@@ -659,5 +664,27 @@ impl ToneSmithyApp {
         self.pitch_offset_semis = snap.pitch_offset_semis;
         self.master_volume = snap.master_volume;
         self.bpm = snap.bpm;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{MOD_AMOUNT_RANGES, MOD_DEST_LABELS, MOD_SOURCE_LABELS, MOD_SOURCE_ORDER};
+    use synth_engine::{ModDest, ModSource};
+
+    /// The destination label and amount-range slices must stay aligned with the
+    /// `ModDest` enum: a length/order mismatch silently misranges a destination
+    /// (it broke F2 Cut during M17 testing).
+    #[test]
+    fn mod_dest_tables_match_enum() {
+        assert_eq!(MOD_DEST_LABELS.len(), ModDest::COUNT as usize);
+        assert_eq!(MOD_AMOUNT_RANGES.len(), ModDest::COUNT as usize);
+    }
+
+    /// The source label and display-order tables must cover every `ModSource`.
+    #[test]
+    fn mod_source_tables_match_enum() {
+        assert_eq!(MOD_SOURCE_LABELS.len(), ModSource::COUNT as usize);
+        assert_eq!(MOD_SOURCE_ORDER.len(), ModSource::COUNT as usize);
     }
 }

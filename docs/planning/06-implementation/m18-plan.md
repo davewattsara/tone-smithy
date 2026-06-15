@@ -389,7 +389,7 @@ OSC2; and the sequencer, LFO mode, and new oscillator dests all survive preset s
 - [x] Phase 3 — Sequencer mod lane
 - [x] Phase 4 — Sequencer UI
 - [x] Phase 5 — Global (mono) LFO mode
-- [ ] Phase 6 — Per-oscillator detune dests
+- [x] Phase 6 — Per-oscillator detune dests
 
-Not started — decisions confirmed; awaiting explicit go-ahead to begin implementation on a
-`milestone/m18-step-sequencer` branch off `development`.
+All six phases implemented on `milestone/m18-step-sequencer`. Awaiting user testing of a build
+before close-out (merge to `development`/`main`, tag `m18`).
