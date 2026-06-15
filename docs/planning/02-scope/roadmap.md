@@ -49,6 +49,21 @@ improvements and platform expansion:
 - Drag-and-drop modulation assignment (drag a source onto a knob).
 - Editable FM operator routing (user algorithms in addition to the 8 factory algorithms).
 - An additional mod lane in the step sequencer.
+- **Oscillator phase consistency** (deferred — two coupled parts):
+  - **Single-oscillator init patch.** The current default runs OSC1/2/3 + sub all at unity, 0 detune;
+    three coherent oscillators with per-note random phase make the same note sound different each
+    time. Default OSC2/OSC3 to level 0 so the init patch is one oscillator (the universal convention).
+  - **Per-oscillator phase mode** (Free/Random vs Fixed/Retrig) so users can choose analog-style
+    variation or a tight repeatable attack — the "real" fix, same param-plumbing shape as the LFO
+    toggles.
+  - **⚠ Not a quick change — requires a factory-preset migration.** Preset files are *sparse*
+    (`snapshot_to_map` writes a key only when it differs from default-at-save-time), and **16-17 of
+    the 61 factory presets omit the `oscN_level` lines**, relying on the `1.0` default (e.g.
+    `analog_pad.tsmith` has no `osc3_level`). Dropping the default to 0 would silently mute
+    oscillators in those patches. The fix must audit every factory preset and write in the intended
+    OSC2/OSC3 levels wherever they ride the default, distinguishing subtractive patches (where it
+    changes the sound) from FM-mode slots (where the subtractive levels are moot). Fold the
+    migration into a factory-bank pass if this lands in a v1.1 milestone instead.
 - Bug-fix backlog from v1.1 reports.
 
 ## v1.3 — Expression & tuning
