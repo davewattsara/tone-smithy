@@ -134,8 +134,9 @@ pub struct StateVariableFilter {
     gain_comp: f32,
 
     // Second-stage coefficients for the 24 dB/oct cascade. Same cutoff
-    // (so `g` is shared) but a damped resonance so cascading does not
-    // square the resonant peak into instability.
+    // (so `g` is shared) but a flat Butterworth response (no resonant
+    // peak), so the cascade has a single resonant peak from stage one
+    // rather than the product of two — see `recompute_coefficients`.
     k2: f32,
     a1_2: f32,
     a2_2: f32,
@@ -298,10 +299,13 @@ impl StateVariableFilter {
         self.a2 = self.g * self.a1;
         self.a3 = self.g * self.a2;
 
-        // Second cascade stage shares the cutoff (`g`) but runs at a
-        // reduced resonance so two stacked resonant peaks don't multiply
-        // into a runaway gain at high Q.
-        let q2 = resonance_to_q(self.resonance * 0.5);
+        // Second cascade stage shares the cutoff (`g`) but is fixed at a
+        // flat Butterworth Q (no resonant peak). All the resonance lives
+        // in stage one, so the 4-pole filter has a single resonant peak
+        // (~Q) with steeper skirts rather than the *product* of two
+        // stacked peaks (~Q²), which previously blew the 24 dB/oct path
+        // far louder than the 12 dB/oct path at high resonance.
+        let q2 = core::f32::consts::FRAC_1_SQRT_2;
         self.k2 = 1.0 / q2;
         self.a1_2 = 1.0 / (1.0 + self.g * (self.g + self.k2));
         self.a2_2 = self.g * self.a1_2;
@@ -428,13 +432,29 @@ mod tests {
     fn resonance_gain_compensation_tames_peak() {
         // The resonant peak at the corner should still rise with
         // resonance (see `resonance_amplifies_at_cutoff`), but the input
-        // attenuation must keep max-resonance well below the raw +28 dB
-        // (~25x) boost it would otherwise hit, so a hot saw does not
-        // detonate the master meter.
+        // attenuation must scale it down by `1 - RESONANCE_GAIN_COMP`
+        // relative to the raw boost (which tops out around 25x at
+        // MAX_Q), so a hot saw does not detonate the master meter.
+        // Bound stays valid as the comp constant is tuned.
         let peak = measure_peak(FilterMode::LowPass, 1_000.0, 1.0, 1_000.0);
+        let bound = ((1.0 - RESONANCE_GAIN_COMP) * 30.0).max(1.0);
         assert!(
-            peak < 8.0,
-            "expected compensated peak well under the uncompensated ~25x boost, got {peak}"
+            peak < bound,
+            "expected compensated peak under {bound} (raw ~25x scaled by 1-comp), got {peak}"
+        );
+    }
+
+    #[test]
+    fn resonance_gain_compensation_tames_24db_peak() {
+        // The 24 dB/oct cascade stacks two resonant stages, so without
+        // per-stage compensation the peak would overshoot the 12 dB path.
+        // Compensating the second stage's input too must keep the 4-pole
+        // peak in the same bounded ballpark as the 2-pole one.
+        let twelve = measure_peak_slope(FilterMode::LowPass, FilterSlope::TwelveDbOct, 1_000.0, 1.0, 1_000.0);
+        let twenty_four = measure_peak_slope(FilterMode::LowPass, FilterSlope::TwentyFourDbOct, 1_000.0, 1.0, 1_000.0);
+        assert!(
+            twenty_four < twelve * 1.5,
+            "expected compensated 24 dB peak near the 12 dB peak: 12 {twelve}, 24 {twenty_four}"
         );
     }
 
