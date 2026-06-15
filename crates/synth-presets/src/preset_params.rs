@@ -9,7 +9,9 @@
 use std::collections::BTreeMap;
 
 use synth_engine::EngineEvent;
-use synth_engine::{EngineEvent as Ev, FilterMode, ParamId, ParamSnapshot, Waveform};
+use synth_engine::{
+    EngineEvent as Ev, FilterMode, FilterRouting, FilterSlope, MOD_MATRIX_SLOTS, ParamId, ParamSnapshot, Waveform,
+};
 
 /// Serialises all saveable params from `snap` into a stable string-keyed
 /// map. Keys use snake_case matching the `ParamSnapshot` field names;
@@ -18,9 +20,13 @@ use synth_engine::{EngineEvent as Ev, FilterMode, ParamId, ParamSnapshot, Wavefo
 pub fn snapshot_to_map(snap: &ParamSnapshot) -> BTreeMap<String, f32> {
     let mut m = BTreeMap::new();
 
-    // Discrete: waveform and filter mode encoded as index
+    // Discrete: waveform and filter modes/routing encoded as index
     m.insert("waveform".into(), snap.waveform.index() as f32);
     m.insert("filter_mode".into(), snap.filter_mode.index() as f32);
+    m.insert("filter2_mode".into(), snap.filter2_mode.index() as f32);
+    m.insert("filter_routing".into(), snap.filter_routing.index() as f32);
+    m.insert("filter_slope_0".into(), snap.filter_slope[0].index() as f32);
+    m.insert("filter_slope_1".into(), snap.filter_slope[1].index() as f32);
 
     // Global
     m.insert("pitch_offset_semis".into(), snap.pitch_offset_semis);
@@ -36,6 +42,8 @@ pub fn snapshot_to_map(snap: &ParamSnapshot) -> BTreeMap<String, f32> {
     // Filter
     m.insert("filter_cutoff_hz".into(), snap.filter_cutoff_hz);
     m.insert("filter_resonance".into(), snap.filter_resonance);
+    m.insert("filter2_cutoff_hz".into(), snap.filter2_cutoff_hz);
+    m.insert("filter2_resonance".into(), snap.filter2_resonance);
 
     // Osc 1 (index 0)
     for i in 0..3usize {
@@ -76,8 +84,17 @@ pub fn snapshot_to_map(snap: &ParamSnapshot) -> BTreeMap<String, f32> {
     m.insert("env2_decay_curve".into(), snap.env2_decay_curve);
     m.insert("env2_release_curve".into(), snap.env2_release_curve);
 
-    // Mod matrix (8 slots)
-    for i in 0..8usize {
+    // Env3
+    m.insert("env3_attack_secs".into(), snap.env3_attack_secs);
+    m.insert("env3_decay_secs".into(), snap.env3_decay_secs);
+    m.insert("env3_sustain_level".into(), snap.env3_sustain_level);
+    m.insert("env3_release_secs".into(), snap.env3_release_secs);
+    m.insert("env3_attack_curve".into(), snap.env3_attack_curve);
+    m.insert("env3_decay_curve".into(), snap.env3_decay_curve);
+    m.insert("env3_release_curve".into(), snap.env3_release_curve);
+
+    // Mod matrix (MOD_MATRIX_SLOTS slots)
+    for i in 0..MOD_MATRIX_SLOTS {
         m.insert(format!("mod_slot_enabled_{i}"), f32::from(snap.mod_slot_enabled[i]));
         m.insert(format!("mod_slot_source_{i}"), f32::from(snap.mod_slot_source[i]));
         m.insert(format!("mod_slot_dest_{i}"), f32::from(snap.mod_slot_dest[i]));
@@ -177,6 +194,28 @@ pub fn map_to_events(m: &BTreeMap<String, f32>) -> Vec<EngineEvent> {
             mode: FilterMode::from_index(v as usize),
         });
     }
+    if let Some(&v) = m.get("filter2_mode") {
+        ev.push(Ev::SetFilter2Mode {
+            mode: FilterMode::from_index(v as usize),
+        });
+    }
+    if let Some(&v) = m.get("filter_routing") {
+        ev.push(Ev::SetFilterRouting {
+            routing: FilterRouting::from_index(v as usize),
+        });
+    }
+    if let Some(&v) = m.get("filter_slope_0") {
+        ev.push(Ev::SetFilterSlope {
+            filter_idx: 0,
+            slope: FilterSlope::from_index(v as usize),
+        });
+    }
+    if let Some(&v) = m.get("filter_slope_1") {
+        ev.push(Ev::SetFilterSlope {
+            filter_idx: 1,
+            slope: FilterSlope::from_index(v as usize),
+        });
+    }
 
     // Global
     pc!("pitch_offset_semis", ParamId::PitchOffsetSemis);
@@ -192,6 +231,8 @@ pub fn map_to_events(m: &BTreeMap<String, f32>) -> Vec<EngineEvent> {
     // Filter
     pc!("filter_cutoff_hz", ParamId::FilterCutoffHz);
     pc!("filter_resonance", ParamId::FilterResonance);
+    pc!("filter2_cutoff_hz", ParamId::Filter2CutoffHz);
+    pc!("filter2_resonance", ParamId::Filter2Resonance);
 
     // Osc arrays
     for i in 0..3usize {
@@ -270,9 +311,16 @@ pub fn map_to_events(m: &BTreeMap<String, f32>) -> Vec<EngineEvent> {
     pc!("env2_attack_curve", ParamId::Env2AttackCurve);
     pc!("env2_decay_curve", ParamId::Env2DecayCurve);
     pc!("env2_release_curve", ParamId::Env2ReleaseCurve);
+    pc!("env3_attack_secs", ParamId::Env3AttackSecs);
+    pc!("env3_decay_secs", ParamId::Env3DecaySecs);
+    pc!("env3_sustain_level", ParamId::Env3SustainLevel);
+    pc!("env3_release_secs", ParamId::Env3ReleaseSecs);
+    pc!("env3_attack_curve", ParamId::Env3AttackCurve);
+    pc!("env3_decay_curve", ParamId::Env3DecayCurve);
+    pc!("env3_release_curve", ParamId::Env3ReleaseCurve);
 
     // Mod matrix
-    for i in 0..8u8 {
+    for i in 0..MOD_MATRIX_SLOTS as u8 {
         let ii = i as usize;
         pc!(&format!("mod_slot_enabled_{ii}"), ParamId::ModSlotEnabled(i));
         pc!(&format!("mod_slot_source_{ii}"), ParamId::ModSlotSource(i));
@@ -395,6 +443,18 @@ pub fn map_to_snapshot(m: &BTreeMap<String, f32>) -> ParamSnapshot {
     if let Some(&v) = m.get("filter_mode") {
         s.filter_mode = FilterMode::from_index(v as usize);
     }
+    if let Some(&v) = m.get("filter2_mode") {
+        s.filter2_mode = FilterMode::from_index(v as usize);
+    }
+    if let Some(&v) = m.get("filter_routing") {
+        s.filter_routing = FilterRouting::from_index(v as usize);
+    }
+    if let Some(&v) = m.get("filter_slope_0") {
+        s.filter_slope[0] = FilterSlope::from_index(v as usize);
+    }
+    if let Some(&v) = m.get("filter_slope_1") {
+        s.filter_slope[1] = FilterSlope::from_index(v as usize);
+    }
 
     get!("pitch_offset_semis", s.pitch_offset_semis);
     get!("master_volume", s.master_volume);
@@ -405,6 +465,8 @@ pub fn map_to_snapshot(m: &BTreeMap<String, f32>) -> ParamSnapshot {
     get!("amp_release_secs", s.amp_release_secs);
     get!("filter_cutoff_hz", s.filter_cutoff_hz);
     get!("filter_resonance", s.filter_resonance);
+    get!("filter2_cutoff_hz", s.filter2_cutoff_hz);
+    get!("filter2_resonance", s.filter2_resonance);
 
     for i in 0..3usize {
         let n = i + 1;
@@ -439,8 +501,15 @@ pub fn map_to_snapshot(m: &BTreeMap<String, f32>) -> ParamSnapshot {
     get!("env2_attack_curve", s.env2_attack_curve);
     get!("env2_decay_curve", s.env2_decay_curve);
     get!("env2_release_curve", s.env2_release_curve);
+    get!("env3_attack_secs", s.env3_attack_secs);
+    get!("env3_decay_secs", s.env3_decay_secs);
+    get!("env3_sustain_level", s.env3_sustain_level);
+    get!("env3_release_secs", s.env3_release_secs);
+    get!("env3_attack_curve", s.env3_attack_curve);
+    get!("env3_decay_curve", s.env3_decay_curve);
+    get!("env3_release_curve", s.env3_release_curve);
 
-    for i in 0..8usize {
+    for i in 0..MOD_MATRIX_SLOTS {
         get_bool!(&format!("mod_slot_enabled_{i}"), s.mod_slot_enabled[i]);
         get_u8!(&format!("mod_slot_source_{i}"), s.mod_slot_source[i]);
         get_u8!(&format!("mod_slot_dest_{i}"), s.mod_slot_dest[i]);
@@ -565,6 +634,11 @@ mod tests {
         orig.amp_release_secs = 1.2;
         orig.filter_cutoff_hz = 3_000.0;
         orig.filter_resonance = 0.4;
+        orig.filter2_cutoff_hz = 1_200.0;
+        orig.filter2_resonance = 0.6;
+        orig.filter2_mode = FilterMode::HighPass;
+        orig.filter_routing = FilterRouting::Parallel;
+        orig.filter_slope = [FilterSlope::TwentyFourDbOct, FilterSlope::TwelveDbOct];
         for i in 0..3 {
             orig.osc_main_levels[i] = 0.8 - i as f32 * 0.1;
             orig.osc_main_detune_cents[i] = 5.0 + i as f32;
@@ -590,7 +664,14 @@ mod tests {
         orig.env2_attack_curve = 0.3;
         orig.env2_decay_curve = -0.2;
         orig.env2_release_curve = 0.5;
-        for i in 0..8 {
+        orig.env3_attack_secs = 0.03;
+        orig.env3_decay_secs = 0.6;
+        orig.env3_sustain_level = 0.6;
+        orig.env3_release_secs = 0.9;
+        orig.env3_attack_curve = -0.4;
+        orig.env3_decay_curve = 0.25;
+        orig.env3_release_curve = -0.5;
+        for i in 0..MOD_MATRIX_SLOTS {
             orig.mod_slot_enabled[i] = i % 2 == 0;
             orig.mod_slot_source[i] = i as u8;
             orig.mod_slot_dest[i] = (i + 1) as u8;
@@ -663,6 +744,11 @@ mod tests {
         assert_eq!(orig.amp_release_secs, got.amp_release_secs);
         assert_eq!(orig.filter_cutoff_hz, got.filter_cutoff_hz);
         assert_eq!(orig.filter_resonance, got.filter_resonance);
+        assert_eq!(orig.filter2_cutoff_hz, got.filter2_cutoff_hz);
+        assert_eq!(orig.filter2_resonance, got.filter2_resonance);
+        assert_eq!(orig.filter2_mode, got.filter2_mode);
+        assert_eq!(orig.filter_routing, got.filter_routing);
+        assert_eq!(orig.filter_slope, got.filter_slope);
         assert_eq!(orig.osc_main_levels, got.osc_main_levels);
         assert_eq!(orig.osc_main_detune_cents, got.osc_main_detune_cents);
         assert_eq!(orig.osc_main_pans, got.osc_main_pans);
@@ -686,6 +772,13 @@ mod tests {
         assert_eq!(orig.env2_attack_curve, got.env2_attack_curve);
         assert_eq!(orig.env2_decay_curve, got.env2_decay_curve);
         assert_eq!(orig.env2_release_curve, got.env2_release_curve);
+        assert_eq!(orig.env3_attack_secs, got.env3_attack_secs);
+        assert_eq!(orig.env3_decay_secs, got.env3_decay_secs);
+        assert_eq!(orig.env3_sustain_level, got.env3_sustain_level);
+        assert_eq!(orig.env3_release_secs, got.env3_release_secs);
+        assert_eq!(orig.env3_attack_curve, got.env3_attack_curve);
+        assert_eq!(orig.env3_decay_curve, got.env3_decay_curve);
+        assert_eq!(orig.env3_release_curve, got.env3_release_curve);
         assert_eq!(orig.mod_slot_enabled, got.mod_slot_enabled);
         assert_eq!(orig.mod_slot_source, got.mod_slot_source);
         assert_eq!(orig.mod_slot_dest, got.mod_slot_dest);

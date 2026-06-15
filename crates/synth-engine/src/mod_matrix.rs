@@ -1,4 +1,4 @@
-//! Modulation matrix — 8-slot source → destination routing.
+//! Modulation matrix — fixed-size source → destination routing.
 //!
 //! Each [`ModSlot`] connects one [`ModSource`] to one [`ModDest`] with a
 //! signed `amount`. An optional `via` source scales the amount so that, for
@@ -10,6 +10,11 @@
 //! before the per-sample inner loop.
 //!
 //! All types are `Copy`; no heap allocation occurs on the hot path.
+
+/// Number of modulation slots in a [`ModMatrix`]. Shared across the engine,
+/// parameter snapshot, parameter tree, UI, and preset serialization so the
+/// matrix size is defined in exactly one place.
+pub const MOD_MATRIX_SLOTS: usize = 16;
 
 /// A modulation source value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -37,11 +42,16 @@ pub enum ModSource {
     Aftertouch,
     /// MIDI pitch bend, -1..=1.
     PitchBend,
+    /// Second modulation envelope (Env3) output, 0..=1. Appended at the
+    /// end so existing source indices (and saved presets) keep their
+    /// meaning — `to_index` is the enum discriminant, so a mid-enum
+    /// insert would renumber everything after it.
+    Env3,
 }
 
 impl ModSource {
     /// Total number of variants; used to validate parameter bus values.
-    pub const COUNT: u8 = 10;
+    pub const COUNT: u8 = 11;
 
     /// Converts a `u8` index (as stored in the parameter bus) to a variant.
     /// Returns `None` if the index is out of range.
@@ -57,6 +67,7 @@ impl ModSource {
             7 => Some(Self::ModWheel),
             8 => Some(Self::Aftertouch),
             9 => Some(Self::PitchBend),
+            10 => Some(Self::Env3),
             _ => None,
         }
     }
@@ -84,11 +95,16 @@ pub enum ModDest {
     Osc1DetuneCents,
     /// Additive offset to oscillator 1 pan, -1..=1 units.
     Osc1Pan,
+    /// Additive offset to filter 2 cutoff, in Hz. Appended so existing
+    /// destination indices (and saved presets) keep their meaning.
+    Filter2CutoffHz,
+    /// Additive offset to filter 2 resonance, 0..=1 units.
+    Filter2Resonance,
 }
 
 impl ModDest {
     /// Total number of variants.
-    pub const COUNT: u8 = 6;
+    pub const COUNT: u8 = 8;
 
     /// Converts a `u8` index to a variant.
     pub fn from_index(i: u8) -> Option<Self> {
@@ -99,6 +115,8 @@ impl ModDest {
             3 => Some(Self::Volume),
             4 => Some(Self::Osc1DetuneCents),
             5 => Some(Self::Osc1Pan),
+            6 => Some(Self::Filter2CutoffHz),
+            7 => Some(Self::Filter2Resonance),
             _ => None,
         }
     }
@@ -122,6 +140,7 @@ pub struct ModSources {
     pub mod_wheel: f32,
     pub aftertouch: f32,
     pub pitch_bend: f32,
+    pub env3: f32,
 }
 
 impl ModSources {
@@ -137,6 +156,7 @@ impl ModSources {
             ModSource::ModWheel => self.mod_wheel,
             ModSource::Aftertouch => self.aftertouch,
             ModSource::PitchBend => self.pitch_bend,
+            ModSource::Env3 => self.env3,
         }
     }
 }
@@ -151,6 +171,8 @@ pub struct DestOffsets {
     pub volume: f32,
     pub osc1_detune_cents: f32,
     pub osc1_pan: f32,
+    pub filter2_cutoff_hz: f32,
+    pub filter2_resonance: f32,
 }
 
 /// One routing slot: source → destination with a signed amount and optional
@@ -178,10 +200,10 @@ impl Default for ModSlot {
     }
 }
 
-/// 8-slot modulation matrix.
+/// Fixed modulation matrix of [`MOD_MATRIX_SLOTS`] slots.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ModMatrix {
-    pub slots: [ModSlot; 8],
+    pub slots: [ModSlot; MOD_MATRIX_SLOTS],
 }
 
 impl ModMatrix {
@@ -206,6 +228,8 @@ impl ModMatrix {
                 ModDest::Volume => out.volume += contribution,
                 ModDest::Osc1DetuneCents => out.osc1_detune_cents += contribution,
                 ModDest::Osc1Pan => out.osc1_pan += contribution,
+                ModDest::Filter2CutoffHz => out.filter2_cutoff_hz += contribution,
+                ModDest::Filter2Resonance => out.filter2_resonance += contribution,
             }
         }
         out

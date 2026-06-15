@@ -299,6 +299,8 @@ fn audio_callback(buffer: &mut [f32]) {
 
 **Why:** a panicked audio thread leaves voices, filters, and effect tails in undefined states. Continuing is unsafe (in the correctness sense, not the Rust sense).
 
+**This guarantee does not depend on `panic = "abort"`.** The release profile deliberately *unwinds* (no `panic = "abort"`) so the **main thread** can `catch_unwind` panics raised by the cpal WASAPI backend during a device switch — it `unwrap`s on COM failures rather than returning errors, and an uncaught unwind through winit's window procedure aborts the whole process (`STATUS_FATAL_USER_CALLBACK_EXCEPTION`, `0xC000041D`). The audio-thread hard-abort above is enforced by the explicit `catch_unwind` → `process::abort()` wrapper, which holds regardless of the global panic strategy. Do **not** re-add `panic = "abort"`: it would turn every recoverable backend panic on the main thread back into a process abort without strengthening the audio-thread guarantee at all.
+
 ---
 
 ### 2.9 Telemetry from the audio thread

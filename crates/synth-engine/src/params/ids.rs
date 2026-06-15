@@ -145,6 +145,28 @@ pub enum ParamId {
     /// Env2 Release stage curve, -1..=1.
     Env2ReleaseCurve,
 
+    // ── Filter 2 ───────────────────────────────────────────────────────
+    /// Filter 2 cutoff frequency, in Hz. Smoothed.
+    Filter2CutoffHz,
+    /// Filter 2 resonance, on the 0..=1 user scale. Smoothed.
+    Filter2Resonance,
+
+    // ── Env3 (second modulation envelope) ──────────────────────────────
+    /// Env3 attack time, in seconds.
+    Env3AttackSecs,
+    /// Env3 decay time, in seconds.
+    Env3DecaySecs,
+    /// Env3 sustain level, 0..=1.
+    Env3SustainLevel,
+    /// Env3 release time, in seconds.
+    Env3ReleaseSecs,
+    /// Env3 Attack stage curve, -1..=1.
+    Env3AttackCurve,
+    /// Env3 Decay stage curve, -1..=1.
+    Env3DecayCurve,
+    /// Env3 Release stage curve, -1..=1.
+    Env3ReleaseCurve,
+
     // ── Global ─────────────────────────────────────────────────────────
     /// Global tempo in BPM. Used for BPM-sync LFO rate computation.
     /// Range 20..=300. Stepped.

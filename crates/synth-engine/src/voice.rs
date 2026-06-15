@@ -27,7 +27,7 @@
 //! [`Slot`]: crate::slot::Slot
 
 use crate::envelope::Adsr;
-use crate::filter::{FilterMode, StateVariableFilter};
+use crate::filter::{FilterMode, FilterRouting, FilterSlope, StateVariableFilter};
 use crate::lfo::{Lfo, LfoShape};
 use crate::mod_env::ModEnv;
 use crate::mod_matrix::DestOffsets;
@@ -60,10 +60,14 @@ pub struct Voice {
     slots: [Slot; 2],
     filter_l: StateVariableFilter,
     filter_r: StateVariableFilter,
+    filter2_l: StateVariableFilter,
+    filter2_r: StateVariableFilter,
+    filter_routing: FilterRouting,
     amp_envelope: Adsr,
     lfo1: Lfo,
     lfo2: Lfo,
     mod_env: ModEnv,
+    mod_env3: ModEnv,
 
     /// MIDI note currently being held by the voice, if any. Used so
     /// `note_off` only releases the matching note.
@@ -81,6 +85,8 @@ pub struct Voice {
     lfo2_out: f32,
     /// Most recent output of Env2 (the modulation envelope).
     env2_out: f32,
+    /// Most recent output of Env3 (the second modulation envelope).
+    env3_out: f32,
 
     /// Modulation offsets computed by the mod matrix once per block.
     /// Applied inside [`Voice::next_sample`]; cleared to zero at init.
@@ -109,15 +115,20 @@ impl Voice {
             ],
             filter_l: StateVariableFilter::new(sample_rate_hz),
             filter_r: StateVariableFilter::new(sample_rate_hz),
+            filter2_l: StateVariableFilter::new(sample_rate_hz),
+            filter2_r: StateVariableFilter::new(sample_rate_hz),
+            filter_routing: FilterRouting::Serial,
             amp_envelope: Adsr::new(sample_rate_hz),
             lfo1: Lfo::new(sample_rate_hz, LFO1_SEED),
             lfo2: Lfo::new(sample_rate_hz, LFO2_SEED),
             mod_env: ModEnv::new(sample_rate_hz),
+            mod_env3: ModEnv::new(sample_rate_hz),
             held_note_midi: None,
             velocity_scale: 1.0,
             lfo1_out: 0.0,
             lfo2_out: 0.0,
             env2_out: 0.0,
+            env3_out: 0.0,
             mod_offsets: DestOffsets::default(),
             volume_mod: SmoothedParam::new(0.0, sample_rate_hz),
         }
@@ -144,11 +155,14 @@ impl Voice {
         if is_first_note {
             self.filter_l.reset();
             self.filter_r.reset();
+            self.filter2_l.reset();
+            self.filter2_r.reset();
         }
         self.amp_envelope.note_on();
         self.lfo1.note_on();
         self.lfo2.note_on();
         self.mod_env.note_on();
+        self.mod_env3.note_on();
     }
 
     /// Releases the held note. Ignored if a different note is currently
@@ -162,6 +176,7 @@ impl Voice {
             }
             self.amp_envelope.note_off();
             self.mod_env.note_off();
+            self.mod_env3.note_off();
             self.held_note_midi = None;
         }
     }
@@ -249,6 +264,41 @@ impl Voice {
     /// Sets the Env2 Release stage curve, `[-1, +1]`.
     pub fn set_env2_release_curve(&mut self, curve: f32) {
         self.mod_env.set_release_curve(curve);
+    }
+
+    /// Sets the Env3 attack time in seconds.
+    pub fn set_env3_attack_secs(&mut self, secs: f32) {
+        self.mod_env3.set_attack_secs(secs);
+    }
+
+    /// Sets the Env3 decay time in seconds.
+    pub fn set_env3_decay_secs(&mut self, secs: f32) {
+        self.mod_env3.set_decay_secs(secs);
+    }
+
+    /// Sets the Env3 sustain level, clamped to `[0, 1]`.
+    pub fn set_env3_sustain_level(&mut self, level: f32) {
+        self.mod_env3.set_sustain_level(level);
+    }
+
+    /// Sets the Env3 release time in seconds.
+    pub fn set_env3_release_secs(&mut self, secs: f32) {
+        self.mod_env3.set_release_secs(secs);
+    }
+
+    /// Sets the Env3 Attack stage curve, `[-1, +1]`.
+    pub fn set_env3_attack_curve(&mut self, curve: f32) {
+        self.mod_env3.set_attack_curve(curve);
+    }
+
+    /// Sets the Env3 Decay stage curve, `[-1, +1]`.
+    pub fn set_env3_decay_curve(&mut self, curve: f32) {
+        self.mod_env3.set_decay_curve(curve);
+    }
+
+    /// Sets the Env3 Release stage curve, `[-1, +1]`.
+    pub fn set_env3_release_curve(&mut self, curve: f32) {
+        self.mod_env3.set_release_curve(curve);
     }
 
     /// Sets the mix level for slot `slot`, clamped to 0..=1.
@@ -344,12 +394,14 @@ impl Voice {
         }
     }
 
-    /// Advances LFO1, LFO2, and Env2 by `block_size` samples and caches
-    /// their outputs. Call once per inner block, before the per-sample loop.
+    /// Advances LFO1, LFO2, Env2, and Env3 by `block_size` samples and
+    /// caches their outputs. Call once per inner block, before the
+    /// per-sample loop.
     pub fn advance_modulators(&mut self, block_size: usize) {
         self.lfo1_out = self.lfo1.advance(block_size);
         self.lfo2_out = self.lfo2.advance(block_size);
         self.env2_out = self.mod_env.advance(block_size);
+        self.env3_out = self.mod_env3.advance(block_size);
     }
 
     /// Most recent LFO1 output from `advance_modulators`.
@@ -370,6 +422,12 @@ impl Voice {
         self.env2_out
     }
 
+    /// Most recent Env3 output from `advance_modulators`.
+    #[must_use]
+    pub fn env3_out(&self) -> f32 {
+        self.env3_out
+    }
+
     /// Sets the subtractive waveform on every main oscillator bank of
     /// both slots. The sub oscillator is unaffected — it is always a
     /// sine per `docs/planning/05-design/dsp-and-sound.md`. FM bank
@@ -386,6 +444,35 @@ impl Voice {
         }
     }
 
+    /// Sets the output mode on both filter-2 channels. Click-free, like
+    /// [`set_filter_mode`](Self::set_filter_mode).
+    pub fn set_filter2_mode(&mut self, mode: FilterMode) {
+        self.filter2_l.set_mode(mode);
+        self.filter2_r.set_mode(mode);
+    }
+
+    /// Sets how filter 1 and filter 2 are connected.
+    pub fn set_filter_routing(&mut self, routing: FilterRouting) {
+        self.filter_routing = routing;
+    }
+
+    /// Sets the roll-off slope on both channels of one filter.
+    /// `filter_idx` 0 targets filter 1, 1 targets filter 2; other
+    /// values are ignored.
+    pub fn set_filter_slope(&mut self, filter_idx: u8, slope: FilterSlope) {
+        match filter_idx {
+            0 => {
+                self.filter_l.set_slope(slope);
+                self.filter_r.set_slope(slope);
+            }
+            1 => {
+                self.filter2_l.set_slope(slope);
+                self.filter2_r.set_slope(slope);
+            }
+            _ => {}
+        }
+    }
+
     /// Sets the filter output mode on both channel filters. The
     /// integrator state is preserved on each so mode flips are
     /// click-free.
@@ -395,11 +482,12 @@ impl Voice {
     }
 
     /// Returns true if the voice is fully idle: both the amp envelope
-    /// and Env2 have completed. Env2 may still be releasing after the
-    /// amp goes silent, keeping the voice alive for M6 modulation use.
+    /// and both mod envelopes have completed. Env2/Env3 may still be
+    /// releasing after the amp goes silent, keeping the voice alive so
+    /// their modulation finishes.
     #[must_use]
     pub fn is_idle(&self) -> bool {
-        self.amp_envelope.is_idle() && self.mod_env.is_idle()
+        self.amp_envelope.is_idle() && self.mod_env.is_idle() && self.mod_env3.is_idle()
     }
 
     /// Returns true when the amp envelope has fully released and the
@@ -478,8 +566,27 @@ impl Voice {
             .set_params(params.filter_cutoff_hz, params.filter_resonance);
         self.filter_r
             .set_params(params.filter_cutoff_hz, params.filter_resonance);
-        let filtered_l = self.filter_l.next_sample(mixed_l);
-        let filtered_r = self.filter_r.next_sample(mixed_r);
+        self.filter2_l
+            .set_params(params.filter2_cutoff_hz, params.filter2_resonance);
+        self.filter2_r
+            .set_params(params.filter2_cutoff_hz, params.filter2_resonance);
+
+        let (filtered_l, filtered_r) = match self.filter_routing {
+            FilterRouting::Serial => {
+                let f1_l = self.filter_l.next_sample(mixed_l);
+                let f1_r = self.filter_r.next_sample(mixed_r);
+                (self.filter2_l.next_sample(f1_l), self.filter2_r.next_sample(f1_r))
+            }
+            FilterRouting::Parallel => {
+                // Each filter sees the slot mix; outputs are averaged so a
+                // parallel patch keeps roughly the same level as serial.
+                let f1_l = self.filter_l.next_sample(mixed_l);
+                let f1_r = self.filter_r.next_sample(mixed_r);
+                let f2_l = self.filter2_l.next_sample(mixed_l);
+                let f2_r = self.filter2_r.next_sample(mixed_r);
+                ((f1_l + f2_l) * 0.5, (f1_r + f2_r) * 0.5)
+            }
+        };
 
         (filtered_l * env, filtered_r * env)
     }
@@ -501,6 +608,8 @@ mod tests {
             pitch_offset_semis: snap.pitch_offset_semis,
             filter_cutoff_hz: 22_000.0,
             filter_resonance: 0.0,
+            filter2_cutoff_hz: 22_000.0,
+            filter2_resonance: 0.0,
             osc_main_levels: snap.osc_main_levels,
             sub_level: snap.sub_level,
             osc_main_detune_cents: snap.osc_main_detune_cents,

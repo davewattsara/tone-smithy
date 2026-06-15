@@ -23,10 +23,10 @@
 //! [`EngineEvent`]: crate::EngineEvent
 
 use crate::MAIN_OSCILLATOR_COUNT;
-use crate::filter::FilterMode;
+use crate::filter::{FilterMode, FilterRouting, FilterSlope};
 use crate::fm::OPERATOR_COUNT;
 use crate::lfo::SyncDivision;
-use crate::mod_matrix::{ModDest, ModSource};
+use crate::mod_matrix::{MOD_MATRIX_SLOTS, ModDest, ModSource};
 use crate::oscillator::Waveform;
 use crate::smoothing::SmoothedParam;
 
@@ -59,6 +59,11 @@ pub(super) const DEFAULT_FILTER_CUTOFF_HZ: f32 = 8_000.0;
 /// Default filter resonance, on the 0..=1 user-facing scale. Zero is
 /// the maximally damped end of the range — no peak at all.
 pub(super) const DEFAULT_FILTER_RESONANCE: f32 = 0.0;
+
+/// Default filter 2 cutoff frequency, in Hz. Sits at the top of the
+/// audible range so a fresh patch (and any pre-M17 preset that never
+/// set filter 2) passes signal through the second low-pass unchanged.
+pub(super) const DEFAULT_FILTER2_CUTOFF_HZ: f32 = 20_000.0;
 
 /// Default per-oscillator level. All four oscillators arrive at unity;
 /// the slot mixer's headroom scale handles the worst-case in-phase
@@ -105,6 +110,8 @@ pub struct ParameterTree {
     pub(super) pitch_offset_semis: SmoothedParam,
     pub(super) filter_cutoff_hz: SmoothedParam,
     pub(super) filter_resonance: SmoothedParam,
+    pub(super) filter2_cutoff_hz: SmoothedParam,
+    pub(super) filter2_resonance: SmoothedParam,
 
     pub(super) osc_main_levels: [SmoothedParam; MAIN_OSCILLATOR_COUNT],
     pub(super) sub_level: SmoothedParam,
@@ -135,6 +142,9 @@ pub struct ParameterTree {
 
     pub(super) waveform: Waveform,
     pub(super) filter_mode: FilterMode,
+    pub(super) filter2_mode: FilterMode,
+    pub(super) filter_routing: FilterRouting,
+    pub(super) filter_slope: [FilterSlope; 2],
 
     pub(super) active_voice_count: u8,
 
@@ -170,6 +180,15 @@ pub struct ParameterTree {
     pub(super) env2_decay_curve: f32,
     pub(super) env2_release_curve: f32,
 
+    // ── Env3 ───────────────────────────────────────────────────────────
+    pub(super) env3_attack_secs: f32,
+    pub(super) env3_decay_secs: f32,
+    pub(super) env3_sustain_level: f32,
+    pub(super) env3_release_secs: f32,
+    pub(super) env3_attack_curve: f32,
+    pub(super) env3_decay_curve: f32,
+    pub(super) env3_release_curve: f32,
+
     // ── Global ─────────────────────────────────────────────────────────
     pub(super) bpm: f32,
 
@@ -177,15 +196,16 @@ pub struct ParameterTree {
     pub(super) lfo1_out: f32,
     pub(super) lfo2_out: f32,
     pub(super) env2_out: f32,
+    pub(super) env3_out: f32,
     pub(super) vu_peak_left: f32,
     pub(super) vu_peak_right: f32,
 
     // ── Mod matrix mirrors ─────────────────────────────────────────────
-    pub(super) mod_slot_enabled: [bool; 8],
-    pub(super) mod_slot_source: [u8; 8],
-    pub(super) mod_slot_dest: [u8; 8],
-    pub(super) mod_slot_amount: [f32; 8],
-    pub(super) mod_slot_via: [u8; 8],
+    pub(super) mod_slot_enabled: [bool; MOD_MATRIX_SLOTS],
+    pub(super) mod_slot_source: [u8; MOD_MATRIX_SLOTS],
+    pub(super) mod_slot_dest: [u8; MOD_MATRIX_SLOTS],
+    pub(super) mod_slot_amount: [f32; MOD_MATRIX_SLOTS],
+    pub(super) mod_slot_via: [u8; MOD_MATRIX_SLOTS],
 
     // ── FM synthesis ───────────────────────────────────────────────────
     pub(super) slot_level: [f32; 2],
@@ -250,6 +270,8 @@ impl ParameterTree {
             pitch_offset_semis: SmoothedParam::new(defaults.pitch_offset_semis, sample_rate_hz),
             filter_cutoff_hz: SmoothedParam::new(defaults.filter_cutoff_hz, sample_rate_hz),
             filter_resonance: SmoothedParam::new(defaults.filter_resonance, sample_rate_hz),
+            filter2_cutoff_hz: SmoothedParam::new(defaults.filter2_cutoff_hz, sample_rate_hz),
+            filter2_resonance: SmoothedParam::new(defaults.filter2_resonance, sample_rate_hz),
             osc_main_levels: defaults.osc_main_levels.map(|v| SmoothedParam::new(v, sample_rate_hz)),
             sub_level: SmoothedParam::new(defaults.sub_level, sample_rate_hz),
             osc_main_detune_cents: defaults
@@ -271,6 +293,9 @@ impl ParameterTree {
             master_volume: SmoothedParam::new(defaults.master_volume, sample_rate_hz),
             waveform: defaults.waveform,
             filter_mode: defaults.filter_mode,
+            filter2_mode: defaults.filter2_mode,
+            filter_routing: defaults.filter_routing,
+            filter_slope: defaults.filter_slope,
             active_voice_count: defaults.active_voice_count,
             pitch_bend_semis: SmoothedParam::new(defaults.pitch_bend_semis, sample_rate_hz),
             mod_wheel: defaults.mod_wheel,
@@ -293,17 +318,25 @@ impl ParameterTree {
             env2_attack_curve: defaults.env2_attack_curve,
             env2_decay_curve: defaults.env2_decay_curve,
             env2_release_curve: defaults.env2_release_curve,
+            env3_attack_secs: defaults.env3_attack_secs,
+            env3_decay_secs: defaults.env3_decay_secs,
+            env3_sustain_level: defaults.env3_sustain_level,
+            env3_release_secs: defaults.env3_release_secs,
+            env3_attack_curve: defaults.env3_attack_curve,
+            env3_decay_curve: defaults.env3_decay_curve,
+            env3_release_curve: defaults.env3_release_curve,
             bpm: defaults.bpm,
             lfo1_out: 0.0,
             lfo2_out: 0.0,
             env2_out: 0.0,
+            env3_out: 0.0,
             vu_peak_left: 0.0,
             vu_peak_right: 0.0,
-            mod_slot_enabled: [false; 8],
-            mod_slot_source: [0; 8],
-            mod_slot_dest: [0; 8],
-            mod_slot_amount: [0.0; 8],
-            mod_slot_via: [0; 8],
+            mod_slot_enabled: [false; MOD_MATRIX_SLOTS],
+            mod_slot_source: [0; MOD_MATRIX_SLOTS],
+            mod_slot_dest: [0; MOD_MATRIX_SLOTS],
+            mod_slot_amount: [0.0; MOD_MATRIX_SLOTS],
+            mod_slot_via: [0; MOD_MATRIX_SLOTS],
             slot_level: defaults.slot_level,
             slot_pan: defaults.slot_pan,
             fm_algorithm: defaults.fm_algorithm,
@@ -367,6 +400,8 @@ impl ParameterTree {
             ParamId::MasterVolume => self.master_volume.set_target(value),
             ParamId::FilterCutoffHz => self.filter_cutoff_hz.set_target(value),
             ParamId::FilterResonance => self.filter_resonance.set_target(value),
+            ParamId::Filter2CutoffHz => self.filter2_cutoff_hz.set_target(value),
+            ParamId::Filter2Resonance => self.filter2_resonance.set_target(value),
             ParamId::Osc1Level => self.osc_main_levels[0].set_target(value),
             ParamId::Osc2Level => self.osc_main_levels[1].set_target(value),
             ParamId::Osc3Level => self.osc_main_levels[2].set_target(value),
@@ -411,30 +446,37 @@ impl ParameterTree {
             ParamId::Env2AttackCurve => self.env2_attack_curve = value,
             ParamId::Env2DecayCurve => self.env2_decay_curve = value,
             ParamId::Env2ReleaseCurve => self.env2_release_curve = value,
+            ParamId::Env3AttackSecs => self.env3_attack_secs = value,
+            ParamId::Env3DecaySecs => self.env3_decay_secs = value,
+            ParamId::Env3SustainLevel => self.env3_sustain_level = value,
+            ParamId::Env3ReleaseSecs => self.env3_release_secs = value,
+            ParamId::Env3AttackCurve => self.env3_attack_curve = value,
+            ParamId::Env3DecayCurve => self.env3_decay_curve = value,
+            ParamId::Env3ReleaseCurve => self.env3_release_curve = value,
             ParamId::Bpm => self.bpm = value,
             ParamId::ModSlotEnabled(i) => {
-                if (i as usize) < 8 {
+                if (i as usize) < MOD_MATRIX_SLOTS {
                     self.mod_slot_enabled[i as usize] = value >= 0.5;
                 }
             }
             ParamId::ModSlotSource(i) => {
-                if (i as usize) < 8 {
+                if (i as usize) < MOD_MATRIX_SLOTS {
                     self.mod_slot_source[i as usize] =
                         ModSource::from_index(value as u8).unwrap_or_default().to_index();
                 }
             }
             ParamId::ModSlotDest(i) => {
-                if (i as usize) < 8 {
+                if (i as usize) < MOD_MATRIX_SLOTS {
                     self.mod_slot_dest[i as usize] = ModDest::from_index(value as u8).unwrap_or_default().to_index();
                 }
             }
             ParamId::ModSlotAmount(i) => {
-                if (i as usize) < 8 {
+                if (i as usize) < MOD_MATRIX_SLOTS {
                     self.mod_slot_amount[i as usize] = value;
                 }
             }
             ParamId::ModSlotVia(i) => {
-                if (i as usize) < 8 {
+                if (i as usize) < MOD_MATRIX_SLOTS {
                     self.mod_slot_via[i as usize] = ModSource::from_index(value as u8).unwrap_or_default().to_index();
                 }
             }
@@ -568,6 +610,24 @@ impl ParameterTree {
         self.filter_mode = mode;
     }
 
+    /// Sets the filter 2 output mode. Discrete.
+    pub fn set_filter2_mode(&mut self, mode: FilterMode) {
+        self.filter2_mode = mode;
+    }
+
+    /// Sets the routing between filter 1 and filter 2. Discrete.
+    pub fn set_filter_routing(&mut self, routing: FilterRouting) {
+        self.filter_routing = routing;
+    }
+
+    /// Sets the slope of one filter (0 = filter 1, 1 = filter 2).
+    /// Out-of-range indices are ignored. Discrete.
+    pub fn set_filter_slope(&mut self, filter_idx: u8, slope: FilterSlope) {
+        if let Some(s) = self.filter_slope.get_mut(filter_idx as usize) {
+            *s = slope;
+        }
+    }
+
     /// Mirrors the engine's active voice count into the next snapshot.
     /// Not driven by an `EngineEvent` — the engine writes this each
     /// block before publishing. At M2 the value is 0 or 1; the voice
@@ -596,6 +656,24 @@ impl ParameterTree {
     #[must_use]
     pub fn filter_mode(&self) -> FilterMode {
         self.filter_mode
+    }
+
+    /// Returns the current filter 2 mode.
+    #[must_use]
+    pub fn filter2_mode(&self) -> FilterMode {
+        self.filter2_mode
+    }
+
+    /// Returns the current filter routing.
+    #[must_use]
+    pub fn filter_routing(&self) -> FilterRouting {
+        self.filter_routing
+    }
+
+    /// Returns the slope of each filter; index 0 = filter 1, 1 = filter 2.
+    #[must_use]
+    pub fn filter_slope(&self) -> [FilterSlope; 2] {
+        self.filter_slope
     }
 
     /// Returns the current amp attack time, in seconds.
@@ -711,12 +789,55 @@ impl ParameterTree {
         self.env2_release_curve
     }
 
+    /// Returns Env3 attack time (seconds).
+    #[must_use]
+    pub fn env3_attack_secs(&self) -> f32 {
+        self.env3_attack_secs
+    }
+
+    /// Returns Env3 decay time (seconds).
+    #[must_use]
+    pub fn env3_decay_secs(&self) -> f32 {
+        self.env3_decay_secs
+    }
+
+    /// Returns Env3 sustain level.
+    #[must_use]
+    pub fn env3_sustain_level(&self) -> f32 {
+        self.env3_sustain_level
+    }
+
+    /// Returns Env3 release time (seconds).
+    #[must_use]
+    pub fn env3_release_secs(&self) -> f32 {
+        self.env3_release_secs
+    }
+
+    /// Returns Env3 Attack curve.
+    #[must_use]
+    pub fn env3_attack_curve(&self) -> f32 {
+        self.env3_attack_curve
+    }
+
+    /// Returns Env3 Decay curve.
+    #[must_use]
+    pub fn env3_decay_curve(&self) -> f32 {
+        self.env3_decay_curve
+    }
+
+    /// Returns Env3 Release curve.
+    #[must_use]
+    pub fn env3_release_curve(&self) -> f32 {
+        self.env3_release_curve
+    }
+
     /// Stores the live modulator outputs from the first active voice.
     /// Called by the engine each block, before the snapshot is published.
-    pub fn set_modulator_outputs(&mut self, lfo1: f32, lfo2: f32, env2: f32) {
+    pub fn set_modulator_outputs(&mut self, lfo1: f32, lfo2: f32, env2: f32, env3: f32) {
         self.lfo1_out = lfo1;
         self.lfo2_out = lfo2;
         self.env2_out = env2;
+        self.env3_out = env3;
     }
 
     /// Stores the per-block peak output level for the VU meter.
@@ -734,6 +855,8 @@ impl ParameterTree {
             pitch_offset_semis: self.pitch_offset_semis.next_sample(),
             filter_cutoff_hz: self.filter_cutoff_hz.next_sample(),
             filter_resonance: self.filter_resonance.next_sample(),
+            filter2_cutoff_hz: self.filter2_cutoff_hz.next_sample(),
+            filter2_resonance: self.filter2_resonance.next_sample(),
             osc_main_levels: [
                 self.osc_main_levels[0].next_sample(),
                 self.osc_main_levels[1].next_sample(),
@@ -783,6 +906,11 @@ impl ParameterTree {
             filter_cutoff_hz: self.filter_cutoff_hz.current(),
             filter_resonance: self.filter_resonance.current(),
             filter_mode: self.filter_mode,
+            filter2_cutoff_hz: self.filter2_cutoff_hz.current(),
+            filter2_resonance: self.filter2_resonance.current(),
+            filter2_mode: self.filter2_mode,
+            filter_routing: self.filter_routing,
+            filter_slope: self.filter_slope,
             osc_main_levels: [
                 self.osc_main_levels[0].current(),
                 self.osc_main_levels[1].current(),
@@ -833,10 +961,18 @@ impl ParameterTree {
             env2_attack_curve: self.env2_attack_curve,
             env2_decay_curve: self.env2_decay_curve,
             env2_release_curve: self.env2_release_curve,
+            env3_attack_secs: self.env3_attack_secs,
+            env3_decay_secs: self.env3_decay_secs,
+            env3_sustain_level: self.env3_sustain_level,
+            env3_release_secs: self.env3_release_secs,
+            env3_attack_curve: self.env3_attack_curve,
+            env3_decay_curve: self.env3_decay_curve,
+            env3_release_curve: self.env3_release_curve,
             bpm: self.bpm,
             lfo1_out: self.lfo1_out,
             lfo2_out: self.lfo2_out,
             env2_out: self.env2_out,
+            env3_out: self.env3_out,
             vu_peak_left: self.vu_peak_left,
             vu_peak_right: self.vu_peak_right,
             mod_slot_enabled: self.mod_slot_enabled,

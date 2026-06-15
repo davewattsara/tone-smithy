@@ -53,9 +53,14 @@ impl AppShell {
                 let snapshot = synth_engine::param_bus::load_snapshot(self.ui.snapshot_slot());
                 let events_for_new = map_to_events(&snapshot_to_map(&snapshot));
 
-                let new_sample_rate = audio::default_output_format()
+                // Size the new engine at the *target* device's sample rate.
+                // Querying the OS default device here was a latent bug: it
+                // built the engine at the wrong rate whenever the user picked
+                // a non-default device. Fall back to the rate the current
+                // stream is running at if the target can't be queried.
+                let new_sample_rate = audio::output_format(device_name.as_deref())
                     .map(|f| f.sample_rate)
-                    .unwrap_or(snapshot.bpm as u32); // fallback; will be corrected on next open
+                    .unwrap_or(self.audio.sample_rate);
 
                 let (new_tx, new_rx, new_slot) = param_bus::new_param_bus();
                 let mut new_engine = Engine::new(new_sample_rate as f32);

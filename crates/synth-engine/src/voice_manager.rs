@@ -16,7 +16,7 @@
 //! [`Voice`]: crate::voice::Voice
 
 use crate::POLYPHONY;
-use crate::filter::FilterMode;
+use crate::filter::{FilterMode, FilterRouting, FilterSlope};
 use crate::lfo::LfoShape;
 use crate::mod_matrix::{ModDest, ModMatrix, ModSource, ModSources};
 use crate::oscillator::Waveform;
@@ -255,6 +255,27 @@ impl VoiceManager {
         }
     }
 
+    /// Sets the filter-2 output tap on every voice.
+    pub fn set_filter2_mode(&mut self, mode: FilterMode) {
+        for v in &mut self.voices {
+            v.set_filter2_mode(mode);
+        }
+    }
+
+    /// Sets the filter routing (serial/parallel) on every voice.
+    pub fn set_filter_routing(&mut self, routing: FilterRouting) {
+        for v in &mut self.voices {
+            v.set_filter_routing(routing);
+        }
+    }
+
+    /// Sets the slope of the given filter on every voice.
+    pub fn set_filter_slope(&mut self, filter_idx: u8, slope: FilterSlope) {
+        for v in &mut self.voices {
+            v.set_filter_slope(filter_idx, slope);
+        }
+    }
+
     /// Sets LFO1 rate (Hz) on every voice.
     pub fn set_lfo1_rate_hz(&mut self, rate_hz: f32) {
         for v in &mut self.voices {
@@ -343,6 +364,55 @@ impl VoiceManager {
     pub fn set_env2_release_curve(&mut self, curve: f32) {
         for v in &mut self.voices {
             v.set_env2_release_curve(curve);
+        }
+    }
+
+    /// Sets Env3 attack time (seconds) on every voice.
+    pub fn set_env3_attack_secs(&mut self, secs: f32) {
+        for v in &mut self.voices {
+            v.set_env3_attack_secs(secs);
+        }
+    }
+
+    /// Sets Env3 decay time (seconds) on every voice.
+    pub fn set_env3_decay_secs(&mut self, secs: f32) {
+        for v in &mut self.voices {
+            v.set_env3_decay_secs(secs);
+        }
+    }
+
+    /// Sets Env3 sustain level on every voice.
+    pub fn set_env3_sustain_level(&mut self, level: f32) {
+        for v in &mut self.voices {
+            v.set_env3_sustain_level(level);
+        }
+    }
+
+    /// Sets Env3 release time (seconds) on every voice.
+    pub fn set_env3_release_secs(&mut self, secs: f32) {
+        for v in &mut self.voices {
+            v.set_env3_release_secs(secs);
+        }
+    }
+
+    /// Sets Env3 Attack curve on every voice.
+    pub fn set_env3_attack_curve(&mut self, curve: f32) {
+        for v in &mut self.voices {
+            v.set_env3_attack_curve(curve);
+        }
+    }
+
+    /// Sets Env3 Decay curve on every voice.
+    pub fn set_env3_decay_curve(&mut self, curve: f32) {
+        for v in &mut self.voices {
+            v.set_env3_decay_curve(curve);
+        }
+    }
+
+    /// Sets Env3 Release curve on every voice.
+    pub fn set_env3_release_curve(&mut self, curve: f32) {
+        for v in &mut self.voices {
+            v.set_env3_release_curve(curve);
         }
     }
 
@@ -502,21 +572,22 @@ impl VoiceManager {
                 mod_wheel: self.global_mod_wheel,
                 aftertouch: self.global_aftertouch,
                 pitch_bend: self.global_pitch_bend,
+                env3: v.env3_out(),
             };
             v.mod_offsets = self.matrix.compute_offsets(&sources);
         }
     }
 
-    /// Returns the LFO1/LFO2/Env2 outputs of the first active voice,
-    /// or `(0.0, 0.0, 0.0)` if no voice is active. Used for the UI
+    /// Returns the LFO1/LFO2/Env2/Env3 outputs of the first active voice,
+    /// or `(0.0, 0.0, 0.0, 0.0)` if no voice is active. Used for the UI
     /// live readout in the snapshot.
-    pub fn first_active_modulator_outputs(&self) -> (f32, f32, f32) {
+    pub fn first_active_modulator_outputs(&self) -> (f32, f32, f32, f32) {
         for v in &self.voices {
             if !v.is_idle() {
-                return (v.lfo1_out(), v.lfo2_out(), v.env2_out());
+                return (v.lfo1_out(), v.lfo2_out(), v.env2_out(), v.env3_out());
             }
         }
-        (0.0, 0.0, 0.0)
+        (0.0, 0.0, 0.0, 0.0)
     }
 
     /// Produces one stereo frame as the sum of every non-idle voice.
@@ -540,6 +611,8 @@ impl VoiceManager {
             let off = &v.mod_offsets;
             vp.filter_cutoff_hz = (vp.filter_cutoff_hz + off.filter_cutoff_hz).clamp(20.0, 20_000.0);
             vp.filter_resonance = (vp.filter_resonance + off.filter_resonance).clamp(0.0, 1.0);
+            vp.filter2_cutoff_hz = (vp.filter2_cutoff_hz + off.filter2_cutoff_hz).clamp(20.0, 20_000.0);
+            vp.filter2_resonance = (vp.filter2_resonance + off.filter2_resonance).clamp(0.0, 1.0);
             vp.pitch_offset_semis += off.pitch_semis;
             vp.osc_main_detune_cents[0] += off.osc1_detune_cents;
             vp.osc_main_pans[0] = (vp.osc_main_pans[0] + off.osc1_pan).clamp(-1.0, 1.0);
@@ -633,6 +706,8 @@ mod tests {
             pitch_offset_semis: snap.pitch_offset_semis,
             filter_cutoff_hz: 22_000.0,
             filter_resonance: 0.0,
+            filter2_cutoff_hz: 22_000.0,
+            filter2_resonance: 0.0,
             osc_main_levels: snap.osc_main_levels,
             sub_level: snap.sub_level,
             osc_main_detune_cents: snap.osc_main_detune_cents,
