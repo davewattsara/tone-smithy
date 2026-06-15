@@ -214,9 +214,11 @@ impl Engine {
             ParamId::Lfo1RateHz | ParamId::Lfo1SyncEnabled | ParamId::Lfo1SyncDivision | ParamId::Bpm => {
                 // Re-derive LFO1 rate whenever anything that affects it changes.
                 self.voices.set_lfo1_rate_hz(self.params.lfo1_effective_rate_hz());
-                // Bpm also affects LFO2 if it's synced.
+                // Bpm is the single transport tempo: it also affects LFO2 (if
+                // synced) and drives the arp clock (and, from Phase 2, the seq).
                 if id == ParamId::Bpm {
                     self.voices.set_lfo2_rate_hz(self.params.lfo2_effective_rate_hz());
+                    self.arp.bpm = value;
                 }
             }
             ParamId::Lfo1Shape => {
@@ -403,7 +405,6 @@ impl Engine {
             ParamId::ArpMode => self.arp.mode = ArpMode::from_f32(value),
             ParamId::ArpOctaves => self.arp.octaves = (value as u8).clamp(1, 4),
             ParamId::ArpRate => self.arp.rate = ArpRate::from_f32(value),
-            ParamId::ArpBpm => self.arp.bpm = value.clamp(20.0, 300.0),
             ParamId::ArpGate => self.arp.gate = value.clamp(0.01, 1.0),
             ParamId::ArpSwing => self.arp.swing = value.clamp(0.5, 0.75),
 

@@ -259,7 +259,6 @@ pub struct ParamSnapshot {
     pub arp_mode: u8,
     pub arp_octaves: u8,
     pub arp_rate: u8,
-    pub arp_bpm: f32,
     pub arp_gate: f32,
     pub arp_swing: f32,
 }
@@ -374,7 +373,6 @@ impl Default for ParamSnapshot {
             arp_mode: 0,
             arp_octaves: 1,
             arp_rate: 2, // 1/8
-            arp_bpm: 120.0,
             arp_gate: 0.5,
             arp_swing: 0.5,
         }

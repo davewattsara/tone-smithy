@@ -87,21 +87,9 @@ impl ToneSmithyApp {
 
             ui.add_space(theme::GROUP_GAP);
 
+            // BPM is the unified transport tempo — its knob lives in the Master
+            // tab and drives the arp, sequencer, and LFO sync together.
             ui.horizontal(|ui| {
-                if ui
-                    .add(
-                        Knob::new(&mut self.arp_bpm, 20.0..=300.0, "BPM")
-                            .default_value(120.0)
-                            .param_key("arp_bpm")
-                            .format(|v| format!("{:.0}", v)),
-                    )
-                    .changed()
-                {
-                    self.events.send(EngineEvent::ParameterChange {
-                        id: ParamId::ArpBpm,
-                        value: self.arp_bpm,
-                    });
-                }
                 if ui
                     .add(
                         Knob::new(&mut self.arp_gate, 0.01..=1.0, "Gate")

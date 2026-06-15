@@ -159,7 +159,6 @@ pub fn snapshot_to_map(snap: &ParamSnapshot) -> BTreeMap<String, f32> {
     m.insert("arp_mode".into(), f32::from(snap.arp_mode));
     m.insert("arp_octaves".into(), f32::from(snap.arp_octaves));
     m.insert("arp_rate".into(), f32::from(snap.arp_rate));
-    m.insert("arp_bpm".into(), snap.arp_bpm);
     m.insert("arp_gate".into(), snap.arp_gate);
     m.insert("arp_swing".into(), snap.arp_swing);
 
@@ -393,7 +392,9 @@ pub fn map_to_events(m: &BTreeMap<String, f32>) -> Vec<EngineEvent> {
     pc!("arp_mode", ParamId::ArpMode);
     pc!("arp_octaves", ParamId::ArpOctaves);
     pc!("arp_rate", ParamId::ArpRate);
-    pc!("arp_bpm", ParamId::ArpBpm);
+    // Back-compat: legacy presets stored a separate arp BPM. The transport
+    // tempo is now unified, so an old `arp_bpm` key drives the global Bpm.
+    pc!("arp_bpm", ParamId::Bpm);
     pc!("arp_gate", ParamId::ArpGate);
     pc!("arp_swing", ParamId::ArpSwing);
 
@@ -603,7 +604,8 @@ pub fn map_to_snapshot(m: &BTreeMap<String, f32>) -> ParamSnapshot {
     get_u8!("arp_mode", s.arp_mode);
     get_u8!("arp_octaves", s.arp_octaves);
     get_u8!("arp_rate", s.arp_rate);
-    get!("arp_bpm", s.arp_bpm);
+    // Back-compat: a legacy `arp_bpm` key feeds the now-unified transport Bpm.
+    get!("arp_bpm", s.bpm);
     get!("arp_gate", s.arp_gate);
     get!("arp_swing", s.arp_swing);
 
@@ -725,7 +727,6 @@ mod tests {
         orig.arp_mode = 2;
         orig.arp_octaves = 3;
         orig.arp_rate = 1;
-        orig.arp_bpm = 130.0;
         orig.arp_gate = 0.7;
         orig.arp_swing = 0.6;
 
@@ -827,7 +828,6 @@ mod tests {
         assert_eq!(orig.arp_mode, got.arp_mode);
         assert_eq!(orig.arp_octaves, got.arp_octaves);
         assert_eq!(orig.arp_rate, got.arp_rate);
-        assert_eq!(orig.arp_bpm, got.arp_bpm);
         assert_eq!(orig.arp_gate, got.arp_gate);
         assert_eq!(orig.arp_swing, got.arp_swing);
     }

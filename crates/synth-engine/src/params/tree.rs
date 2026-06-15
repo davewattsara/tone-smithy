@@ -254,7 +254,6 @@ pub struct ParameterTree {
     pub(super) arp_mode: u8,
     pub(super) arp_octaves: u8,
     pub(super) arp_rate: u8,
-    pub(super) arp_bpm: f32,
     pub(super) arp_gate: f32,
     pub(super) arp_swing: f32,
 }
@@ -380,7 +379,6 @@ impl ParameterTree {
             arp_mode: defaults.arp_mode,
             arp_octaves: defaults.arp_octaves,
             arp_rate: defaults.arp_rate,
-            arp_bpm: defaults.arp_bpm,
             arp_gate: defaults.arp_gate,
             arp_swing: defaults.arp_swing,
         }
@@ -583,7 +581,6 @@ impl ParameterTree {
             ParamId::ArpMode => self.arp_mode = (value as u8).min(4),
             ParamId::ArpOctaves => self.arp_octaves = (value as u8).clamp(1, 4),
             ParamId::ArpRate => self.arp_rate = (value as u8).min(4),
-            ParamId::ArpBpm => self.arp_bpm = value.clamp(20.0, 300.0),
             ParamId::ArpGate => self.arp_gate = value.clamp(0.01, 1.0),
             ParamId::ArpSwing => self.arp_swing = value.clamp(0.5, 0.75),
         }
@@ -1023,7 +1020,6 @@ impl ParameterTree {
             arp_mode: self.arp_mode,
             arp_octaves: self.arp_octaves,
             arp_rate: self.arp_rate,
-            arp_bpm: self.arp_bpm,
             arp_gate: self.arp_gate,
             arp_swing: self.arp_swing,
         }

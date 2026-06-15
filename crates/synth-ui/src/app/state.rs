@@ -232,7 +232,6 @@ pub struct ToneSmithyApp {
     pub(crate) arp_mode: u8,
     pub(crate) arp_octaves: u8,
     pub(crate) arp_rate: u8,
-    pub(crate) arp_bpm: f32,
     pub(crate) arp_gate: f32,
     pub(crate) arp_swing: f32,
 
@@ -400,7 +399,6 @@ impl ToneSmithyApp {
             arp_mode: snap.arp_mode,
             arp_octaves: snap.arp_octaves,
             arp_rate: snap.arp_rate,
-            arp_bpm: snap.arp_bpm,
             arp_gate: snap.arp_gate,
             arp_swing: snap.arp_swing,
             pitch_offset_semis: snap.pitch_offset_semis,
@@ -615,7 +613,6 @@ impl ToneSmithyApp {
         self.arp_mode = snap.arp_mode;
         self.arp_octaves = snap.arp_octaves;
         self.arp_rate = snap.arp_rate;
-        self.arp_bpm = snap.arp_bpm;
         self.arp_gate = snap.arp_gate;
         self.arp_swing = snap.arp_swing;
         self.pitch_offset_semis = snap.pitch_offset_semis;

@@ -384,7 +384,7 @@ OSC2; and the sequencer, LFO mode, and new oscillator dests all survive preset s
 ## Progress
 
 - [x] Open questions resolved with user (2026-06-15) — see Decisions
-- [ ] Phase 1 — Unify transport BPM
+- [x] Phase 1 — Unify transport BPM
 - [ ] Phase 2 — Sequencer engine core
 - [ ] Phase 3 — Sequencer mod lane
 - [ ] Phase 4 — Sequencer UI

@@ -279,8 +279,6 @@ pub enum ParamId {
     ArpOctaves,
     /// Step rate: 0=1/32 1=1/16 2=1/8 3=1/4 4=1/2.
     ArpRate,
-    /// Internal BPM, 20–300.
-    ArpBpm,
     /// Gate fraction of step duration, 0.01–1.0.
     ArpGate,
     /// Swing fraction, 0.5–0.75.
