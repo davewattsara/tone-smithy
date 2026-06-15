@@ -39,6 +39,16 @@ const MIN_Q: f32 = 0.5;
 /// integrator state cannot diverge for a clipped input.
 const MAX_Q: f32 = 25.0;
 
+/// How hard to attenuate the filter input as resonance climbs, to keep
+/// the resonant peak (gain ≈ Q at the corner, ~+28 dB at MAX_Q) from
+/// slamming the output into clipping. At resonance 0 the factor is 1.0
+/// (no change); at resonance 1 the input is scaled by
+/// `1 - RESONANCE_GAIN_COMP`. Scaling the input rather than normalising
+/// the peak also mimics the classic ladder-filter behaviour where the
+/// body thins as resonance rises, so it reads as musical rather than as
+/// a volume drop.
+const RESONANCE_GAIN_COMP: f32 = 0.75;
+
 /// Which output tap the filter exposes.
 ///
 /// The integrator state is the same across modes; only the output
@@ -118,6 +128,11 @@ pub struct StateVariableFilter {
     a2: f32,
     a3: f32,
 
+    // Input attenuation that rises with resonance to keep the resonant
+    // peak from clipping the output. 1.0 at resonance 0. See
+    // `RESONANCE_GAIN_COMP`.
+    gain_comp: f32,
+
     // Second-stage coefficients for the 24 dB/oct cascade. Same cutoff
     // (so `g` is shared) but a damped resonance so cascading does not
     // square the resonant peak into instability.
@@ -152,6 +167,7 @@ impl StateVariableFilter {
             a1: 0.0,
             a2: 0.0,
             a3: 0.0,
+            gain_comp: 1.0,
             k2: 0.0,
             a1_2: 0.0,
             a2_2: 0.0,
@@ -215,6 +231,7 @@ impl StateVariableFilter {
     /// 24 dB/oct the output of the first stage is fed through a second
     /// cascaded stage for a 4-pole roll-off.
     pub fn next_sample(&mut self, input: f32) -> f32 {
+        let input = input * self.gain_comp;
         let out1 = Self::process_stage(
             input,
             self.a1,
@@ -274,6 +291,7 @@ impl StateVariableFilter {
             .cutoff_hz
             .clamp(MIN_CUTOFF_HZ, NYQUIST_HEADROOM * self.sample_rate_hz);
         let q = resonance_to_q(self.resonance);
+        self.gain_comp = 1.0 - RESONANCE_GAIN_COMP * self.resonance.clamp(0.0, 1.0);
         self.g = (PI * fc / self.sample_rate_hz).tan();
         self.k = 1.0 / q;
         self.a1 = 1.0 / (1.0 + self.g * (self.g + self.k));
@@ -403,6 +421,20 @@ mod tests {
         assert!(
             high_q > low_q * 3.0,
             "expected high-Q peak well above low-Q: low {low_q}, high {high_q}"
+        );
+    }
+
+    #[test]
+    fn resonance_gain_compensation_tames_peak() {
+        // The resonant peak at the corner should still rise with
+        // resonance (see `resonance_amplifies_at_cutoff`), but the input
+        // attenuation must keep max-resonance well below the raw +28 dB
+        // (~25x) boost it would otherwise hit, so a hot saw does not
+        // detonate the master meter.
+        let peak = measure_peak(FilterMode::LowPass, 1_000.0, 1.0, 1_000.0);
+        assert!(
+            peak < 8.0,
+            "expected compensated peak well under the uncompensated ~25x boost, got {peak}"
         );
     }
 
