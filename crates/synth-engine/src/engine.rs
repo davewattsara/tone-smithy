@@ -151,7 +151,18 @@ impl Engine {
             EngineEvent::NoteOff { note_midi } => {
                 self.arp.note_off(note_midi);
                 self.seq.note_off(note_midi);
-                if !self.arp.enabled && !self.seq.enabled {
+                if self.arp.enabled {
+                    // Releasing the last held note must release the immediate-
+                    // fired voice now; otherwise a fast re-press refills the held
+                    // set before process() cleans up and orphans the voice.
+                    if let Some(note) = self.arp.take_idle_note_off() {
+                        self.voices.note_off(note);
+                    }
+                } else if self.seq.enabled {
+                    if let Some(note) = self.seq.take_idle_note_off() {
+                        self.voices.note_off(note);
+                    }
+                } else {
                     self.voices.note_off(note_midi);
                 }
             }
@@ -659,6 +670,39 @@ mod tests {
         let mut buffer = [0.0f32; 2];
         engine.process_stereo(&mut buffer, 1);
         assert_eq!(engine.snapshot().active_voice_count, 1);
+    }
+
+    #[test]
+    fn rapid_notes_with_sequencer_do_not_stick() {
+        let mut engine = Engine::new(48_000.0);
+        // Turn the sequencer on.
+        engine.handle(EngineEvent::ParameterChange {
+            id: ParamId::SeqEnabled,
+            value: 1.0,
+        });
+        // Simulate dragging across the on-screen keyboard: many quick
+        // press/release pairs, each fully releasing before the next, all within
+        // a single block's event drain (no process() in between). Each press is
+        // a "first note into an empty held set" and immediate-fires a voice.
+        for note in 60u8..72 {
+            engine.handle(EngineEvent::NoteOn {
+                note_midi: note,
+                velocity: 100,
+            });
+            engine.handle(EngineEvent::NoteOff { note_midi: note });
+        }
+        // Drain well past the release tail so any genuinely-released voice has
+        // decayed to silence. Orphaned (still-gated) voices would never decay.
+        let mut buffer = [0.0f32; 1024 * 2];
+        for _ in 0..200 {
+            buffer.fill(0.0);
+            engine.process_stereo(&mut buffer, 1024);
+        }
+        assert_eq!(
+            engine.snapshot().active_voice_count,
+            0,
+            "rapid press/release with the sequencer on must not leave stuck voices"
+        );
     }
 
     #[test]

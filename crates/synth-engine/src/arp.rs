@@ -228,6 +228,25 @@ impl ArpEngine {
         }
     }
 
+    /// If the held set is now empty but a note is still sounding from the
+    /// key-down immediate-fire, close the gate and return that note so the
+    /// caller can release its voice now rather than at the next `process()`.
+    ///
+    /// Without this, a fast release→re-press cycle (e.g. dragging across the
+    /// on-screen keyboard) refills the held set before `process()` runs its
+    /// empty-state cleanup, so the previously fired voice never receives a
+    /// NoteOff and stays stuck. Returns `None` when notes are still held or no
+    /// gate is open.
+    #[must_use]
+    pub fn take_idle_note_off(&mut self) -> Option<u8> {
+        if self.held_count == 0 && self.gate_open {
+            self.gate_open = false;
+            Some(self.current_note)
+        } else {
+            None
+        }
+    }
+
     /// Clear all held notes and close the gate. Used by the engine's
     /// panic / all-notes-off path so the arp stops scheduling notes
     /// immediately rather than continuing to clock a stale held set.
