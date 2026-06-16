@@ -41,8 +41,9 @@ Decisions deliberately deferred from this round of planning. Each one is logged 
 
 ## Factory content authoring
 
-- **Status:** Sound design is a major effort and the developer may not be the right person for all categories. Options: solo, recruit a community sound designer, run an open call.
-- **Decision needed by:** Start of M14 (factory bank).
+- **Status:** **Resolved (2026-06-16): solo authoring (developer + Claude).** The v1.0 factory bank (M14) and the v1.1 expansion (M20) are authored in-house rather than recruiting a community sound designer or running an open call.
+- **Mitigation:** The M20 plan ([`../06-implementation/m20-plan.md`](../06-implementation/m20-plan.md)) makes the showcase requirements explicit and adds CI coverage-guard tests so the bank's breadth is enforced, not left to chance.
+- **Revisit:** Community/open-call sound design can be reconsidered for a later release if the in-house effort proves a bottleneck.
 
 ## Code signing certificate
 
