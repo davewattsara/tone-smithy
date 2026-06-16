@@ -245,6 +245,17 @@ static FACTORY_RAWS: &[&str] = &[
     include_str!("../factory/keys_fm_organ.tsmith"),
     include_str!("../factory/keys_vibes.tsmith"),
     include_str!("../factory/keys_bell_chime.tsmith"),
+    // v1.1 additions (M20) — Hammond/Leslie family + more keyboards
+    include_str!("../factory/keys_tonewheel.tsmith"),
+    include_str!("../factory/keys_leslie_organ.tsmith"),
+    include_str!("../factory/keys_rock_organ.tsmith"),
+    include_str!("../factory/keys_pipe_organ.tsmith"),
+    include_str!("../factory/keys_house_organ.tsmith"),
+    include_str!("../factory/keys_clav.tsmith"),
+    include_str!("../factory/keys_dx_piano.tsmith"),
+    include_str!("../factory/keys_mellotron.tsmith"),
+    include_str!("../factory/keys_accordion.tsmith"),
+    include_str!("../factory/keys_celeste.tsmith"),
     // ── FX ────────────────────────────────────────────────────────────────
     include_str!("../factory/fx_pad.tsmith"),
     include_str!("../factory/fx_sweep_rise.tsmith"),
@@ -345,8 +356,8 @@ mod qa_tests {
         // v1.1 (M20) factory expansion, in progress. Current categorised total
         // plus the Init patch. The per-category distribution and feature-coverage
         // guards live in the tests below.
-        // 29 Bass + 15 Lead + 12 Pad + 8 Pluck + 6 Keys + 4 FX = 74, plus Init.
-        assert_eq!(FACTORY_RAWS.len(), 75);
+        // 29 Bass + 15 Lead + 12 Pad + 8 Pluck + 16 Keys + 4 FX = 84, plus Init.
+        assert_eq!(FACTORY_RAWS.len(), 85);
     }
 
     #[test]
