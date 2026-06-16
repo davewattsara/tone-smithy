@@ -1,8 +1,8 @@
 # Tone Smithy
 
-A hybrid (subtractive + FM) standalone software synthesizer for Windows, written in Rust.
+A hybrid (subtractive + FM) standalone software synthesizer for Windows, Linux, and macOS, written in Rust.
 
-> **Status:** v1.0.0 — all milestones (M0–M15) complete. The Windows installer is built via `cargo xtask dist`; v1.0 ships unsigned (see the SmartScreen note below).
+> **Status:** v1.0.0 shipped (Windows). v1.1 in progress — it adds Linux (`.tar.gz`) and macOS (`.dmg`) packages alongside the Windows installer, all built via `cargo xtask dist`. Builds ship unsigned for now (see the platform notes below).
 > See [`docs/planning/06-implementation/milestones.md`](docs/planning/06-implementation/milestones.md) for the milestone plan.
 
 Tone Smithy combines analog-style subtractive synthesis with 4-operator FM in a single voice — so a patch can layer warm analog character with clean FM bell tones without switching plugins. Free download, open source, no DAW required.
@@ -21,25 +21,47 @@ Tone Smithy combines analog-style subtractive synthesis with 4-operator FM in a 
 
 A second filter, 24 dB/oct option, second mod envelope, 16-slot matrix, step sequencer, and factory bank expansion to ~120 presets are deferred to v1.1 to keep the v1.0 timeline tractable. See [`docs/planning/02-scope/roadmap.md`](docs/planning/02-scope/roadmap.md).
 
-## Download & install (Windows)
+## Download & install
 
-> Released builds attach to [GitHub Releases](../../releases) once v1.0 is cut.
+> Released builds attach to [GitHub Releases](../../releases). Each release
+> publishes a Windows installer, a Linux tarball, and a macOS dmg, with a single
+> `SHA256SUMS` covering all three.
 
-1. Download `tonesmithy-<version>-windows-x64.exe` from the latest release.
-2. (Optional) verify it against `SHA256SUMS` published alongside it.
-3. Run the installer. It installs per-user — no administrator prompt — adds a
-   Start Menu shortcut, and optionally associates `.tsmith` preset files.
-4. Launch **Tone Smithy** and follow the first-run wizard to pick an audio
-   output and MIDI input. No MIDI device? Play from your computer keyboard.
-
-**SmartScreen note:** v1.0 may ship unsigned, so Windows SmartScreen can show
-"Windows protected your PC". Click **More info → Run anyway** to continue. Once a
-code-signing certificate is in place this warning goes away.
+After downloading, you can (optionally) verify the file against the matching line
+in `SHA256SUMS`. On first launch a short wizard picks an audio output and MIDI
+input — no MIDI device? Play from your computer keyboard.
 
 Step-by-step help: [`docs/getting-started.md`](docs/getting-started.md).
 
-Uninstall from **Settings → Apps**. Your settings and user presets in
-`%APPDATA%\Tone Smithy\` are left in place unless you remove them yourself.
+### Windows
+
+Download `tonesmithy-<version>-windows-x64.exe` and run it. It installs per-user
+— no administrator prompt — adds a Start Menu shortcut, and optionally associates
+`.tsmith` preset files. Uninstall from **Settings → Apps**.
+
+**SmartScreen note:** builds may ship unsigned, so Windows SmartScreen can show
+"Windows protected your PC". Click **More info → Run anyway** to continue. Once a
+code-signing certificate is in place this warning goes away.
+
+### Linux
+
+Download `tonesmithy-<version>-linux-x64.tar.gz`, unpack it, and run `./tonesmithy`
+from the extracted folder. Audio uses PipeWire/ALSA and MIDI uses the ALSA
+sequencer via the system libraries — no extra setup on a typical desktop. Built
+and tested on Ubuntu 24.04; other modern distros should work.
+
+### macOS
+
+Download `tonesmithy-<version>-macos.dmg` (Apple Silicon), open it, and drag
+**Tone Smithy.app** to Applications. Builds may ship unsigned/unnotarized, so
+macOS Gatekeeper can refuse the first launch ("can't be opened because the
+developer cannot be verified"). Right-click the app and choose **Open**, then
+confirm, to run it the first time.
+
+Your settings and user presets live under your platform's application-data
+directory — `%APPDATA%\Tone Smithy\` on Windows, `~/.local/share/tonesmithy/` on
+Linux, and under `~/Library/Application Support/` on macOS — and are left in
+place unless you remove them yourself.
 
 ## Build from source
 
@@ -64,9 +86,10 @@ Enable the pre-commit hook (formats + clippy on every commit):
 git config core.hooksPath .githooks
 ```
 
-Package a release build (assembles `target/dist/<version>/`; on Windows with
-[Inno Setup](https://jrsoftware.org/isinfo.php) on `PATH` it also compiles the
-installer):
+Package a release build (assembles `target/dist/<version>/`, then builds the
+host-appropriate package: on Windows with [Inno Setup](https://jrsoftware.org/isinfo.php)
+on `PATH` it compiles the installer; on Linux a `.tar.gz`; on macOS a `.dmg`
+holding the `Tone Smithy.app` bundle). Each runner produces only its own package:
 
 ```bash
 cargo xtask dist

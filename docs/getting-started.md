@@ -1,25 +1,36 @@
 # Getting started with Tone Smithy
 
 This guide takes you from download to your first sound. Tone Smithy is a
-standalone Windows application — there's no DAW or plugin host to set up.
+standalone application for Windows, Linux, and macOS — there's no DAW or plugin
+host to set up.
 
 ## 1. Download
 
-Grab the latest installer from the
+Grab the latest package for your platform from the
 [Releases page](https://github.com/davewattsara/tone-smithy/releases):
 
-- `tonesmithy-<version>-windows-x64.exe` — the installer.
-- `SHA256SUMS` — checksums, if you want to verify the download.
+- `tonesmithy-<version>-windows-x64.exe` — Windows installer.
+- `tonesmithy-<version>-linux-x64.tar.gz` — Linux tarball.
+- `tonesmithy-<version>-macos.dmg` — macOS disk image (Apple Silicon).
+- `SHA256SUMS` — checksums for all of the above, if you want to verify the download.
 
-To verify (optional), in PowerShell:
+To verify (optional), compare the file's SHA-256 against the matching line in
+`SHA256SUMS`:
 
 ```powershell
+# Windows (PowerShell)
 Get-FileHash .\tonesmithy-<version>-windows-x64.exe -Algorithm SHA256
 ```
 
-and compare the result against the matching line in `SHA256SUMS`.
+```bash
+# Linux / macOS
+sha256sum tonesmithy-<version>-linux-x64.tar.gz      # Linux
+shasum -a 256 tonesmithy-<version>-macos.dmg         # macOS
+```
 
 ## 2. Install
+
+### Windows
 
 Run the installer and follow the wizard:
 
@@ -29,12 +40,32 @@ Run the installer and follow the wizard:
 - You can opt in to associating **`.tsmith`** preset files, so double-clicking a
   preset opens it in Tone Smithy.
 
-### The SmartScreen warning
-
-If v1.0 ships unsigned, Windows SmartScreen may show **"Windows protected your
+If the build is unsigned, Windows SmartScreen may show **"Windows protected your
 PC"** on first launch. This is expected for new, unsigned software — it isn't a
 virus warning. Click **More info**, then **Run anyway**. Once the project has a
 code-signing certificate, this prompt disappears.
+
+### Linux
+
+Unpack the tarball and run the binary from the extracted folder:
+
+```bash
+tar -xzf tonesmithy-<version>-linux-x64.tar.gz
+cd tonesmithy-<version>
+./tonesmithy
+```
+
+Audio goes through PipeWire/ALSA and MIDI through the ALSA sequencer via the
+system libraries — no extra setup on a typical desktop. Built and tested on
+Ubuntu 24.04; other modern distributions should work.
+
+### macOS
+
+Open the `.dmg` and drag **Tone Smithy.app** to the **Applications** folder, then
+launch it from there. If the build is unsigned/unnotarized, Gatekeeper may refuse
+the first launch with **"can't be opened because the developer cannot be
+verified"**. Right-click (or Control-click) the app, choose **Open**, then
+confirm in the dialog — macOS then remembers the choice for future launches.
 
 ## 3. First launch
 
@@ -62,14 +93,23 @@ Open the **Presets** tab to browse the factory bank by category (Bass, Lead,
 Pad, Pluck, Keys, FX). Click a preset to load it. Several presets respond to the
 **mod wheel** — push it up for vibrato or movement.
 
-Save your own sounds with **Save As**; they land in your user preset folder
-(`%APPDATA%\Tone Smithy\presets\`) and show up under **USER** in the browser.
+Save your own sounds with **Save As**; they land in your user preset folder and
+show up under **USER** in the browser. That folder lives under your platform's
+application-data directory:
+
+- **Windows:** `%APPDATA%\Tone Smithy\presets\`
+- **Linux:** `~/.local/share/tonesmithy/presets/`
+- **macOS:** `~/Library/Application Support/` (under the Tone Smithy data folder)
 
 ## Uninstalling
 
-Uninstall from **Settings → Apps → Tone Smithy**. Your settings and user presets
-in `%APPDATA%\Tone Smithy\` are left untouched so a reinstall keeps your work;
-delete that folder by hand if you want a clean slate.
+- **Windows:** uninstall from **Settings → Apps → Tone Smithy**.
+- **Linux:** delete the unpacked folder.
+- **macOS:** drag **Tone Smithy.app** from Applications to the Trash.
+
+Your settings and user presets in the application-data directory above are left
+untouched so a reinstall keeps your work; delete that folder by hand if you want
+a clean slate.
 
 ## Troubleshooting
 
