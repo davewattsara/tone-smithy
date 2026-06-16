@@ -261,6 +261,13 @@ static FACTORY_RAWS: &[&str] = &[
     include_str!("../factory/pluck_pizzicato.tsmith"),
     include_str!("../factory/pluck_dulcimer.tsmith"),
     include_str!("../factory/pluck_harpsi.tsmith"),
+    // v1.1 additions (M20)
+    include_str!("../factory/pluck_glass.tsmith"),
+    include_str!("../factory/pluck_kalimba.tsmith"),
+    include_str!("../factory/pluck_guitar.tsmith"),
+    include_str!("../factory/pluck_stab.tsmith"),
+    include_str!("../factory/pluck_music_box.tsmith"),
+    include_str!("../factory/pluck_harp.tsmith"),
     // ── Keys ──────────────────────────────────────────────────────────────
     include_str!("../factory/keys.tsmith"),
     include_str!("../factory/keys_rhodes_warm.tsmith"),
@@ -379,8 +386,8 @@ mod qa_tests {
         // v1.1 (M20) factory expansion, in progress. Current categorised total
         // plus the Init patch. The per-category distribution and feature-coverage
         // guards live in the tests below.
-        // 29 Bass + 26 Lead + 22 Pad + 8 Pluck + 16 Keys + 4 FX = 105, plus Init.
-        assert_eq!(FACTORY_RAWS.len(), 106);
+        // 29 Bass + 26 Lead + 22 Pad + 14 Pluck + 16 Keys + 4 FX = 111, plus Init.
+        assert_eq!(FACTORY_RAWS.len(), 112);
     }
 
     #[test]
