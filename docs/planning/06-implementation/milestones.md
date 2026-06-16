@@ -404,7 +404,7 @@ migration); `fmt` / `clippy -D warnings` / tests clean.
 
 ---
 
-## M20 — v1.1 factory expansion + release (2–4 weeks) — v1.1
+## M20 — v1.1 factory expansion + release (2–4 weeks) — v1.1 — **complete (2026-06-16, tag `v1.1.0`)**
 
 > Implementation plan: [`m20-plan.md`](m20-plan.md)
 
