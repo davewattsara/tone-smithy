@@ -140,7 +140,6 @@ impl ToneSmithyApp {
                 let frame = if is_playhead {
                     egui::Frame::none()
                         .fill(theme::ACCENT.gamma_multiply(0.22))
-                        .stroke(egui::Stroke::new(1.5, theme::ACCENT))
                         .rounding(egui::Rounding::same(3.0))
                         .inner_margin(egui::Margin::same(2.0))
                 } else {
