@@ -216,6 +216,18 @@ static FACTORY_RAWS: &[&str] = &[
     include_str!("../factory/lead_vintage_solo.tsmith"),
     include_str!("../factory/lead_triangle_soft.tsmith"),
     include_str!("../factory/lead_dual_slot.tsmith"),
+    // v1.1 additions (M20)
+    include_str!("../factory/lead_split_filter.tsmith"),
+    include_str!("../factory/lead_vocal_formant.tsmith"),
+    include_str!("../factory/lead_acid_24.tsmith"),
+    include_str!("../factory/lead_brass.tsmith"),
+    include_str!("../factory/lead_flute.tsmith"),
+    include_str!("../factory/lead_chip.tsmith"),
+    include_str!("../factory/lead_seq_riff.tsmith"),
+    include_str!("../factory/lead_distortion.tsmith"),
+    include_str!("../factory/lead_saw_stack.tsmith"),
+    include_str!("../factory/lead_fm_brass.tsmith"),
+    include_str!("../factory/lead_pluck_synth.tsmith"),
     // ── Pad ───────────────────────────────────────────────────────────────
     include_str!("../factory/analog_pad.tsmith"),
     include_str!("../factory/pad_fm_shimmer.tsmith"),
@@ -356,8 +368,8 @@ mod qa_tests {
         // v1.1 (M20) factory expansion, in progress. Current categorised total
         // plus the Init patch. The per-category distribution and feature-coverage
         // guards live in the tests below.
-        // 29 Bass + 15 Lead + 12 Pad + 8 Pluck + 16 Keys + 4 FX = 84, plus Init.
-        assert_eq!(FACTORY_RAWS.len(), 85);
+        // 29 Bass + 26 Lead + 12 Pad + 8 Pluck + 16 Keys + 4 FX = 95, plus Init.
+        assert_eq!(FACTORY_RAWS.len(), 96);
     }
 
     #[test]
