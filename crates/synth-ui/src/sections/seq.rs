@@ -134,31 +134,45 @@ impl ToneSmithyApp {
                 // and rest do nothing. Its mod lane and tie toggle still matter.
                 let consumed = in_range && length > 1 && self.seq_step_tie[(i + length - 1) % length];
 
-                ui.vertical(|ui| {
-                    ui.set_width(38.0);
+                // Highlight the active step with an accent fill + border so the
+                // playhead is obvious at a glance. Non-playhead columns get the
+                // same margins (transparent frame) to keep the grid aligned.
+                let frame = if is_playhead {
+                    egui::Frame::none()
+                        .fill(theme::ACCENT.gamma_multiply(0.22))
+                        .stroke(egui::Stroke::new(1.5, theme::ACCENT))
+                        .rounding(egui::Rounding::same(3.0))
+                        .inner_margin(egui::Margin::same(2.0))
+                } else {
+                    egui::Frame::none().inner_margin(egui::Margin::same(2.0))
+                };
+                frame.show(ui, |ui| {
+                    ui.vertical(|ui| {
+                        ui.set_width(38.0);
 
-                    // Step number / playhead indicator.
-                    let num_color = if is_playhead {
-                        theme::ACCENT
-                    } else if in_range {
-                        theme::FG1
-                    } else {
-                        theme::FG2
-                    };
-                    ui.label(
-                        egui::RichText::new(format!("{:>2}", i + 1))
+                        // Step number / playhead indicator.
+                        let num_color = if is_playhead {
+                            theme::FG0
+                        } else if in_range {
+                            theme::FG1
+                        } else {
+                            theme::FG2
+                        };
+                        let mut num = egui::RichText::new(format!("{:>2}", i + 1))
                             .color(num_color)
-                            .font(theme::font_small()),
-                    );
+                            .font(theme::font_small());
+                        if is_playhead {
+                            num = num.strong();
+                        }
+                        ui.label(num);
 
-                    ui.add_enabled_ui(in_range, |ui| {
-                        self.seq_step_column(ui, i, consumed);
+                        ui.add_enabled_ui(in_range, |ui| {
+                            self.seq_step_column(ui, i, consumed);
+                        });
                     });
                 });
 
-                if i + 1 < SEQ_MAX_STEPS {
-                    ui.add_space(2.0);
-                }
+                // The per-column frame margins supply the inter-column gap.
             }
         });
 
