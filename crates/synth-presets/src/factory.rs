@@ -185,6 +185,21 @@ static FACTORY_RAWS: &[&str] = &[
     include_str!("../factory/bass_mono_tight.tsmith"),
     include_str!("../factory/bass_rubber.tsmith"),
     include_str!("../factory/bass_sine_sub_duo.tsmith"),
+    // v1.1 additions (M20)
+    include_str!("../factory/bass_reese_mk2.tsmith"),
+    include_str!("../factory/bass_neuro_growl.tsmith"),
+    include_str!("../factory/bass_wobble.tsmith"),
+    include_str!("../factory/bass_dist_reese.tsmith"),
+    include_str!("../factory/bass_amen_stab.tsmith"),
+    include_str!("../factory/bass_ladder_24.tsmith"),
+    include_str!("../factory/bass_split_filter.tsmith"),
+    include_str!("../factory/bass_formant_growl.tsmith"),
+    include_str!("../factory/bass_pluck.tsmith"),
+    include_str!("../factory/bass_house.tsmith"),
+    include_str!("../factory/bass_808.tsmith"),
+    include_str!("../factory/bass_fm_bite.tsmith"),
+    include_str!("../factory/bass_dub_sub.tsmith"),
+    include_str!("../factory/bass_hoover.tsmith"),
     // ── Lead ──────────────────────────────────────────────────────────────
     include_str!("../factory/saw_lead.tsmith"),
     include_str!("../factory/lead_screamer.tsmith"),
@@ -201,6 +216,18 @@ static FACTORY_RAWS: &[&str] = &[
     include_str!("../factory/lead_vintage_solo.tsmith"),
     include_str!("../factory/lead_triangle_soft.tsmith"),
     include_str!("../factory/lead_dual_slot.tsmith"),
+    // v1.1 additions (M20)
+    include_str!("../factory/lead_split_filter.tsmith"),
+    include_str!("../factory/lead_vocal_formant.tsmith"),
+    include_str!("../factory/lead_acid_24.tsmith"),
+    include_str!("../factory/lead_brass.tsmith"),
+    include_str!("../factory/lead_flute.tsmith"),
+    include_str!("../factory/lead_chip.tsmith"),
+    include_str!("../factory/lead_seq_riff.tsmith"),
+    include_str!("../factory/lead_distortion.tsmith"),
+    include_str!("../factory/lead_saw_stack.tsmith"),
+    include_str!("../factory/lead_fm_brass.tsmith"),
+    include_str!("../factory/lead_pluck_synth.tsmith"),
     // ── Pad ───────────────────────────────────────────────────────────────
     include_str!("../factory/analog_pad.tsmith"),
     include_str!("../factory/pad_fm_shimmer.tsmith"),
@@ -214,6 +241,17 @@ static FACTORY_RAWS: &[&str] = &[
     include_str!("../factory/pad_drone.tsmith"),
     include_str!("../factory/pad_brass_spread.tsmith"),
     include_str!("../factory/pad_cosmic.tsmith"),
+    // v1.1 additions (M20)
+    include_str!("../factory/pad_evolving.tsmith"),
+    include_str!("../factory/pad_glass_fm.tsmith"),
+    include_str!("../factory/pad_choir.tsmith"),
+    include_str!("../factory/pad_synth_strings.tsmith"),
+    include_str!("../factory/pad_halo.tsmith"),
+    include_str!("../factory/pad_vox.tsmith"),
+    include_str!("../factory/pad_ambient_wash.tsmith"),
+    include_str!("../factory/pad_super_wide.tsmith"),
+    include_str!("../factory/pad_bell.tsmith"),
+    include_str!("../factory/pad_juno.tsmith"),
     // ── Pluck ─────────────────────────────────────────────────────────────
     include_str!("../factory/pluck.tsmith"),
     include_str!("../factory/pluck_koto.tsmith"),
@@ -223,6 +261,13 @@ static FACTORY_RAWS: &[&str] = &[
     include_str!("../factory/pluck_pizzicato.tsmith"),
     include_str!("../factory/pluck_dulcimer.tsmith"),
     include_str!("../factory/pluck_harpsi.tsmith"),
+    // v1.1 additions (M20)
+    include_str!("../factory/pluck_glass.tsmith"),
+    include_str!("../factory/pluck_kalimba.tsmith"),
+    include_str!("../factory/pluck_guitar.tsmith"),
+    include_str!("../factory/pluck_stab.tsmith"),
+    include_str!("../factory/pluck_music_box.tsmith"),
+    include_str!("../factory/pluck_harp.tsmith"),
     // ── Keys ──────────────────────────────────────────────────────────────
     include_str!("../factory/keys.tsmith"),
     include_str!("../factory/keys_rhodes_warm.tsmith"),
@@ -230,11 +275,31 @@ static FACTORY_RAWS: &[&str] = &[
     include_str!("../factory/keys_fm_organ.tsmith"),
     include_str!("../factory/keys_vibes.tsmith"),
     include_str!("../factory/keys_bell_chime.tsmith"),
+    // v1.1 additions (M20) — Hammond/Leslie family + more keyboards
+    include_str!("../factory/keys_tonewheel.tsmith"),
+    include_str!("../factory/keys_leslie_organ.tsmith"),
+    include_str!("../factory/keys_rock_organ.tsmith"),
+    include_str!("../factory/keys_pipe_organ.tsmith"),
+    include_str!("../factory/keys_house_organ.tsmith"),
+    include_str!("../factory/keys_clav.tsmith"),
+    include_str!("../factory/keys_dx_piano.tsmith"),
+    include_str!("../factory/keys_mellotron.tsmith"),
+    include_str!("../factory/keys_accordion.tsmith"),
+    include_str!("../factory/keys_celeste.tsmith"),
     // ── FX ────────────────────────────────────────────────────────────────
     include_str!("../factory/fx_pad.tsmith"),
     include_str!("../factory/fx_sweep_rise.tsmith"),
     include_str!("../factory/fx_glitch_bell.tsmith"),
     include_str!("../factory/fx_alien_texture.tsmith"),
+    // v1.1 additions (M20)
+    include_str!("../factory/fx_riser.tsmith"),
+    include_str!("../factory/fx_downlifter.tsmith"),
+    include_str!("../factory/fx_seq_pulse.tsmith"),
+    include_str!("../factory/fx_dark_drone.tsmith"),
+    include_str!("../factory/fx_metallic.tsmith"),
+    include_str!("../factory/fx_warp.tsmith"),
+    include_str!("../factory/fx_impact.tsmith"),
+    include_str!("../factory/fx_air_texture.tsmith"),
 ];
 
 #[cfg(test)]
@@ -326,10 +391,99 @@ mod qa_tests {
     }
 
     #[test]
-    fn factory_bank_has_sixty_categorised_presets_plus_init() {
-        // 15 Bass + 15 Lead + 12 Pad + 8 Pluck + 6 Keys + 4 FX = 60,
-        // plus the Init patch.
-        assert_eq!(FACTORY_RAWS.len(), 61);
+    fn factory_bank_has_expected_preset_count() {
+        // v1.1 (M20) factory expansion, in progress. Current categorised total
+        // plus the Init patch. The per-category distribution and feature-coverage
+        // guards live in the tests below.
+        // 29 Bass + 26 Lead + 22 Pad + 14 Pluck + 16 Keys + 12 FX = 119, plus Init.
+        assert_eq!(FACTORY_RAWS.len(), 120);
+    }
+
+    /// Guards the v1.1 (M20) per-category distribution so the bank stays broad:
+    /// a future edit can't quietly gut a category below its target.
+    #[test]
+    fn factory_bank_meets_category_distribution() {
+        let mut counts: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+        for raw in FACTORY_RAWS {
+            let p = parse(raw);
+            if p.metadata.name == "Init" {
+                continue;
+            }
+            *counts.entry(p.metadata.category).or_default() += 1;
+        }
+        for (cat, min) in [
+            ("Bass", 29),
+            ("Lead", 26),
+            ("Pad", 22),
+            ("Pluck", 14),
+            ("Keys", 16),
+            ("FX", 12),
+        ] {
+            let n = counts.get(cat).copied().unwrap_or(0);
+            assert!(n >= min, "category {cat}: {n} presets, expected at least {min}");
+        }
+    }
+
+    /// Turns the M20 brief's five "showcase" requirements into enforced
+    /// invariants. Each clause counts how many factory presets exercise a v1.1
+    /// engine feature so the breadth can't silently regress. Indices match the
+    /// `ModSource` / `ModDest` / `FilterRouting` / `FilterSlope` enums.
+    #[test]
+    fn factory_bank_covers_v1_1_engine_features() {
+        let presets: Vec<Preset> = FACTORY_RAWS.iter().map(|r| parse(r)).collect();
+        let count = |pred: &dyn Fn(&Preset) -> bool| presets.iter().filter(|p| pred(p)).count();
+        let slots = 16usize;
+
+        // Multiple-filter showcases: serial and parallel routing both present.
+        let routing_is = |p: &Preset, v: f32| p.parameters.get("filter_routing").copied() == Some(v);
+        let serial = count(&|p| routing_is(p, 0.0));
+        let parallel = count(&|p| routing_is(p, 1.0));
+        assert!(serial >= 3, "expected >= 3 serial-filter presets, got {serial}");
+        assert!(parallel >= 3, "expected >= 3 parallel-filter presets, got {parallel}");
+
+        // 12 vs 24 dB/oct: at least a handful select the steep slope on either filter.
+        let uses_24db = |p: &Preset| {
+            p.parameters.get("filter_slope_0").copied() == Some(1.0)
+                || p.parameters.get("filter_slope_1").copied() == Some(1.0)
+        };
+        assert!(
+            count(&uses_24db) >= 5,
+            "expected >= 5 presets using a 24 dB/oct slope, got {}",
+            count(&uses_24db)
+        );
+
+        // Step sequencer as a source (enabled transport or a Seq-sourced mod slot).
+        let uses_seq = |p: &Preset| {
+            p.parameters.get("seq_enabled").copied() == Some(1.0)
+                || (0..slots).any(|i| p.parameters.get(&format!("mod_slot_source_{i}")).copied() == Some(11.0))
+        };
+        assert!(
+            count(&uses_seq) >= 2,
+            "expected >= 2 presets using the step sequencer, got {}",
+            count(&uses_seq)
+        );
+
+        // Env3 as a mod source (the second mod envelope).
+        let uses_env3 =
+            |p: &Preset| (0..slots).any(|i| p.parameters.get(&format!("mod_slot_source_{i}")).copied() == Some(10.0));
+        assert!(
+            count(&uses_env3) >= 3,
+            "expected >= 3 presets using Env3, got {}",
+            count(&uses_env3)
+        );
+
+        // Deep modulation: patches that genuinely use more than 8 mod slots.
+        let deep_mod = |p: &Preset| {
+            (0..slots)
+                .filter(|i| p.parameters.get(&format!("mod_slot_enabled_{i}")).copied() == Some(1.0))
+                .count()
+                > 8
+        };
+        assert!(
+            count(&deep_mod) >= 2,
+            "expected >= 2 presets using more than 8 mod slots, got {}",
+            count(&deep_mod)
+        );
     }
 
     #[test]
