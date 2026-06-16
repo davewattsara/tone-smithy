@@ -333,7 +333,9 @@ the new oscillator dests survive preset save/load round-trips.
 
 ---
 
-## M19 — Cross-platform installers (2–3 weeks) — v1.1
+## M19 — Cross-platform installers (2–3 weeks) — v1.1 — **complete (2026-06-16, tag `m19`)**
+
+> Implementation plan: [`m19-plan.md`](m19-plan.md)
 
 Extends `cargo xtask dist` and the release CI to produce Linux and macOS builds.
 
@@ -375,14 +377,44 @@ SVFs per voice. Make it genuinely optional by folding the on/off state into the 
 disabled while routing is Off; existing serial/parallel presets still load correctly; serial and
 parallel still behave as before; `fmt` / `clippy -D warnings` / tests clean.
 
+### Engine addition — OSC2 / OSC3 pan mod destinations
+
+> Small, backward-compatible matrix addition, bundled here for the same reason as the filter-2 work:
+> it should land **before the M20 factory authoring** so new presets can route to it. Mirrors M18's
+> per-oscillator detune destinations (`Osc2Det` / `Osc3Det`).
+
+Today only OSC1 pan is a mod-matrix destination (`Osc1Pan`); OSC2 and OSC3 pan can be set statically
+but not modulated. Add **`Osc2Pan`** and **`Osc3Pan`** so an LFO/Env/Seq can move each oscillator's
+position in the stereo field independently — an evolving stereo width the single `Osc1Pan` can't
+produce.
+
+- **Append `Osc2Pan` / `Osc3Pan` to `ModDest`** (new indices **10 / 11**, after `Osc3DetuneCents`);
+  bump `ModDest::COUNT` to 12. No renumbering, so saved presets keep their destination meanings.
+- The pan params already exist as base params (`osc_main_pans`), so this is a **mod destination
+  only** — no new `ParamId`. Apply the offset in `voice_manager.rs` next to the existing
+  `osc1_pan` line, clamped to ±1.
+- **UI:** append `Osc2Pan` / `Osc3Pan` to `MOD_DEST_LABELS` and their ±1 ranges to
+  `MOD_AMOUNT_RANGES` (the guard test keeps both the same length as `ModDest`); extend `ModDisplay`
+  and fix the OSC pan knob to read the per-oscillator offset (same hard-coded-`osc1_pan` fix M18
+  applied to the detune knob).
+
+**Done when:** routing an LFO → `Osc2Pan` pans only OSC2 (OSC1/OSC3 stay put), `Osc3Pan` moves OSC3
+independently; the OSC2/OSC3 pan knobs animate their mod ring; old presets load unchanged (no
+migration); `fmt` / `clippy -D warnings` / tests clean.
+
 ---
 
 ## M20 — v1.1 factory expansion + release (2–4 weeks) — v1.1
 
+> Implementation plan: [`m20-plan.md`](m20-plan.md)
+
 Content authoring and the v1.1 release cut.
 
-- Add 40–60 new presets to the factory bank to reach ~120 total; include patches that showcase
-  the second filter, Env3, and the step sequencer.
+- Add ~60 new presets to the factory bank to reach ~120 total; include patches that showcase
+  the second filter (serial/parallel, 12 & 24 dB/oct), Env3, the 16-slot matrix, and the step
+  sequencer. Targeted showcases: a Hammond organ + Leslie family, grimy/filthy DnB basses,
+  multi-filter and >8-slot (every slot justified) patches, and revised versions of the original
+  prefabs.
 - QA pass: listen to every new preset in context, normalise levels, write descriptions.
 - Update `CHANGELOG.md` with the v1.1 entry.
 - Tag `v1.1.0` on `main`; GitHub Release publishes the Windows, Linux, and macOS installers.

@@ -84,7 +84,12 @@ impl ToneSmithyApp {
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             let mut changed = false;
-            for (r, label) in [(FilterRouting::Serial, "Series"), (FilterRouting::Parallel, "Parallel")] {
+            // Off first: it is the default, and selecting it bypasses filter 2.
+            for (r, label) in [
+                (FilterRouting::Off, "Off"),
+                (FilterRouting::Serial, "Series"),
+                (FilterRouting::Parallel, "Parallel"),
+            ] {
                 if ui.selectable_value(&mut self.filter_routing, r, label).clicked() {
                     changed = true;
                 }
@@ -99,60 +104,64 @@ impl ToneSmithyApp {
         ui.add_space(theme::GROUP_GAP);
         theme::section_label(ui, "FILTER 2");
 
-        // Filter 2 mode selector
-        ui.label(egui::RichText::new("Mode").color(theme::FG1).font(theme::font_body()));
-        ui.add_space(4.0);
-        ui.horizontal(|ui| {
-            let mut changed = false;
-            for (m, label) in FILTER_MODES {
-                if ui.selectable_value(&mut self.filter2_mode, m, label).clicked() {
-                    changed = true;
+        // Filter 2 is bypassed when routing is Off, so grey out its controls.
+        let f2_enabled = self.filter_routing != FilterRouting::Off;
+        ui.add_enabled_ui(f2_enabled, |ui| {
+            // Filter 2 mode selector
+            ui.label(egui::RichText::new("Mode").color(theme::FG1).font(theme::font_body()));
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                let mut changed = false;
+                for (m, label) in FILTER_MODES {
+                    if ui.selectable_value(&mut self.filter2_mode, m, label).clicked() {
+                        changed = true;
+                    }
                 }
-            }
-            if changed {
-                self.events.send(EngineEvent::SetFilter2Mode {
-                    mode: self.filter2_mode,
-                });
-            }
+                if changed {
+                    self.events.send(EngineEvent::SetFilter2Mode {
+                        mode: self.filter2_mode,
+                    });
+                }
+            });
+
+            ui.add_space(theme::GROUP_GAP);
+
+            ui.horizontal(|ui| {
+                if ui
+                    .add(
+                        Knob::new(&mut self.filter2_cutoff_hz, CUTOFF_MIN_HZ..=CUTOFF_MAX_HZ, "Cutoff")
+                            .default_value(20_000.0)
+                            .mod_offset(md.filter2_cutoff)
+                            .param_key("filter2_cutoff_hz")
+                            .format(cutoff_format),
+                    )
+                    .changed()
+                {
+                    self.events.send(EngineEvent::ParameterChange {
+                        id: ParamId::Filter2CutoffHz,
+                        value: self.filter2_cutoff_hz,
+                    });
+                }
+                if ui
+                    .add(
+                        Knob::new(&mut self.filter2_resonance, 0.0..=1.0, "Res")
+                            .default_value(0.0)
+                            .mod_offset(md.filter2_resonance)
+                            .param_key("filter2_resonance")
+                            .format(|v| format!("{:.2}", v)),
+                    )
+                    .changed()
+                {
+                    self.events.send(EngineEvent::ParameterChange {
+                        id: ParamId::Filter2Resonance,
+                        value: self.filter2_resonance,
+                    });
+                }
+            });
+
+            ui.add_space(4.0);
+            self.slope_selector(ui, 1);
         });
-
-        ui.add_space(theme::GROUP_GAP);
-
-        ui.horizontal(|ui| {
-            if ui
-                .add(
-                    Knob::new(&mut self.filter2_cutoff_hz, CUTOFF_MIN_HZ..=CUTOFF_MAX_HZ, "Cutoff")
-                        .default_value(20_000.0)
-                        .mod_offset(md.filter2_cutoff)
-                        .param_key("filter2_cutoff_hz")
-                        .format(cutoff_format),
-                )
-                .changed()
-            {
-                self.events.send(EngineEvent::ParameterChange {
-                    id: ParamId::Filter2CutoffHz,
-                    value: self.filter2_cutoff_hz,
-                });
-            }
-            if ui
-                .add(
-                    Knob::new(&mut self.filter2_resonance, 0.0..=1.0, "Res")
-                        .default_value(0.0)
-                        .mod_offset(md.filter2_resonance)
-                        .param_key("filter2_resonance")
-                        .format(|v| format!("{:.2}", v)),
-                )
-                .changed()
-            {
-                self.events.send(EngineEvent::ParameterChange {
-                    id: ParamId::Filter2Resonance,
-                    value: self.filter2_resonance,
-                });
-            }
-        });
-
-        ui.add_space(4.0);
-        self.slope_selector(ui, 1);
     }
 
     /// Renders the 12 / 24 dB-per-octave slope toggle for one filter and

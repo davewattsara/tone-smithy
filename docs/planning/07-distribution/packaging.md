@@ -54,7 +54,37 @@ How the v1 build reaches the user.
   - **Preferred**: EV cert obtained, installer and binary both signed.
   - **Fallback**: ship unsigned with a clear note in the README and a one-paragraph "About the SmartScreen warning" section.
 
-When signing is in place, the `xtask installer` step invokes `signtool` automatically.
+When signing is in place, the `xtask dist` step invokes `signtool` automatically (gated on the
+`TONESMITHY_CERT` environment variable).
+
+## Linux package (v1.1, M19)
+
+**Format:** a gzipped tar, `tonesmithy-<version>-linux-x64.tar.gz`.
+
+- Built by `xtask dist` on a Linux host (CI: `ubuntu-latest`). The archive's single top-level
+  `tonesmithy-<version>/` directory holds the binary (executable bit preserved), the licences,
+  `README.txt`, `CHANGELOG.md`, and `THIRD-PARTY-LICENSES.txt`, so it unpacks tidily.
+- **No installer.** Users unpack and run `./tonesmithy`. Audio via `cpal` (PipeWire/ALSA); MIDI via
+  the ALSA sequencer through `midir`. Build/runtime system libs: ALSA, udev, libxkbcommon, Wayland
+  (the same set CI installs to build).
+- Built and tested against **Ubuntu 24.04**; expected to run on other modern desktops.
+- `.tsmith` file association is not wired into a desktop entry in v1.1 — manual association only.
+
+## macOS package (v1.1, M19)
+
+**Format:** a `.dmg` disk image, `tonesmithy-<version>-macos.dmg` (Apple Silicon / arm64).
+
+- Built by `xtask dist` on a macOS host (CI: `macos-latest`). The image's root holds a
+  drag-installable `Tone Smithy.app` bundle plus the loose licences/docs and an `/Applications`
+  symlink. The bundle carries an `Info.plist` (bundle id `com.tonesmithy.ToneSmithy`, the binary
+  under `Contents/MacOS/`, an optional `.icns`, and a `.tsmith` document type for parity with the
+  Windows file association) and a `PkgInfo` stub. Imaged via `hdiutil`. Audio via CoreAudio; MIDI
+  via CoreMIDI (through `cpal` / `midir`).
+- **Code signing + notarization** mirror the gated Windows path: `xtask dist` codesigns the bundle
+  with `codesign` (deep, hardened runtime) when `APPLE_SIGNING_IDENTITY` is set, and notarizes +
+  staples the dmg via `xcrun notarytool` when `APPLE_NOTARY_APPLE_ID` / `APPLE_NOTARY_PASSWORD` (an
+  app-specific password) / `APPLE_NOTARY_TEAM_ID` are present. Absent those, it ships
+  unsigned/unnotarized with a Gatekeeper-bypass note in `README.txt` (right-click → Open).
 
 ## Distribution channels
 
@@ -77,14 +107,17 @@ When signing is in place, the `xtask installer` step invokes `signtool` automati
 
 ## Build artefacts
 
-The `xtask dist` target produces, under `target/dist/<version>/`:
+The `xtask dist` target stages a common set under `target/dist/<version>/` (the binary, `LICENSE-MIT`,
+`LICENSE-APACHE`, `README.txt`, a `CHANGELOG.md` snapshot, and a `THIRD-PARTY-LICENSES.txt` generated
+from `cargo about`), then builds the **host-appropriate** package — each runner produces only its own:
 
-- `tonesmithy.exe` (release build, stripped where applicable).
-- `installer/tonesmithy-<version>-windows-x64.exe`.
-- `LICENSE`.
-- `THIRD-PARTY-LICENSES.txt` — generated from `cargo about` or equivalent at build time.
-- `CHANGELOG.md` snapshot.
-- A `SHA256SUMS` file for the installer (so users / package indexes can verify the download).
+- **Windows:** `tonesmithy-<version>-windows-x64.exe` (Inno Setup installer).
+- **Linux:** `tonesmithy-<version>-linux-x64.tar.gz`.
+- **macOS:** `tonesmithy-<version>-macos.dmg` (holding `Tone Smithy.app`).
+
+Each runner also writes a `SHA256SUMS` over its own dist directory; the release workflow then
+collects all three platforms' packages and writes a single combined `SHA256SUMS` for the GitHub
+Release (so users / package indexes can verify any download).
 
 ## Release checklist (for M15 and each subsequent release)
 
@@ -93,10 +126,12 @@ The `xtask dist` target produces, under `target/dist/<version>/`:
 - [ ] All CI green.
 - [ ] Soak test run locally — 8 hours, no crashes / leaks / glitches.
 - [ ] Factory bank reviewed; loudness within target; descriptions present.
-- [ ] `xtask dist` produces a clean artefact set.
+- [ ] `xtask dist` produces a clean artefact set on each platform (Windows installer, Linux tarball, macOS dmg).
 - [ ] Installer manually tested on a clean Windows 10 and Windows 11 VM.
+- [ ] Linux tarball manually tested on a clean Ubuntu 24.04 machine (unpack, launch, play a preset).
+- [ ] macOS dmg manually tested on a clean macOS machine (drag to Applications, launch, play a preset; note any Gatekeeper prompt).
 - [ ] Uninstall manually tested; verify clean removal (user data preserved unless opted in).
-- [ ] (If signing) installer and exe signed; `signtool verify` passes.
+- [ ] (If signing) Windows installer and exe signed (`signtool verify` passes); macOS bundle signed + dmg notarized (`spctl -a -t open --context context:primary-signature` passes).
 - [ ] GitHub Release drafted with changelog and SHA256SUMS.
 - [ ] Website / itch.io page updated.
 

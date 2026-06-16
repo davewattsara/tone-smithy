@@ -57,7 +57,8 @@ pub(crate) const MOD_SOURCE_LABELS: &[&str] = &[
 /// shown last.
 pub(crate) const MOD_SOURCE_ORDER: &[usize] = &[0, 1, 2, 3, 10, 4, 5, 6, 7, 8, 9, 11];
 pub(crate) const MOD_DEST_LABELS: &[&str] = &[
-    "F1 Cut", "F1 Res", "Pitch", "Vol", "Osc1Det", "Osc1Pan", "F2 Cut", "F2 Res", "Osc2Det", "Osc3Det",
+    "F1 Cut", "F1 Res", "Pitch", "Vol", "Osc1Det", "Osc1Pan", "F2 Cut", "F2 Res", "Osc2Det", "Osc3Det", "Osc2Pan",
+    "Osc3Pan",
 ];
 // One entry per `ModDest` variant, in index order. **This slice must stay the
 // same length and order as `ModDest`** — a mismatch silently misranges a
@@ -73,6 +74,8 @@ pub(crate) const MOD_AMOUNT_RANGES: &[f32] = &[
     1.0,      // Filter2Resonance
     2400.0,   // Osc2DetuneCents
     2400.0,   // Osc3DetuneCents
+    1.0,      // Osc2Pan
+    1.0,      // Osc3Pan
 ];
 
 // ── Tab enum ──────────────────────────────────────────────────────────────────
