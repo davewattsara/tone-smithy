@@ -333,7 +333,7 @@ the new oscillator dests survive preset save/load round-trips.
 
 ---
 
-## M19 — Cross-platform installers (2–3 weeks) — v1.1
+## M19 — Cross-platform installers (2–3 weeks) — v1.1 — **complete (2026-06-16, tag `m19`)**
 
 > Implementation plan: [`m19-plan.md`](m19-plan.md)
 
