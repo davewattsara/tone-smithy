@@ -8,7 +8,8 @@
 //!   `docs/planning/03-architecture/design-patterns.md` §1.1: `synth-engine`
 //!   must not depend on any I/O or UI crate. CI runs this on every push.
 //! - `dist` — assemble the release artefact set under `target/dist/<version>/`
-//!   and, on Windows with Inno Setup available, compile the installer.
+//!   and build the host-appropriate package: on Windows (with Inno Setup) the
+//!   installer; on Linux a `.tar.gz`. Each runner produces its own package.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -50,10 +51,12 @@ SUBCOMMANDS:
                   Cargo manifests (see docs/planning/03-architecture/
                   design-patterns.md §1.1).
     dist          Build the release binary and assemble the distribution
-                  artefacts under target/dist/<version>/. On Windows with Inno
-                  Setup (iscc) on PATH, also compiles installer/installer.iss.
-                  Set TONESMITHY_CERT (+ optional TONESMITHY_CERT_PASSWORD) to
-                  sign the exe and installer via signtool."
+                  artefacts under target/dist/<version>/, then build the
+                  host-appropriate package: on Windows with Inno Setup (iscc)
+                  on PATH, the installer (installer/installer.iss); on Linux,
+                  a tonesmithy-<version>-linux-x64.tar.gz. Set TONESMITHY_CERT
+                  (+ optional TONESMITHY_CERT_PASSWORD) to sign the exe and
+                  installer via signtool on Windows."
 }
 
 /// Layering rule: a workspace crate that may not depend on any of the named
@@ -165,8 +168,12 @@ fn dist() -> Result<()> {
     // Sign the bare exe before it is wrapped by the installer.
     sign_if_configured(&dist_dir.join(exe_name))?;
 
-    // 3. Compile the installer (Windows + Inno Setup only).
+    // 3. Build the host-appropriate package. Each runner produces its own:
+    //    Windows → Inno Setup installer; Linux → .tar.gz. (macOS .dmg arrives in
+    //    a later phase.) Each step self-skips off its platform with a message, so
+    //    the same `cargo xtask dist` command works unchanged on every runner.
     let installer = build_installer(&root, &version, &dist_dir)?;
+    build_linux_tarball(&version, &dist_dir)?;
 
     // 4. SHA256SUMS over the shipped artefacts.
     write_sha256sums(&dist_dir, installer.as_deref())?;
@@ -250,6 +257,58 @@ fn build_installer(root: &Path, version: &str, dist_dir: &Path) -> Result<Option
     Ok(Some(installer))
 }
 
+/// Package the Linux release as `tonesmithy-<version>-linux-x64.tar.gz`, a
+/// gzipped tar whose single top-level `tonesmithy-<version>/` directory holds
+/// the binary, licences, and docs — so it unpacks tidily. Runs on Linux hosts
+/// only (the binary built is for the host); a no-op elsewhere. Requires `tar`.
+fn build_linux_tarball(version: &str, dist_dir: &Path) -> Result<Option<PathBuf>> {
+    if !cfg!(target_os = "linux") {
+        return Ok(None);
+    }
+    let Some(tar) = which("tar") else {
+        eprintln!("dist: `tar` not found on PATH; skipping Linux tarball.");
+        return Ok(None);
+    };
+
+    // Stage the shipped files under tonesmithy-<version>/. `fs::copy` preserves
+    // the executable bit on Unix, so the binary stays runnable after unpacking.
+    let stage_name = format!("tonesmithy-{version}");
+    let stage = dist_dir.join(&stage_name);
+    if stage.exists() {
+        fs::remove_dir_all(&stage).with_context(|| format!("clearing stale stage dir {}", stage.display()))?;
+    }
+    fs::create_dir_all(&stage).with_context(|| format!("creating stage dir {}", stage.display()))?;
+    for name in [
+        "tonesmithy",
+        "LICENSE-MIT",
+        "LICENSE-APACHE",
+        "CHANGELOG.md",
+        "README.txt",
+        "THIRD-PARTY-LICENSES.txt",
+    ] {
+        let src = dist_dir.join(name);
+        if src.exists() {
+            copy_into(&src, &stage)?;
+        }
+    }
+
+    let tarball_name = format!("tonesmithy-{version}-linux-x64.tar.gz");
+    run(Command::new(tar)
+        .arg("-czf")
+        .arg(dist_dir.join(&tarball_name))
+        .arg("-C")
+        .arg(dist_dir)
+        .arg(&stage_name))
+    .context("creating Linux tarball")?;
+
+    // The loose staging copy is no longer needed once it is inside the archive.
+    fs::remove_dir_all(&stage).with_context(|| format!("removing stage dir {}", stage.display()))?;
+
+    let tarball = dist_dir.join(&tarball_name);
+    println!("dist: built Linux tarball {}", tarball.display());
+    Ok(Some(tarball))
+}
+
 /// Sign `target` with `signtool` when `TONESMITHY_CERT` points at a `.pfx`.
 /// Silently a no-op when unset (the unsigned-release path) or off-Windows.
 fn sign_if_configured(target: &Path) -> Result<()> {
@@ -320,26 +379,53 @@ fn sha256_hex(path: &Path) -> Result<String> {
     Ok(hex)
 }
 
-/// Body of the bundled `README.txt` shown alongside the installer.
+/// Body of the bundled `README.txt`. The "getting started" and platform-note
+/// sections are tailored to the host the package is built on (Windows installer,
+/// Linux tarball, or macOS app), so each download ships accurate instructions.
 fn readme_txt(version: &str) -> String {
+    // Platform-specific launch instructions + any platform caveat.
+    let (getting_started, platform_note) = if cfg!(target_os = "windows") {
+        (
+            "Run the installer and launch Tone Smithy from the Start Menu, or run\n\
+             tonesmithy.exe directly from this folder.",
+            "SmartScreen note\n\
+             ----------------\n\
+             This build may be unsigned. Windows SmartScreen can show \"Windows\n\
+             protected your PC\". Click \"More info\" then \"Run anyway\" to continue.\n\
+             \n",
+        )
+    } else if cfg!(target_os = "macos") {
+        (
+            "Drag Tone Smithy.app to Applications, then launch it from there.",
+            "Gatekeeper note\n\
+             ---------------\n\
+             This build may be unsigned/unnotarized. macOS can show \"can't be\n\
+             opened because the developer cannot be verified\". Right-click the\n\
+             app and choose \"Open\", then confirm, to run it the first time.\n\
+             \n",
+        )
+    } else {
+        (
+            "Unpack the archive and run ./tonesmithy from the extracted folder.\n\
+             Audio uses PipeWire/ALSA and MIDI uses ALSA sequencer via the system\n\
+             libraries; no extra setup is needed on a typical desktop.",
+            "",
+        )
+    };
+
     format!(
         "Tone Smithy v{version}\n\
          =====================\n\
          \n\
-         A hybrid (subtractive + FM) standalone software synthesizer for Windows.\n\
+         A hybrid (subtractive + FM) standalone software synthesizer.\n\
          \n\
          Getting started\n\
          ---------------\n\
-         Run the installer and launch Tone Smithy from the Start Menu, or run\n\
-         tonesmithy.exe directly from this folder. On first launch a short wizard\n\
-         helps you pick an audio output and a MIDI input. No MIDI device? Play\n\
-         from your computer keyboard (A-K = white keys, W-U = black keys).\n\
+         {getting_started} On first launch a short wizard helps you pick an audio\n\
+         output and a MIDI input. No MIDI device? Play from your computer keyboard\n\
+         (A-K = white keys, W-U = black keys).\n\
          \n\
-         SmartScreen note\n\
-         ----------------\n\
-         This build may be unsigned. Windows SmartScreen can show \"Windows\n\
-         protected your PC\". Click \"More info\" then \"Run anyway\" to continue.\n\
-         \n\
+         {platform_note}\
          Licences\n\
          --------\n\
          Tone Smithy is dual-licensed MIT OR Apache-2.0 (see LICENSE-MIT and\n\

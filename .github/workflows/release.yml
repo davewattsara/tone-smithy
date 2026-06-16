@@ -1,8 +1,10 @@
 name: Release
 
-# Cuts a release when a v* tag is pushed: builds the Windows installer via
-# `cargo xtask dist` and attaches the installer, checksums, and changelog to a
-# GitHub Release. Signing is performed only when a certificate secret is set.
+# Cuts a release when a v* tag is pushed. Each platform builds its own package
+# via `cargo xtask dist` (Windows installer, Linux tarball), uploads it as a
+# workflow artefact, and a final job collects every package, writes a single
+# combined SHA256SUMS, and publishes one GitHub Release. Windows signing runs
+# only when the certificate secret is set.
 
 on:
   push:
@@ -17,9 +19,14 @@ env:
   CARGO_INCREMENTAL: 0
 
 jobs:
-  release:
-    name: Build installer & publish release
-    runs-on: windows-latest
+  build:
+    name: Build ${{ matrix.os }} package
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Don't cancel the other platforms if one fails — easier to diagnose.
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
     steps:
       - uses: actions/checkout@v4
 
@@ -34,7 +41,16 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
 
+      # cpal/eframe need ALSA + display headers on Linux to build (same set the
+      # CI lint job uses).
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libudev-dev libxkbcommon-dev libwayland-dev
+
       - name: Install Inno Setup
+        if: runner.os == 'Windows'
         run: |
           choco install innosetup --no-progress -y
           echo "C:\Program Files (x86)\Inno Setup 6" >> $env:GITHUB_PATH
@@ -43,9 +59,10 @@ jobs:
         run: cargo install cargo-about --locked
 
       - name: Decode signing certificate
-        # The `secrets` context isn't allowed in `if:` conditions, so the gating
-        # is done inside the script: no cert secret -> no-op, and the later dist
-        # step leaves the build unsigned.
+        # Windows only. The `secrets` context isn't allowed in `if:` conditions,
+        # so the cert gating is done inside the script: no secret -> no-op and
+        # the dist step leaves the build unsigned.
+        if: runner.os == 'Windows'
         env:
           CERT_BASE64: ${{ secrets.TONESMITHY_CERT_BASE64 }}
         run: |
@@ -63,6 +80,42 @@ jobs:
           TONESMITHY_CERT_PASSWORD: ${{ secrets.TONESMITHY_CERT_PASSWORD }}
         run: cargo run --release -p xtask -- dist
 
+      - name: Upload package artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os }}
+          # Each runner produces only its own package; the non-matching globs
+          # find nothing and are ignored.
+          path: |
+            target/dist/*/tonesmithy-*-windows-x64.exe
+            target/dist/*/tonesmithy-*-linux-x64.tar.gz
+          if-no-files-found: ignore
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all package artefacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect packages and write combined SHA256SUMS
+        run: |
+          mkdir -p release
+          find artifacts -type f \( \
+            -name 'tonesmithy-*-windows-x64.exe' -o \
+            -name 'tonesmithy-*-linux-x64.tar.gz' -o \
+            -name 'tonesmithy-*-macos*.dmg' \
+          \) -exec cp {} release/ \;
+          cd release
+          sha256sum * > SHA256SUMS
+          echo "Release assets:"
+          cat SHA256SUMS
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -70,5 +123,4 @@ jobs:
           body_path: CHANGELOG.md
           fail_on_unmatched_files: true
           files: |
-            target/dist/*/tonesmithy-*-windows-x64.exe
-            target/dist/*/SHA256SUMS
+            release/*
