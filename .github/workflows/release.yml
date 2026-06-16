@@ -1,10 +1,10 @@
 name: Release
 
 # Cuts a release when a v* tag is pushed. Each platform builds its own package
-# via `cargo xtask dist` (Windows installer, Linux tarball), uploads it as a
-# workflow artefact, and a final job collects every package, writes a single
-# combined SHA256SUMS, and publishes one GitHub Release. Windows signing runs
-# only when the certificate secret is set.
+# via `cargo xtask dist` (Windows installer, Linux tarball, macOS dmg), uploads
+# it as a workflow artefact, and a final job collects every package, writes a
+# single combined SHA256SUMS, and publishes one GitHub Release. Windows and
+# macOS signing/notarization run only when their certificate secrets are set.
 
 on:
   push:
@@ -26,7 +26,8 @@ jobs:
       # Don't cancel the other platforms if one fails — easier to diagnose.
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        # macos-latest is Apple Silicon (arm64).
+        os: [windows-latest, ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
 
@@ -74,10 +75,41 @@ jobs:
           [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:CERT_BASE64))
           echo "TONESMITHY_CERT=$pfx" >> $env:GITHUB_ENV
 
+      - name: Import macOS signing certificate
+        # macOS only. Like the Windows path, the secret gating is done inside the
+        # script (the `secrets` context isn't allowed in `if:`): no cert -> no-op
+        # and the dist step leaves the bundle unsigned/unnotarized.
+        if: runner.os == 'macOS'
+        env:
+          CERT_BASE64: ${{ secrets.APPLE_CERT_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+          SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          if [ -z "$CERT_BASE64" ]; then
+            echo "No APPLE_CERT_BASE64 secret set; building unsigned."
+            exit 0
+          fi
+          KEYCHAIN="$RUNNER_TEMP/tonesmithy.keychain-db"
+          KEYCHAIN_PW="$(openssl rand -base64 24)"
+          security create-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          CERT_PATH="$RUNNER_TEMP/apple-cert.p12"
+          echo "$CERT_BASE64" | base64 --decode > "$CERT_PATH"
+          security import "$CERT_PATH" -k "$KEYCHAIN" -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PW" "$KEYCHAIN"
+          # Add the temp keychain to the search list so codesign can find the identity.
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          echo "APPLE_SIGNING_IDENTITY=$SIGNING_IDENTITY" >> "$GITHUB_ENV"
+
       - name: Build distribution artefacts
         env:
           # Empty when the secret is unset; signtool signing is skipped then.
           TONESMITHY_CERT_PASSWORD: ${{ secrets.TONESMITHY_CERT_PASSWORD }}
+          # macOS notarization. Empty when unset; xtask skips notarization then.
+          APPLE_NOTARY_APPLE_ID: ${{ secrets.APPLE_NOTARY_APPLE_ID }}
+          APPLE_NOTARY_PASSWORD: ${{ secrets.APPLE_NOTARY_PASSWORD }}
+          APPLE_NOTARY_TEAM_ID: ${{ secrets.APPLE_NOTARY_TEAM_ID }}
         run: cargo run --release -p xtask -- dist
 
       - name: Upload package artefact
@@ -89,6 +121,7 @@ jobs:
           path: |
             target/dist/*/tonesmithy-*-windows-x64.exe
             target/dist/*/tonesmithy-*-linux-x64.tar.gz
+            target/dist/*/tonesmithy-*-macos.dmg
           if-no-files-found: ignore
 
   release:

@@ -9,7 +9,8 @@
 //!   must not depend on any I/O or UI crate. CI runs this on every push.
 //! - `dist` — assemble the release artefact set under `target/dist/<version>/`
 //!   and build the host-appropriate package: on Windows (with Inno Setup) the
-//!   installer; on Linux a `.tar.gz`. Each runner produces its own package.
+//!   installer; on Linux a `.tar.gz`; on macOS a `.dmg` containing the `.app`
+//!   bundle. Each runner produces its own package.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -54,9 +55,14 @@ SUBCOMMANDS:
                   artefacts under target/dist/<version>/, then build the
                   host-appropriate package: on Windows with Inno Setup (iscc)
                   on PATH, the installer (installer/installer.iss); on Linux,
-                  a tonesmithy-<version>-linux-x64.tar.gz. Set TONESMITHY_CERT
-                  (+ optional TONESMITHY_CERT_PASSWORD) to sign the exe and
-                  installer via signtool on Windows."
+                  a tonesmithy-<version>-linux-x64.tar.gz; on macOS, a
+                  tonesmithy-<version>-macos.dmg holding the Tone Smithy.app
+                  bundle. Set TONESMITHY_CERT (+ optional
+                  TONESMITHY_CERT_PASSWORD) to sign the exe and installer via
+                  signtool on Windows. Set APPLE_SIGNING_IDENTITY to codesign
+                  the macOS bundle, and APPLE_NOTARY_APPLE_ID /
+                  APPLE_NOTARY_PASSWORD / APPLE_NOTARY_TEAM_ID to notarize the
+                  dmg."
 }
 
 /// Layering rule: a workspace crate that may not depend on any of the named
@@ -169,11 +175,12 @@ fn dist() -> Result<()> {
     sign_if_configured(&dist_dir.join(exe_name))?;
 
     // 3. Build the host-appropriate package. Each runner produces its own:
-    //    Windows → Inno Setup installer; Linux → .tar.gz. (macOS .dmg arrives in
-    //    a later phase.) Each step self-skips off its platform with a message, so
-    //    the same `cargo xtask dist` command works unchanged on every runner.
+    //    Windows → Inno Setup installer; Linux → .tar.gz; macOS → .dmg. Each step
+    //    self-skips off its platform with a message, so the same `cargo xtask
+    //    dist` command works unchanged on every runner.
     let installer = build_installer(&root, &version, &dist_dir)?;
     build_linux_tarball(&version, &dist_dir)?;
+    build_macos_dmg(&root, &version, &dist_dir)?;
 
     // 4. SHA256SUMS over the shipped artefacts.
     write_sha256sums(&dist_dir, installer.as_deref())?;
@@ -307,6 +314,209 @@ fn build_linux_tarball(version: &str, dist_dir: &Path) -> Result<Option<PathBuf>
     let tarball = dist_dir.join(&tarball_name);
     println!("dist: built Linux tarball {}", tarball.display());
     Ok(Some(tarball))
+}
+
+/// Package the macOS release as `tonesmithy-<version>-macos.dmg`. The dmg's root
+/// holds a drag-installable `Tone Smithy.app` bundle (the binary under
+/// `Contents/MacOS/`, an `Info.plist`, and an optional `.icns`), the licences and
+/// docs, and an `/Applications` symlink. Runs on macOS hosts only (the binary
+/// built is for the host); a no-op elsewhere. Requires `hdiutil` (always present
+/// on macOS).
+///
+/// The bundle is code-signed and the dmg notarized when the corresponding
+/// environment is configured (see [`sign_macos_if_configured`] /
+/// [`notarize_macos_if_configured`]); otherwise it ships unsigned with the
+/// Gatekeeper-bypass note carried in `README.txt`.
+fn build_macos_dmg(root: &Path, version: &str, dist_dir: &Path) -> Result<Option<PathBuf>> {
+    if !cfg!(target_os = "macos") {
+        return Ok(None);
+    }
+    let Some(hdiutil) = which("hdiutil") else {
+        eprintln!("dist: `hdiutil` not found on PATH; skipping macOS dmg.");
+        return Ok(None);
+    };
+
+    // Stage the dmg root under dmg-staging/: the .app bundle, loose docs, and an
+    // /Applications symlink so the volume supports the usual drag-to-install.
+    let stage = dist_dir.join("dmg-staging");
+    if stage.exists() {
+        fs::remove_dir_all(&stage).with_context(|| format!("clearing stale dmg staging dir {}", stage.display()))?;
+    }
+    let app = stage.join("Tone Smithy.app");
+    let macos_dir = app.join("Contents").join("MacOS");
+    let resources_dir = app.join("Contents").join("Resources");
+    fs::create_dir_all(&macos_dir).with_context(|| format!("creating {}", macos_dir.display()))?;
+    fs::create_dir_all(&resources_dir).with_context(|| format!("creating {}", resources_dir.display()))?;
+
+    // Executable into Contents/MacOS/. fs::copy preserves the +x bit on Unix.
+    copy_into(&dist_dir.join("tonesmithy"), &macos_dir)?;
+
+    // Optional icon, authored separately as a binary art asset; absence is
+    // tolerated like the Windows .ico so builds stay green until it lands.
+    let icns = root.join("assets").join("icons").join("tonesmithy.icns");
+    let has_icon = icns.exists();
+    if has_icon {
+        let dest = resources_dir.join("tonesmithy.icns");
+        fs::copy(&icns, &dest).with_context(|| format!("copying {} -> {}", icns.display(), dest.display()))?;
+    }
+
+    fs::write(
+        app.join("Contents").join("Info.plist"),
+        macos_info_plist(version, has_icon),
+    )
+    .context("writing Info.plist")?;
+    // PkgInfo: the classic 8-byte type/creator stub macOS still expects.
+    fs::write(app.join("Contents").join("PkgInfo"), "APPL????").context("writing PkgInfo")?;
+
+    // Loose docs alongside the .app so the mounted volume is self-describing.
+    for name in [
+        "LICENSE-MIT",
+        "LICENSE-APACHE",
+        "CHANGELOG.md",
+        "README.txt",
+        "THIRD-PARTY-LICENSES.txt",
+    ] {
+        let src = dist_dir.join(name);
+        if src.exists() {
+            copy_into(&src, &stage)?;
+        }
+    }
+
+    // /Applications symlink (via `ln`, so this compiles on every host even though
+    // it only ever runs on macOS).
+    run(Command::new("ln")
+        .arg("-s")
+        .arg("/Applications")
+        .arg(stage.join("Applications")))
+    .context("creating /Applications symlink in dmg staging")?;
+
+    // Sign the finished bundle (deep, hardened runtime) before it is imaged.
+    sign_macos_if_configured(&app)?;
+
+    let dmg_name = format!("tonesmithy-{version}-macos.dmg");
+    let dmg = dist_dir.join(&dmg_name);
+    if dmg.exists() {
+        fs::remove_file(&dmg).with_context(|| format!("removing stale dmg {}", dmg.display()))?;
+    }
+    run(Command::new(hdiutil)
+        .args(["create", "-volname", "Tone Smithy", "-srcfolder"])
+        .arg(&stage)
+        .args(["-ov", "-format", "UDZO"])
+        .arg(&dmg))
+    .context("creating macOS dmg")?;
+
+    // Notarize + staple the image when credentials are present.
+    notarize_macos_if_configured(&dmg)?;
+
+    // The staging tree is no longer needed once it is imaged into the dmg.
+    fs::remove_dir_all(&stage).with_context(|| format!("removing dmg staging dir {}", stage.display()))?;
+
+    println!("dist: built macOS dmg {}", dmg.display());
+    Ok(Some(dmg))
+}
+
+/// `Info.plist` body for the `Tone Smithy.app` bundle. `CFBundleIconFile` is
+/// emitted only when an `.icns` was bundled, so an icon-less build is still valid.
+/// Declares the `.tsmith` preset document type for parity with the Windows file
+/// association.
+fn macos_info_plist(version: &str, has_icon: bool) -> String {
+    let icon_entry = if has_icon {
+        "    <key>CFBundleIconFile</key>\n    <string>tonesmithy</string>\n"
+    } else {
+        ""
+    };
+    format!(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
+         <!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n\
+         <plist version=\"1.0\">\n\
+         <dict>\n\
+         {icon_entry}\
+             <key>CFBundleName</key>\n    <string>Tone Smithy</string>\n\
+             <key>CFBundleDisplayName</key>\n    <string>Tone Smithy</string>\n\
+             <key>CFBundleIdentifier</key>\n    <string>com.tonesmithy.ToneSmithy</string>\n\
+             <key>CFBundleExecutable</key>\n    <string>tonesmithy</string>\n\
+             <key>CFBundlePackageType</key>\n    <string>APPL</string>\n\
+             <key>CFBundleInfoDictionaryVersion</key>\n    <string>6.0</string>\n\
+             <key>CFBundleVersion</key>\n    <string>{version}</string>\n\
+             <key>CFBundleShortVersionString</key>\n    <string>{version}</string>\n\
+             <key>LSMinimumSystemVersion</key>\n    <string>11.0</string>\n\
+             <key>NSHighResolutionCapable</key>\n    <true/>\n\
+             <key>CFBundleDocumentTypes</key>\n\
+             <array>\n\
+                 <dict>\n\
+                     <key>CFBundleTypeName</key>\n            <string>Tone Smithy Preset</string>\n\
+                     <key>CFBundleTypeExtensions</key>\n            <array>\n                <string>tsmith</string>\n            </array>\n\
+                     <key>CFBundleTypeRole</key>\n            <string>Editor</string>\n\
+                 </dict>\n\
+             </array>\n\
+         </dict>\n\
+         </plist>\n"
+    )
+}
+
+/// Code-sign a macOS `.app` with `codesign` when `APPLE_SIGNING_IDENTITY` names a
+/// Developer ID Application identity present in the keychain. A no-op when unset
+/// (the unsigned-release path) or off macOS, mirroring the Windows `signtool`
+/// gate.
+fn sign_macos_if_configured(app: &Path) -> Result<()> {
+    let Ok(identity) = std::env::var("APPLE_SIGNING_IDENTITY") else {
+        return Ok(());
+    };
+    if !cfg!(target_os = "macos") {
+        eprintln!(
+            "dist: APPLE_SIGNING_IDENTITY set but not on macOS; skipping signing of {}",
+            app.display()
+        );
+        return Ok(());
+    }
+    let Some(codesign) = which("codesign") else {
+        bail!("APPLE_SIGNING_IDENTITY is set but `codesign` was not found on PATH");
+    };
+    run(Command::new(codesign)
+        .args(["--force", "--deep", "--options", "runtime", "--timestamp", "--sign"])
+        .arg(&identity)
+        .arg(app))
+    .with_context(|| format!("codesigning {}", app.display()))?;
+    println!("dist: signed {}", app.display());
+    Ok(())
+}
+
+/// Notarize and staple a `.dmg` via `xcrun notarytool` when the notarization
+/// credentials are all present (`APPLE_NOTARY_APPLE_ID`, `APPLE_NOTARY_PASSWORD`
+/// — an app-specific password — and `APPLE_NOTARY_TEAM_ID`). A no-op when any is
+/// unset or off macOS.
+fn notarize_macos_if_configured(dmg: &Path) -> Result<()> {
+    let (Ok(apple_id), Ok(password), Ok(team_id)) = (
+        std::env::var("APPLE_NOTARY_APPLE_ID"),
+        std::env::var("APPLE_NOTARY_PASSWORD"),
+        std::env::var("APPLE_NOTARY_TEAM_ID"),
+    ) else {
+        return Ok(());
+    };
+    if !cfg!(target_os = "macos") {
+        eprintln!(
+            "dist: notarization credentials set but not on macOS; skipping notarization of {}",
+            dmg.display()
+        );
+        return Ok(());
+    }
+    let Some(xcrun) = which("xcrun") else {
+        bail!("notarization credentials are set but `xcrun` was not found on PATH");
+    };
+    run(Command::new(&xcrun).args(["notarytool", "submit"]).arg(dmg).args([
+        "--apple-id",
+        &apple_id,
+        "--password",
+        &password,
+        "--team-id",
+        &team_id,
+        "--wait",
+    ]))
+    .with_context(|| format!("notarizing {}", dmg.display()))?;
+    run(Command::new(&xcrun).args(["stapler", "staple"]).arg(dmg))
+        .with_context(|| format!("stapling {}", dmg.display()))?;
+    println!("dist: notarized + stapled {}", dmg.display());
+    Ok(())
 }
 
 /// Sign `target` with `signtool` when `TONESMITHY_CERT` points at a `.pfx`.
