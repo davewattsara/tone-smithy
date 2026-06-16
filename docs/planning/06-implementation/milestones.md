@@ -287,7 +287,7 @@ slots in use; all paths audio-tested and round-trip serialised in the preset for
 
 ---
 
-## M18 — Step sequencer (2–3 weeks) — v1.1
+## M18 — Step sequencer (2–3 weeks) — v1.1 — **complete (2026-06-16, tag `m18`)**
 
 > Implementation plan: [`m18-plan.md`](m18-plan.md)
 
