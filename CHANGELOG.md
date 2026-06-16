@@ -6,6 +6,41 @@ All notable changes to Tone Smithy are documented here. The format is based on
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-06-16
+
+The second release. Expands the engine, adds a step sequencer, ships on Linux and
+macOS alongside Windows, and roughly doubles the factory bank to ~120 presets.
+
+### Added
+
+- **Second filter** — an independent state-variable filter with **off / serial /
+  parallel** routing (default off, so existing patches are unchanged) and a
+  **12 or 24 dB/oct** slope selectable per filter.
+- **Third envelope (Env3)** — a second assignable modulation envelope with
+  per-stage curve control.
+- **16-step sequencer** — per-step note, velocity, gate, rest, tie, and a CV mod
+  lane, with forward/reverse/ping-pong/random modes, rate, and swing, driven by a
+  unified transport BPM shared with the arpeggiator.
+- **Larger modulation matrix** — expanded from 8 to **16 slots**, with new
+  sources (Env3, the sequencer's mod lane) and new destinations (filter 2 cutoff
+  and resonance, OSC2/OSC3 detune, and OSC2/OSC3 pan).
+- **Global / mono LFO mode** — run an LFO as one shared phase across all voices.
+- **Cross-platform installers** — Linux (`.tar.gz`) and macOS (`.dmg`, with a
+  drag-installable app bundle and gated code-signing/notarization) join the
+  Windows installer; a single `v1.1.0` tag publishes all three via CI.
+- **~120-preset factory bank** — roughly doubled, including a Hammond
+  tonewheel/Leslie organ family, grimy modern DnB basses (Reese, neuro, wobble),
+  multi-filter and deep-modulation showcase patches, and a step-sequencer riff.
+
+### Changed
+
+- **Computer-keyboard note** — the keyboard's reference key now maps to C.
+- **Preset browser** — presets are sorted alphabetically within each category.
+- **Oscillator panel** — the OSC/Sub controls are shown conditionally to reduce
+  clutter when a slot is in FM mode.
+- **Original factory presets** — the M0-era patches were revised to use the new
+  engine features (second filter, Env3, wider matrix) while keeping their sound.
+
 ## [1.0.0] — 2026-06-09
 
 First public release. A hybrid (subtractive + FM) standalone software synthesizer

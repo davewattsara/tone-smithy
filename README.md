@@ -2,24 +2,25 @@
 
 A hybrid (subtractive + FM) standalone software synthesizer for Windows, Linux, and macOS, written in Rust.
 
-> **Status:** v1.0.0 shipped (Windows). v1.1 in progress — M16–M19 complete (engine expansion, step sequencer, and Linux `.tar.gz` + macOS `.dmg` packages alongside the Windows installer, all built via `cargo xtask dist`); **M20 (factory bank expansion to ~120 presets + v1.1.0 release) is next.** Builds ship unsigned for now (see the platform notes below).
+> **Status:** v1.0.0 shipped (Windows). **v1.1 is content-complete** — engine expansion (second filter, 24 dB/oct, Env3, 16-slot matrix), a step sequencer, Linux `.tar.gz` + macOS `.dmg` packages alongside the Windows installer, and a ~120-preset factory bank — and is pending final testing before the `v1.1.0` release. Builds ship unsigned for now (see the platform notes below).
 > See [`docs/planning/06-implementation/milestones.md`](docs/planning/06-implementation/milestones.md) for the milestone plan.
 
 Tone Smithy combines analog-style subtractive synthesis with 4-operator FM in a single voice — so a patch can layer warm analog character with clean FM bell tones without switching plugins. Free download, open source, no DAW required.
 
-## Features (v1.0 target)
+## Features (v1.1)
 
 - **Hybrid voice** — each of two oscillator slots can be subtractive (3 osc + sub) or 4-operator FM
 - **32-voice polyphony** with oldest-released-then-quietest voice stealing
-- **Filter** — multi-mode (LP / HP / BP / Notch) state-variable filter, 12 dB/oct, self-oscillation
-- **Modulation** — 8-slot matrix, 2 LFOs, ADSR amp envelope + 1 additional mod envelope
+- **Dual filters** — two multi-mode (LP / HP / BP / Notch) state-variable filters with off / serial / parallel routing and a 12 or 24 dB/oct slope each, self-oscillation
+- **Modulation** — 16-slot matrix, 2 LFOs (with global/mono mode), ADSR amp envelope + 2 assignable mod envelopes (Env2, Env3)
+- **Step sequencer** — 16 steps with per-step note/velocity/gate/rest/tie + a CV mod lane, on a shared transport BPM
 - **Effects chain** — EQ → drive → chorus → delay → FDN-8 reverb
 - **Arpeggiator** with sync, swing, octave range
-- **Preset browser** — categories, tags, search; ~60-preset factory bank + user folder
+- **Preset browser** — categories, tags, search; ~120-preset factory bank + user folder
 - **Input** — MIDI hardware, on-screen virtual keyboard, computer keyboard
 - **Modern flat UI** built with egui
 
-A second filter, 24 dB/oct option, second mod envelope, 16-slot matrix, step sequencer, and factory bank expansion to ~120 presets are deferred to v1.1 to keep the v1.0 timeline tractable. See [`docs/planning/02-scope/roadmap.md`](docs/planning/02-scope/roadmap.md).
+See [`docs/planning/02-scope/roadmap.md`](docs/planning/02-scope/roadmap.md) for what's planned beyond v1.1.
 
 ## Download & install
 
