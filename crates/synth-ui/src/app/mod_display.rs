@@ -18,6 +18,8 @@ pub(crate) struct ModDisplay {
     pub osc1_pan: f32,
     pub filter2_cutoff: f32,
     pub filter2_resonance: f32,
+    pub osc2_detune: f32,
+    pub osc3_detune: f32,
 }
 
 impl ModDisplay {
@@ -53,6 +55,8 @@ impl ModDisplay {
                 5 => d.osc1_pan += live * amt / 2.0,
                 6 => d.filter2_cutoff += live * amt / (CUTOFF_MAX_HZ - CUTOFF_MIN_HZ),
                 7 => d.filter2_resonance += live * amt / 1.0,
+                8 => d.osc2_detune += live * amt / (2.0 * OSC_DETUNE_MAX_CENTS),
+                9 => d.osc3_detune += live * amt / (2.0 * OSC_DETUNE_MAX_CENTS),
                 _ => {}
             }
         }
@@ -65,6 +69,8 @@ impl ModDisplay {
         d.osc1_pan = d.osc1_pan.clamp(-1.0, 1.0);
         d.filter2_cutoff = d.filter2_cutoff.clamp(-1.0, 1.0);
         d.filter2_resonance = d.filter2_resonance.clamp(-1.0, 1.0);
+        d.osc2_detune = d.osc2_detune.clamp(-1.0, 1.0);
+        d.osc3_detune = d.osc3_detune.clamp(-1.0, 1.0);
         d
     }
 }

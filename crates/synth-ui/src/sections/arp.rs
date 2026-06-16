@@ -16,6 +16,12 @@ impl ToneSmithyApp {
             .add(Toggle::new(&mut self.arp_enabled, "Enabled").param_key("arp_enabled"))
             .changed()
         {
+            // Arp and sequencer are mutually exclusive: the engine forces the
+            // sequencer off when the arp turns on, so mirror that locally too
+            // (the snapshot only re-syncs the toggles on preset load).
+            if self.arp_enabled {
+                self.seq_enabled = false;
+            }
             self.events.send(EngineEvent::ParameterChange {
                 id: ParamId::ArpEnabled,
                 value: if self.arp_enabled { 1.0 } else { 0.0 },
@@ -87,21 +93,9 @@ impl ToneSmithyApp {
 
             ui.add_space(theme::GROUP_GAP);
 
+            // BPM is the unified transport tempo — its knob lives in the Master
+            // tab and drives the arp, sequencer, and LFO sync together.
             ui.horizontal(|ui| {
-                if ui
-                    .add(
-                        Knob::new(&mut self.arp_bpm, 20.0..=300.0, "BPM")
-                            .default_value(120.0)
-                            .param_key("arp_bpm")
-                            .format(|v| format!("{:.0}", v)),
-                    )
-                    .changed()
-                {
-                    self.events.send(EngineEvent::ParameterChange {
-                        id: ParamId::ArpBpm,
-                        value: self.arp_bpm,
-                    });
-                }
                 if ui
                     .add(
                         Knob::new(&mut self.arp_gate, 0.01..=1.0, "Gate")

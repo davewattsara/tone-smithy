@@ -384,12 +384,45 @@ OSC2; and the sequencer, LFO mode, and new oscillator dests all survive preset s
 ## Progress
 
 - [x] Open questions resolved with user (2026-06-15) — see Decisions
-- [ ] Phase 1 — Unify transport BPM
-- [ ] Phase 2 — Sequencer engine core
-- [ ] Phase 3 — Sequencer mod lane
-- [ ] Phase 4 — Sequencer UI
-- [ ] Phase 5 — Global (mono) LFO mode
-- [ ] Phase 6 — Per-oscillator detune dests
+- [x] Phase 1 — Unify transport BPM
+- [x] Phase 2 — Sequencer engine core
+- [x] Phase 3 — Sequencer mod lane
+- [x] Phase 4 — Sequencer UI
+- [x] Phase 5 — Global (mono) LFO mode
+- [x] Phase 6 — Per-oscillator detune dests
+- [x] Post-plan addition — per-step **tie** (user request, 2026-06-15)
 
-Not started — decisions confirmed; awaiting explicit go-ahead to begin implementation on a
-`milestone/m18-step-sequencer` branch off `development`.
+All six phases implemented on `milestone/m18-step-sequencer`. Awaiting user testing of a build
+before close-out (merge to `development`/`main`, tag `m18`).
+
+### Post-plan addition — per-step tie
+
+Added after the six phases at the user's request. A per-step `tie` flag (`SeqStep.tie`,
+`ParamId::SeqStepTie(u8)`) marks the *originating* step: its note still articulates, but it then
+**extends forward** into the following step(s) instead of releasing — the next step does not
+retrigger (its note is consumed by the held one). There was previously no way for a note to ring
+longer than a single step (gate maxes at 100% of one step). Ties chain: a run of tie steps
+lengthens the note's *slot* to span the whole run plus the first step after it.
+
+**Gate over the tied span.** The originating step's own `gate` governs the note, scaled across the
+lengthened slot: at articulation the engine computes `release_at = gate * tie_span` (in step-units,
+via the `tie_span` helper, which counts the run forward in index order, bounded by the active
+length). A running `note_elapsed` accumulator fires the NoteOff when it crosses `release_at`, so
+gate 1.0 + a 2-step tie rings legato across both steps, while gate 0.5 sounds the first step and
+stays silent for the second. `release_at` is snapshotted when the note is articulated, so a live
+gate/tie edit takes effect on the next re-articulation (correct for the real-time path). This
+replaced the earlier "the first non-tie step's gate governs" rule — that ignored the originating
+step's gate entirely, which the user found unintuitive.
+
+A consumed step's note/velocity/gate and rest do nothing (its note is supplied by the tie), so the
+UI greys them out (`add_enabled_ui(!consumed, …)` where `consumed = prev step in index order is a
+tie`). Its **mod lane stays active** (the mod lane advances on every step including consumed ones)
+and its **tie toggle stays active** (toggling it extends the run by one more step). New
+`SeqStepTie` param follows the `SeqStepRest` plumbing through ids → tree → snapshot → engine →
+preset round-trip, with a **T** toggle beside the rest **R** in the step grid. Old presets omit the
+key and default to no tie.
+
+> The tie convention was revised twice after first implementation: (1) it originally marked the
+> *continuation* step (hold the previous note), which read off-by-one, and was flipped to mark the
+> originating step ("extend this note forward"); (2) the release was originally governed by the
+> first non-tie step's gate, and now uses the originating step's gate scaled across the tied span.

@@ -52,12 +52,12 @@ impl ToneSmithyApp {
             cols[1].vertical(|ui| {
                 ui.add_space(theme::PANEL_PADDING);
                 theme::section_label(ui, "OSC 2");
-                self.osc_controls(ui, 1, None);
+                self.osc_controls(ui, 1, Some(md));
             });
             cols[2].vertical(|ui| {
                 ui.add_space(theme::PANEL_PADDING);
                 theme::section_label(ui, "OSC 3 + Sub");
-                self.osc_controls(ui, 2, None);
+                self.osc_controls(ui, 2, Some(md));
                 ui.add_space(theme::GROUP_GAP);
                 theme::subtle_separator(ui);
                 ui.add_space(4.0);
@@ -67,8 +67,8 @@ impl ToneSmithyApp {
     }
 
     /// Renders level/detune/pan + unison knobs for main oscillator `idx` (0, 1, or 2).
-    /// `md` is `Some` only for osc 0 (osc1), which is the only oscillator currently
-    /// addressable as a mod matrix destination.
+    /// `md` carries the live mod-ring offsets; the detune knob reads the entry for
+    /// this oscillator (osc1/2/3 detune are all mod-matrix destinations).
     fn osc_controls(&mut self, ui: &mut egui::Ui, idx: usize, md: Option<ModDisplay>) {
         let (level_id, detune_id, pan_id, uv_id, ud_id, us_id) = match idx {
             0 => (
@@ -130,7 +130,7 @@ impl ToneSmithyApp {
                         "Detune",
                     )
                     .default_value(0.0)
-                    .mod_offset(md.map_or(0.0, |m| m.osc1_detune))
+                    .mod_offset(md.map_or(0.0, |m| [m.osc1_detune, m.osc2_detune, m.osc3_detune][idx]))
                     .param_key(osc_detune_key)
                     .format(|v| format!("{:+.1} ct", v)),
                 )

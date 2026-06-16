@@ -26,14 +26,14 @@ pub struct ArpEvents {
 }
 
 impl ArpEvents {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             buf: [ArpEvent::NoteOff { note: 0 }; 4],
             count: 0,
         }
     }
 
-    fn push(&mut self, ev: ArpEvent) {
+    pub(crate) fn push(&mut self, ev: ArpEvent) {
         if self.count < self.buf.len() {
             self.buf[self.count] = ev;
             self.count += 1;
@@ -225,6 +225,25 @@ impl ArpEngine {
                 let seq_len = self.held_count * self.octaves as usize;
                 self.step_index %= seq_len;
             }
+        }
+    }
+
+    /// If the held set is now empty but a note is still sounding from the
+    /// key-down immediate-fire, close the gate and return that note so the
+    /// caller can release its voice now rather than at the next `process()`.
+    ///
+    /// Without this, a fast release→re-press cycle (e.g. dragging across the
+    /// on-screen keyboard) refills the held set before `process()` runs its
+    /// empty-state cleanup, so the previously fired voice never receives a
+    /// NoteOff and stays stuck. Returns `None` when notes are still held or no
+    /// gate is open.
+    #[must_use]
+    pub fn take_idle_note_off(&mut self) -> Option<u8> {
+        if self.held_count == 0 && self.gate_open {
+            self.gate_open = false;
+            Some(self.current_note)
+        } else {
+            None
         }
     }
 

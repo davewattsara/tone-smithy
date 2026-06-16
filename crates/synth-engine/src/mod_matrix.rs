@@ -47,11 +47,15 @@ pub enum ModSource {
     /// meaning — `to_index` is the enum discriminant, so a mid-enum
     /// insert would renumber everything after it.
     Env3,
+    /// Step-sequencer mod lane: the active step's CV value, -1..=1. Appended
+    /// at the end (same append-only rule as Env3) so existing source indices
+    /// and saved presets keep their meaning.
+    Seq,
 }
 
 impl ModSource {
     /// Total number of variants; used to validate parameter bus values.
-    pub const COUNT: u8 = 11;
+    pub const COUNT: u8 = 12;
 
     /// Converts a `u8` index (as stored in the parameter bus) to a variant.
     /// Returns `None` if the index is out of range.
@@ -68,6 +72,7 @@ impl ModSource {
             8 => Some(Self::Aftertouch),
             9 => Some(Self::PitchBend),
             10 => Some(Self::Env3),
+            11 => Some(Self::Seq),
             _ => None,
         }
     }
@@ -100,11 +105,16 @@ pub enum ModDest {
     Filter2CutoffHz,
     /// Additive offset to filter 2 resonance, 0..=1 units.
     Filter2Resonance,
+    /// Additive offset to oscillator 2 detune, in cents. Appended so existing
+    /// destination indices (and saved presets) keep their meaning.
+    Osc2DetuneCents,
+    /// Additive offset to oscillator 3 detune, in cents.
+    Osc3DetuneCents,
 }
 
 impl ModDest {
     /// Total number of variants.
-    pub const COUNT: u8 = 8;
+    pub const COUNT: u8 = 10;
 
     /// Converts a `u8` index to a variant.
     pub fn from_index(i: u8) -> Option<Self> {
@@ -117,6 +127,8 @@ impl ModDest {
             5 => Some(Self::Osc1Pan),
             6 => Some(Self::Filter2CutoffHz),
             7 => Some(Self::Filter2Resonance),
+            8 => Some(Self::Osc2DetuneCents),
+            9 => Some(Self::Osc3DetuneCents),
             _ => None,
         }
     }
@@ -141,6 +153,7 @@ pub struct ModSources {
     pub aftertouch: f32,
     pub pitch_bend: f32,
     pub env3: f32,
+    pub seq: f32,
 }
 
 impl ModSources {
@@ -157,6 +170,7 @@ impl ModSources {
             ModSource::Aftertouch => self.aftertouch,
             ModSource::PitchBend => self.pitch_bend,
             ModSource::Env3 => self.env3,
+            ModSource::Seq => self.seq,
         }
     }
 }
@@ -170,6 +184,8 @@ pub struct DestOffsets {
     pub pitch_semis: f32,
     pub volume: f32,
     pub osc1_detune_cents: f32,
+    pub osc2_detune_cents: f32,
+    pub osc3_detune_cents: f32,
     pub osc1_pan: f32,
     pub filter2_cutoff_hz: f32,
     pub filter2_resonance: f32,
@@ -230,6 +246,8 @@ impl ModMatrix {
                 ModDest::Osc1Pan => out.osc1_pan += contribution,
                 ModDest::Filter2CutoffHz => out.filter2_cutoff_hz += contribution,
                 ModDest::Filter2Resonance => out.filter2_resonance += contribution,
+                ModDest::Osc2DetuneCents => out.osc2_detune_cents += contribution,
+                ModDest::Osc3DetuneCents => out.osc3_detune_cents += contribution,
             }
         }
         out
@@ -279,6 +297,13 @@ mod tests {
         let m = single_slot(ModSource::Env2, ModDest::FilterCutoffHz, 5000.0, ModSource::Off);
         let s = sources_with(|s| s.env2 = 0.8);
         assert!((m.compute_offsets(&s).filter_cutoff_hz - 4000.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn seq_lane_to_filter_cutoff() {
+        let m = single_slot(ModSource::Seq, ModDest::FilterCutoffHz, 3000.0, ModSource::Off);
+        let s = sources_with(|s| s.seq = -0.5);
+        assert!((m.compute_offsets(&s).filter_cutoff_hz - -1500.0).abs() < 1e-4);
     }
 
     #[test]
@@ -334,6 +359,21 @@ mod tests {
         let m = single_slot(ModSource::Lfo1, ModDest::Osc1DetuneCents, 100.0, ModSource::Off);
         let s = sources_with(|s| s.lfo1 = 0.5);
         assert!((m.compute_offsets(&s).osc1_detune_cents - 50.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn osc2_and_osc3_detune_are_independent() {
+        // OSC2 detune dest only touches osc2; OSC1/OSC3 stay put.
+        let m = single_slot(ModSource::Lfo1, ModDest::Osc2DetuneCents, 100.0, ModSource::Off);
+        let s = sources_with(|s| s.lfo1 = 0.5);
+        let off = m.compute_offsets(&s);
+        assert!((off.osc2_detune_cents - 50.0).abs() < 1e-4);
+        assert_eq!(off.osc1_detune_cents, 0.0);
+        assert_eq!(off.osc3_detune_cents, 0.0);
+
+        let m3 = single_slot(ModSource::Lfo2, ModDest::Osc3DetuneCents, 80.0, ModSource::Off);
+        let s3 = sources_with(|s| s.lfo2 = -1.0);
+        assert!((m3.compute_offsets(&s3).osc3_detune_cents - -80.0).abs() < 1e-4);
     }
 
     #[test]
