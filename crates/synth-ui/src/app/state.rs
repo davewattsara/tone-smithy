@@ -5,7 +5,7 @@ use std::sync::mpsc::Receiver;
 use notify::RecommendedWatcher;
 use synth_engine::ParamSnapshot;
 use synth_engine::param_bus::{EngineEventSender, SnapshotSlot, load_snapshot};
-use synth_engine::{FilterMode, FilterRouting, FilterSlope, MOD_MATRIX_SLOTS, Waveform};
+use synth_engine::{FilterMode, FilterRouting, FilterSlope, MOD_MATRIX_SLOTS, SEQ_MAX_STEPS, Waveform};
 use synth_presets::{
     AppSettings, MidiLearnEntry, PresetEntry, factory_entries, scan_dir, start_watcher, user_presets_dir,
 };
@@ -49,15 +49,19 @@ pub(crate) const FM_OP_ENV_MIN_SECS: f32 = 0.001;
 pub(crate) const FM_OP_ENV_MAX_SECS: f32 = 10.0;
 
 pub(crate) const MOD_SOURCE_LABELS: &[&str] = &[
-    "Off", "LFO1", "LFO2", "Env2", "AmpEnv", "Vel", "Key", "ModWhl", "AfterT", "Bend", "Env3",
+    "Off", "LFO1", "LFO2", "Env2", "AmpEnv", "Vel", "Key", "ModWhl", "AfterT", "Bend", "Env3", "Seq",
 ];
 /// Display order for the source dropdowns. The stored value is still the
 /// `ModSource` index, but Env3 (index 10, appended for preset back-compat) is
-/// shown right after Env2 instead of last.
-pub(crate) const MOD_SOURCE_ORDER: &[usize] = &[0, 1, 2, 3, 10, 4, 5, 6, 7, 8, 9];
+/// shown right after Env2 instead of last; the sequencer lane (index 11) is
+/// shown last.
+pub(crate) const MOD_SOURCE_ORDER: &[usize] = &[0, 1, 2, 3, 10, 4, 5, 6, 7, 8, 9, 11];
 pub(crate) const MOD_DEST_LABELS: &[&str] = &[
-    "F1 Cut", "F1 Res", "Pitch", "Vol", "Osc1Det", "Osc1Pan", "F2 Cut", "F2 Res",
+    "F1 Cut", "F1 Res", "Pitch", "Vol", "Osc1Det", "Osc1Pan", "F2 Cut", "F2 Res", "Osc2Det", "Osc3Det",
 ];
+// One entry per `ModDest` variant, in index order. **This slice must stay the
+// same length and order as `ModDest`** — a mismatch silently misranges a
+// destination (it broke F2 Cut during M17 testing).
 pub(crate) const MOD_AMOUNT_RANGES: &[f32] = &[
     10_000.0, // FilterCutoffHz
     1.0,      // FilterResonance
@@ -67,6 +71,8 @@ pub(crate) const MOD_AMOUNT_RANGES: &[f32] = &[
     1.0,      // Osc1Pan
     10_000.0, // Filter2CutoffHz
     1.0,      // Filter2Resonance
+    2400.0,   // Osc2DetuneCents
+    2400.0,   // Osc3DetuneCents
 ];
 
 // ── Tab enum ──────────────────────────────────────────────────────────────────
@@ -79,6 +85,7 @@ pub enum Tab {
     Envelopes,
     Modulation,
     Arp,
+    Seq,
     Fx,
     Master,
     Presets,
@@ -92,6 +99,7 @@ impl Tab {
         (Tab::Envelopes, "Envelopes"),
         (Tab::Modulation, "Modulation"),
         (Tab::Arp, "Arp"),
+        (Tab::Seq, "Seq"),
         (Tab::Fx, "FX"),
         (Tab::Master, "Master"),
         (Tab::Presets, "Presets"),
@@ -151,6 +159,7 @@ pub struct ToneSmithyApp {
     pub(crate) lfo1_reset_on_note_on: bool,
     pub(crate) lfo1_sync_enabled: bool,
     pub(crate) lfo1_sync_division_index: usize,
+    pub(crate) lfo1_global: bool,
 
     // ── LFO 2 ────────────────────────────────────────────────────────────────
     pub(crate) lfo2_rate_hz: f32,
@@ -158,6 +167,7 @@ pub struct ToneSmithyApp {
     pub(crate) lfo2_reset_on_note_on: bool,
     pub(crate) lfo2_sync_enabled: bool,
     pub(crate) lfo2_sync_division_index: usize,
+    pub(crate) lfo2_global: bool,
 
     // ── Env2 ─────────────────────────────────────────────────────────────────
     pub(crate) env2_attack_secs: f32,
@@ -232,9 +242,21 @@ pub struct ToneSmithyApp {
     pub(crate) arp_mode: u8,
     pub(crate) arp_octaves: u8,
     pub(crate) arp_rate: u8,
-    pub(crate) arp_bpm: f32,
     pub(crate) arp_gate: f32,
     pub(crate) arp_swing: f32,
+
+    // ── Step sequencer ─────────────────────────────────────────────────────────
+    pub(crate) seq_enabled: bool,
+    pub(crate) seq_length: u8,
+    pub(crate) seq_mode: u8,
+    pub(crate) seq_rate: u8,
+    pub(crate) seq_swing: f32,
+    pub(crate) seq_step_note: [i8; SEQ_MAX_STEPS],
+    pub(crate) seq_step_velocity: [u8; SEQ_MAX_STEPS],
+    pub(crate) seq_step_gate: [f32; SEQ_MAX_STEPS],
+    pub(crate) seq_step_rest: [bool; SEQ_MAX_STEPS],
+    pub(crate) seq_step_tie: [bool; SEQ_MAX_STEPS],
+    pub(crate) seq_step_mod: [f32; SEQ_MAX_STEPS],
 
     // ── Global ───────────────────────────────────────────────────────────────
     pub(crate) pitch_offset_semis: f32,
@@ -333,11 +355,13 @@ impl ToneSmithyApp {
             lfo1_reset_on_note_on: snap.lfo1_reset_on_note_on,
             lfo1_sync_enabled: snap.lfo1_sync_enabled,
             lfo1_sync_division_index: snap.lfo1_sync_division_index,
+            lfo1_global: snap.lfo1_global,
             lfo2_rate_hz: snap.lfo2_rate_hz,
             lfo2_shape_index: snap.lfo2_shape_index,
             lfo2_reset_on_note_on: snap.lfo2_reset_on_note_on,
             lfo2_sync_enabled: snap.lfo2_sync_enabled,
             lfo2_sync_division_index: snap.lfo2_sync_division_index,
+            lfo2_global: snap.lfo2_global,
             env2_attack_secs: snap.env2_attack_secs,
             env2_decay_secs: snap.env2_decay_secs,
             env2_sustain_level: snap.env2_sustain_level,
@@ -400,9 +424,19 @@ impl ToneSmithyApp {
             arp_mode: snap.arp_mode,
             arp_octaves: snap.arp_octaves,
             arp_rate: snap.arp_rate,
-            arp_bpm: snap.arp_bpm,
             arp_gate: snap.arp_gate,
             arp_swing: snap.arp_swing,
+            seq_enabled: snap.seq_enabled,
+            seq_length: snap.seq_length,
+            seq_mode: snap.seq_mode,
+            seq_rate: snap.seq_rate,
+            seq_swing: snap.seq_swing,
+            seq_step_note: snap.seq_step_note,
+            seq_step_velocity: snap.seq_step_velocity,
+            seq_step_gate: snap.seq_step_gate,
+            seq_step_rest: snap.seq_step_rest,
+            seq_step_tie: snap.seq_step_tie,
+            seq_step_mod: snap.seq_step_mod,
             pitch_offset_semis: snap.pitch_offset_semis,
             master_volume: snap.master_volume,
             bpm: snap.bpm,
@@ -548,11 +582,13 @@ impl ToneSmithyApp {
         self.lfo1_reset_on_note_on = snap.lfo1_reset_on_note_on;
         self.lfo1_sync_enabled = snap.lfo1_sync_enabled;
         self.lfo1_sync_division_index = snap.lfo1_sync_division_index;
+        self.lfo1_global = snap.lfo1_global;
         self.lfo2_rate_hz = snap.lfo2_rate_hz;
         self.lfo2_shape_index = snap.lfo2_shape_index;
         self.lfo2_reset_on_note_on = snap.lfo2_reset_on_note_on;
         self.lfo2_sync_enabled = snap.lfo2_sync_enabled;
         self.lfo2_sync_division_index = snap.lfo2_sync_division_index;
+        self.lfo2_global = snap.lfo2_global;
         self.env2_attack_secs = snap.env2_attack_secs;
         self.env2_decay_secs = snap.env2_decay_secs;
         self.env2_sustain_level = snap.env2_sustain_level;
@@ -615,11 +651,43 @@ impl ToneSmithyApp {
         self.arp_mode = snap.arp_mode;
         self.arp_octaves = snap.arp_octaves;
         self.arp_rate = snap.arp_rate;
-        self.arp_bpm = snap.arp_bpm;
         self.arp_gate = snap.arp_gate;
         self.arp_swing = snap.arp_swing;
+        self.seq_enabled = snap.seq_enabled;
+        self.seq_length = snap.seq_length;
+        self.seq_mode = snap.seq_mode;
+        self.seq_rate = snap.seq_rate;
+        self.seq_swing = snap.seq_swing;
+        self.seq_step_note = snap.seq_step_note;
+        self.seq_step_velocity = snap.seq_step_velocity;
+        self.seq_step_gate = snap.seq_step_gate;
+        self.seq_step_rest = snap.seq_step_rest;
+        self.seq_step_tie = snap.seq_step_tie;
+        self.seq_step_mod = snap.seq_step_mod;
         self.pitch_offset_semis = snap.pitch_offset_semis;
         self.master_volume = snap.master_volume;
         self.bpm = snap.bpm;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{MOD_AMOUNT_RANGES, MOD_DEST_LABELS, MOD_SOURCE_LABELS, MOD_SOURCE_ORDER};
+    use synth_engine::{ModDest, ModSource};
+
+    /// The destination label and amount-range slices must stay aligned with the
+    /// `ModDest` enum: a length/order mismatch silently misranges a destination
+    /// (it broke F2 Cut during M17 testing).
+    #[test]
+    fn mod_dest_tables_match_enum() {
+        assert_eq!(MOD_DEST_LABELS.len(), ModDest::COUNT as usize);
+        assert_eq!(MOD_AMOUNT_RANGES.len(), ModDest::COUNT as usize);
+    }
+
+    /// The source label and display-order tables must cover every `ModSource`.
+    #[test]
+    fn mod_source_tables_match_enum() {
+        assert_eq!(MOD_SOURCE_LABELS.len(), ModSource::COUNT as usize);
+        assert_eq!(MOD_SOURCE_ORDER.len(), ModSource::COUNT as usize);
     }
 }

@@ -287,16 +287,22 @@ slots in use; all paths audio-tested and round-trip serialised in the preset for
 
 ---
 
-## M18 — Step sequencer (2–3 weeks) — v1.1
+## M18 — Step sequencer (2–3 weeks) — v1.1 — **complete (2026-06-16, tag `m18`)**
 
 > Implementation plan: [`m18-plan.md`](m18-plan.md)
 
 Adds a 16-step melodic/modulation sequencer alongside the arpeggiator.
 
 - 16 steps; per-step note offset (±24 semitones), velocity (0–127), gate (0–100%), rest toggle.
-- One assignable modulation lane (any mod-matrix destination, per-step CV value).
-- Sync to arp BPM / MIDI clock; playback modes: forward, reverse, ping-pong, random.
-- UI: step-grid widget; integrate into the existing Arp tab or add a dedicated Seq tab.
+  Step note offset is relative to the lowest held note.
+- One assignable modulation lane — exposed as a new global `Seq` mod **source** so it can route to
+  any mod-matrix destination, per-step CV value.
+- **Unify transport BPM:** merge the separate arp BPM and global (LFO-sync) BPM into one BPM in the
+  Master tab that the arp, sequencer, and LFO sync all follow. Internal BPM only — external MIDI
+  clock sync is deferred to a later item (no MIDI-clock infrastructure exists yet).
+- Sequencer and arp are **mutually exclusive** (one note engine at a time).
+- Playback modes: forward, reverse, ping-pong, random.
+- UI: step-grid widget on a dedicated Seq tab.
 
 **Also in this milestone — small engine additions** (bundled here, not part of the sequencer):
 
@@ -343,6 +349,32 @@ Extends `cargo xtask dist` and the release CI to produce Linux and macOS builds.
 **Done when:** A clean Linux and macOS machine can download the respective package, launch Tone
 Smithy, and play a preset without extra setup steps.
 
+### Engine pre-req — make filter 2 optional (off / serial / parallel)
+
+> **Must land before the M20 factory preset authoring** so presets are designed against filter 2
+> **off** by default. Touches M17's dual-filter feature. Small engine + UI change, not installer
+> work — bundled here only to gate it ahead of M20.
+
+Today filter 2 is always in the signal path: routing is **Serial / Parallel** only, and in the
+default Serial routing every voice runs `filter1 → filter2` with no bypass. At its defaults
+(LowPass, 20 kHz, no resonance) it is near-transparent but not bit-identical, and it costs two
+SVFs per voice. Make it genuinely optional by folding the on/off state into the routing control.
+
+- **Extend `FilterRouting` to `Off` / `Serial` / `Parallel`.** Append `Off` as a **new variant at
+  index 2** (keep `Serial = 0`, `Parallel = 1`) — do **not** renumber, so every preset that already
+  stores a routing value keeps its meaning.
+- **Change the default routing to `Off`.** Presets that omit `filter_routing` — every v1.0 preset,
+  which predates filter 2 — then load with filter 2 bypassed, restoring their original v1.0 sound
+  and skipping two SVFs per voice.
+- **When `Off`:** bypass filter 2 in `voice.rs` (output = filter 1 only, no filter-2 processing),
+  and **grey out the filter 2 controls** (mode, cutoff, resonance, slope) in the UI.
+- **UI:** the routing control becomes a three-way Off / Serial / Parallel selector (display order
+  independent of the stored index, like the mod-source ordering).
+
+**Done when:** filter 2 defaults to off; old presets sound like v1.0 again; the filter 2 panel is
+disabled while routing is Off; existing serial/parallel presets still load correctly; serial and
+parallel still behave as before; `fmt` / `clippy -D warnings` / tests clean.
+
 ---
 
 ## M20 — v1.1 factory expansion + release (2–4 weeks) — v1.1
@@ -380,7 +412,9 @@ installers; user has tested on at least Windows and signed off.
 - **M18 (step sequencer)** is independent of M17 but shares the BPM/clock infrastructure with
   the arpeggiator — start after M9 is stable, which it already is.
 - **M19** is independent of M17/M18; CI jobs run in parallel on three platforms.
-- **M20** needs M17 + M18 + M19 complete so new presets can use all new features.
+- **M20** needs M17 + M18 + M19 complete so new presets can use all new features. In particular,
+  M19's "make filter 2 optional" pre-req must be done **before** M20's preset authoring so the bank
+  is built against filter 2 off-by-default.
 
 ## What's out of scope
 

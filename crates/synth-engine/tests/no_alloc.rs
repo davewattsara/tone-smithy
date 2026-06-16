@@ -230,3 +230,93 @@ fn polyphonic_render_and_voice_stealing_do_not_allocate() {
     let peak = buffer.iter().fold(0.0_f32, |acc, s| acc.max(s.abs()));
     assert!(peak > 1.0, "expected polyphonic mix above unity, peak was {peak}");
 }
+
+/// Step-sequencer stress: enable the sequencer, hold a root note, and
+/// render while sweeping per-step params and cycling playback modes. Covers
+/// `SeqEngine::process` and the `handle()` fan-out for every `Seq*` param
+/// inside the no-alloc scope.
+#[test]
+fn sequencer_render_does_not_allocate() {
+    let mut engine = Engine::new(SAMPLE_RATE_HZ);
+
+    let mut buffer = vec![0.0_f32; BLOCK_FRAMES * 2];
+    let blocks_per_second = SAMPLE_RATE_HZ as usize / BLOCK_FRAMES;
+    let total_blocks = (DURATION_SECS as usize) * blocks_per_second;
+
+    // Accumulate the peak inside the closure: with a sequencer the final
+    // block may land on a rest or closed gate, so reading `buffer` after the
+    // loop (as the sustained-note tests do) would see silence.
+    let peak = assert_no_alloc(|| {
+        let mut peak = 0.0_f32;
+        engine.handle(EngineEvent::SetOscillatorWaveform {
+            waveform: Waveform::Saw,
+        });
+        // Open the filter so the rendered notes are audible (default cutoff
+        // is low). The sanity peak check at the end depends on this.
+        engine.handle(EngineEvent::ParameterChange {
+            id: ParamId::FilterCutoffHz,
+            value: 6_000.0,
+        });
+        // Configure a pattern: ascending offsets, a couple of rests.
+        for i in 0..16u8 {
+            engine.handle(EngineEvent::ParameterChange {
+                id: ParamId::SeqStepNote(i),
+                value: f32::from(i) - 8.0,
+            });
+            engine.handle(EngineEvent::ParameterChange {
+                id: ParamId::SeqStepVelocity(i),
+                value: 80.0,
+            });
+            engine.handle(EngineEvent::ParameterChange {
+                id: ParamId::SeqStepGate(i),
+                value: 0.8,
+            });
+            engine.handle(EngineEvent::ParameterChange {
+                id: ParamId::SeqStepRest(i),
+                value: if i % 5 == 0 { 1.0 } else { 0.0 },
+            });
+        }
+        engine.handle(EngineEvent::ParameterChange {
+            id: ParamId::SeqEnabled,
+            value: 1.0,
+        });
+        engine.handle(EngineEvent::NoteOn {
+            note_midi: 48,
+            velocity: 100,
+        });
+
+        for block_index in 0..total_blocks {
+            // Cycle playback modes and sweep a per-step gate inside the loop.
+            if block_index.is_multiple_of(64) {
+                engine.handle(EngineEvent::ParameterChange {
+                    id: ParamId::SeqMode,
+                    value: ((block_index / 64) % 4) as f32,
+                });
+                #[allow(clippy::cast_possible_truncation)]
+                let step = (block_index % 16) as u8;
+                engine.handle(EngineEvent::ParameterChange {
+                    id: ParamId::SeqStepGate(step),
+                    #[allow(clippy::cast_precision_loss)]
+                    value: 0.3 + ((block_index % 5) as f32) / 8.0,
+                });
+            }
+            // Periodically change the held root so the transpose path runs.
+            if block_index.is_multiple_of(blocks_per_second) && block_index > 0 {
+                engine.handle(EngineEvent::NoteOff { note_midi: 48 });
+                engine.handle(EngineEvent::NoteOn {
+                    note_midi: 50,
+                    velocity: 100,
+                });
+            }
+            engine.process_stereo(&mut buffer, BLOCK_FRAMES);
+            for s in &buffer {
+                peak = peak.max(s.abs());
+            }
+        }
+
+        engine.handle(EngineEvent::AllNotesOff);
+        peak
+    });
+
+    assert!(peak > 0.0, "expected audible sequencer output, peak was {peak}");
+}

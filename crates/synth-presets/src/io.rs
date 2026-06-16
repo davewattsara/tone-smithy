@@ -69,7 +69,7 @@ mod tests {
         snap.filter_cutoff_hz = 1_234.5;
         snap.amp_attack_secs = 0.42;
         snap.arp_enabled = true;
-        snap.arp_bpm = 137.0;
+        snap.bpm = 137.0;
 
         let mut preset = Preset::new("test");
         preset.parameters = snapshot_to_map(&snap);
@@ -84,6 +84,6 @@ mod tests {
         assert_eq!(snap.filter_cutoff_hz, got.filter_cutoff_hz);
         assert_eq!(snap.amp_attack_secs, got.amp_attack_secs);
         assert_eq!(snap.arp_enabled, got.arp_enabled);
-        assert_eq!(snap.arp_bpm, got.arp_bpm);
+        assert_eq!(snap.bpm, got.bpm);
     }
 }

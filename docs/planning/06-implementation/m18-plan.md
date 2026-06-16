@@ -1,17 +1,17 @@
 # M18 plan — Step sequencer (+ bundled engine additions)
 
 The headline feature is a 16-step melodic/modulation sequencer that lives alongside the
-arpeggiator and shares its audio-thread clock pattern. Two small, backward-compatible engine
-additions are bundled in because they touch the same layers (matrix, params, LFO/voice) and are
-cheap to land here: a **global (mono) LFO mode** and **per-oscillator detune mod destinations**.
+arpeggiator and shares its audio-thread clock pattern. The milestone also unifies the synth's two
+tempo controls into one transport BPM, and bundles two small backward-compatible engine additions
+that touch the same layers (matrix, params, LFO/voice): a **global (mono) LFO mode** and
+**per-oscillator detune mod destinations**.
 
 **Target version:** v1.1
-**Estimate:** 2–3 weeks (sequencer) + ~1 week (bundled additions)
-**Branch:** `milestone/m18-step-sequencer` — *create off `development` after M17 is merged.*
+**Estimate:** 2–3 weeks (sequencer) + ~1 week (BPM unify + bundled additions)
+**Branch:** `milestone/m18-step-sequencer` — *create off `development`.*
 
-> ⚠ Prerequisite: M17 must be closed out first (merge `milestone/m17-engine-expansion` →
-> `development` → `main`, tag `m17`, mark complete in `milestones.md`). M18's branch should fork
-> from a `development` that already contains the M17 engine work.
+> Prerequisite met: M17 is closed out (merged to `main`, tag `m17`, 2026-06-15). Branch M18 off the
+> current `development`.
 
 ---
 
@@ -19,53 +19,83 @@ cheap to land here: a **global (mono) LFO mode** and **per-oscillator detune mod
 
 | Phase | Feature | Notes |
 |---|---|---|
-| 1 | Sequencer engine core (`SeqEngine`) | Mirrors `ArpEngine`; clock + 16 steps + playback modes |
-| 2 | Sequencer mod lane | New global `Seq` mod **source**; per-step CV reuses the whole matrix |
-| 3 | Sequencer UI (step grid) | New `Seq` tab; step-grid widget |
-| 4 | Global (mono) LFO mode | Bundled; per-LFO `Global` toggle, shared `Lfo` on `VoiceManager` |
-| 5 | Per-oscillator detune dests | Bundled; append `Osc2Det` / `Osc3Det` to `ModDest` |
+| 1 | Unify transport BPM | Merge `ArpBpm` + global `Bpm` into one Master-tab BPM; prerequisite for the seq clock |
+| 2 | Sequencer engine core (`SeqEngine`) | Mirrors `ArpEngine`; clock + 16 steps + playback modes |
+| 3 | Sequencer mod lane | New global `Seq` mod **source**; per-step CV reuses the whole matrix |
+| 4 | Sequencer UI (step grid) | New `Seq` tab; step-grid widget |
+| 5 | Global (mono) LFO mode | Bundled; per-LFO `Global` toggle, shared `Lfo` on `VoiceManager` |
+| 6 | Per-oscillator detune dests | Bundled; append `Osc2Det` / `Osc3Det` to `ModDest` |
 
-Phases 1→3 are the sequencer and should land in order. Phases 4 and 5 are independent and can be
-done at any point (each is its own commit). Settle the **Open questions** below before starting
-Phase 1 — they change the engine's shape.
-
----
-
-## Open questions (confirm before Phase 1)
-
-1. **MIDI-clock sync is out of scope unless we build it.** There is currently *no* MIDI real-time
-   clock handling anywhere — `crates/synth-host/src/midi.rs` does not parse `0xF8`/`0xFA`/`0xFC`,
-   and the arp runs purely off its internal `bpm`. The milestone line "sync to arp BPM / MIDI clock"
-   therefore can't mean external clock without new transport infrastructure (clock-pulse counting,
-   start/stop, tempo estimation). **Recommendation:** scope M18 to *internal* BPM sync (the
-   sequencer shares the same clock the arp uses) and split external MIDI-clock sync into its own
-   later item. This plan assumes that.
-2. **Which BPM does the sequencer follow?** Two tempos exist today: `ArpBpm` (lives on `ArpEngine`)
-   and a separate global `Bpm` (param tree, drives LFO sync). **Recommendation:** the sequencer
-   follows the **arp BPM** (it's the existing step-clock tempo and matches the milestone wording);
-   note the longer-term cleanup of unifying both into one transport BPM, but don't do that refactor
-   here.
-3. **Sequencer ↔ arp interaction.** Both generate notes from held keys. **Recommendation:** make
-   them **mutually exclusive** — enabling the sequencer disables the arp and vice-versa (a single
-   "note engine: Off / Arp / Seq" choice), which avoids two clocks fighting over the voice pool.
-   The alternative (both running) needs a defined precedence and is more work for little benefit.
-4. **What is a step's note relative to?** "Per-step note offset (±24 semitones)" implies a
-   reference pitch. **Recommendation:** offset is relative to the **lowest currently-held note**
-   (hold a key, the sequence transposes to it), matching a typical mono step sequencer. A "rest"
-   step plays nothing; an empty held-note set silences the sequencer.
+Phase 1 lands first (the sequencer clock reads the unified BPM). Phases 2→4 are the sequencer and
+land in order. Phases 5 and 6 are independent and can be done at any point (each is its own commit).
 
 ---
 
-## Phase 1 — Sequencer engine core (`SeqEngine`)
+## Decisions (confirmed with user, 2026-06-15)
+
+These were the plan's open questions; now settled:
+
+1. **Clock source — single internal transport BPM, MIDI clock deferred.** There is no MIDI
+   real-time clock handling today (`crates/synth-host/src/midi.rs` doesn't parse
+   `0xF8`/`0xFA`/`0xFC`). M18 syncs everything to one *internal* BPM (Phase 1); external MIDI-clock
+   sync is split into its own later item.
+2. **One unified BPM in the Master tab (Phase 1).** Today two independent tempos exist — global
+   `Bpm` (drives LFO sync; already has a knob in the Master tab, `master.rs:66`) and `ArpBpm` (drives
+   the arp; separate knob in the Arp tab, `arp.rs:93`). They are merged into a single transport BPM
+   in the Master tab that the arp, sequencer, and LFO sync all read. This also answers "which BPM
+   does the sequencer follow" — the one unified BPM.
+3. **Sequencer and arp are mutually exclusive.** Enabling the sequencer disables the arp and
+   vice-versa (a single "note engine: Off / Arp / Seq" choice), so two clocks never fight over the
+   voice pool.
+4. **Step note offset is relative to the lowest currently-held note.** Hold a key and the sequence
+   transposes to it. A `rest` step plays nothing; an empty held-note set silences the sequencer.
+
+---
+
+## Phase 1 — Unify transport BPM (Master tab)
+
+### Background
+
+Two BPMs exist and can disagree: global `Bpm` (`ParamId::Bpm`, param tree — drives LFO tempo-sync,
+knob in the Master tab `master.rs:66`) and `ArpBpm` (`ParamId::ArpBpm` — sets `ArpEngine::bpm`, a
+separate knob in the Arp tab `arp.rs:93`). A third clock (the sequencer) would make the split worse.
+Collapse to one transport BPM, surfaced by the existing Master-tab control, read by the arp, the
+sequencer, and LFO sync.
+
+### Changes
+
+- **`crates/synth-engine/src/engine.rs`** — make `ParamId::Bpm` the single source of truth: in its
+  `apply_event` arm, also set `self.arp.bpm` (and, after Phase 2, `self.seq.bpm`). Remove the
+  `ParamId::ArpBpm` arm (or map it to `Bpm` for back-compat — see MIDI-learn below).
+- **LFO sync** already reads `tree.bpm` (`tree.rs` `sync_rate_hz`) — unchanged.
+- **`crates/synth-ui/src/sections/arp.rs`** — remove the Arp-tab BPM knob; the Master-tab knob
+  (`master.rs`) becomes the one control. Drop the now-unused `arp_bpm` state mirror in
+  `app/state.rs` (or repoint it at `bpm`).
+- **`crates/synth-ui/src/app/midi_learn.rs`** — it maps the `"arp_bpm"` key → `ParamId::ArpBpm`
+  (lines ~207/391). Keep an alias so any existing learned mapping resolves to `ParamId::Bpm`, or
+  drop it with a note that re-learning is needed.
+- **Presets:** BPM is **not** serialized per-preset today (0 of 61 factory presets carry `bpm` or
+  `arp_bpm` — tempo is a global/session setting, not patch state). So **no preset migration** is
+  needed. Before deleting `ArpBpm`, just confirm `snapshot_to_map` doesn't emit either key.
+
+### Done when
+
+- A single BPM control (Master tab) retempos the arp, LFO sync, and (after Phase 2) the sequencer.
+- No separate Arp-tab BPM remains; nothing reads `ArpBpm`.
+- `cargo fmt` / `clippy -D warnings` clean.
+
+---
+
+## Phase 2 — Sequencer engine core (`SeqEngine`)
 
 ### Background
 
 `ArpEngine` (`crates/synth-engine/src/arp.rs`) is the template: it runs on the audio thread with no
 alloc/lock, owns a phase accumulator and a held-note list, and on each `process(n_frames)` returns a
 fixed-size `ArpEvents` list of `NoteOn`/`NoteOff` that `engine.rs` injects before the voice loop
-(see `engine.rs:427` `self.arp.process(frames)`). The sequencer is a sibling of this — same
+(see `engine.rs:427` `self.arp.process(frames)`). The sequencer is a sibling — same
 clock/gate/swing machinery, but instead of arpeggiating the held set it walks a fixed 16-step
-pattern transposed by the held root note.
+pattern transposed by the held root note (Decision 4).
 
 ### New module — `crates/synth-engine/src/seq.rs`
 
@@ -84,7 +114,7 @@ pub struct SeqStep {
     pub velocity: u8,      // 0..=127
     pub gate: f32,         // 0.0..=1.0
     pub rest: bool,
-    pub mod_value: f32,    // -1.0..=1.0  (Phase 2)
+    pub mod_value: f32,    // -1.0..=1.0  (Phase 3)
 }
 
 /// Playback order across the active step range.
@@ -96,7 +126,7 @@ pub struct SeqEngine {
     pub length: usize,     // 1..=SEQ_MAX_STEPS active steps
     pub mode: SeqMode,
     pub rate: ArpRate,     // reuse arp's note-value enum (1/32..1/2)
-    pub bpm: f32,          // follows arp BPM (Open Q #2)
+    pub bpm: f32,          // set from the unified transport BPM (Decision 2)
     pub swing: f32,
     pub steps: [SeqStep; SEQ_MAX_STEPS],
     // runtime: held root, phase, step cursor, direction, gate_open, current_note, rng
@@ -127,7 +157,7 @@ SeqStepNote(u8),
 SeqStepVelocity(u8),
 SeqStepGate(u8),
 SeqStepRest(u8),
-SeqStepMod(u8),     // Phase 2
+SeqStepMod(u8),     // Phase 3
 ```
 
 `SeqStep*(u8)` mirrors the existing `ParamId::ModSlot*(u8)` pattern, so a single variant covers all
@@ -137,10 +167,11 @@ SeqStepMod(u8),     // Phase 2
 
 - Add `seq: SeqEngine` field; construct in `Engine::new`.
 - In the per-block tick, call `self.seq.process(frames)` next to the arp and inject its events the
-  same way. Honour Open Q #3: route note input to *either* arp or seq based on the active note
+  same way. Honour Decision 3: route note input to *either* arp or seq based on the active note
   engine; don't clock both.
 - Handle the new `ParamId::Seq*` arms in `apply_event` (clamp like the arp params; `SeqStep*(i)`
-  writes into `seq.steps[i]`).
+  writes into `seq.steps[i]`). Mutual exclusion: enabling `SeqEnabled` forces the arp off and
+  vice-versa (mirror the existing `ArpEnabled` note-handoff logic at `engine.rs:387`).
 
 ### Param tree / snapshot — `tree.rs`, `snapshot.rs`
 
@@ -160,17 +191,17 @@ SeqStepMod(u8),     // Phase 2
 
 ### Done when
 
-- A 16-step pattern clocks `NoteOn`/`NoteOff` at the set BPM/rate; per-step offset, velocity, gate,
-  and rest all audibly take effect.
+- A 16-step pattern clocks `NoteOn`/`NoteOff` at the unified BPM / set rate; per-step offset,
+  velocity, gate, and rest all audibly take effect.
 - Forward / Reverse / PingPong / Random walk the active range correctly.
-- Enabling the sequencer disables the arp (Open Q #3) with no stuck notes.
+- Enabling the sequencer disables the arp (Decision 3) with no stuck notes.
 - Sequencer state round-trips through a preset.
 - A `no_alloc` test covers `SeqEngine::process` (mirror the arp's RT-safety coverage).
 - `cargo fmt` and `cargo clippy -D warnings` clean.
 
 ---
 
-## Phase 2 — Sequencer mod lane
+## Phase 3 — Sequencer mod lane
 
 ### Background
 
@@ -185,39 +216,39 @@ plumbing, amount scaling, and the `Via` path for free.
   (after `Env3`), exactly as Env3 was appended in M17: the enum order is the on-the-wire preset
   index, so appending gives `Seq` the next index with no renumbering. Add `seq: f32` to
   `ModSources`, a `ModSource::Seq => self.seq` arm in `get()`, and the `from_index` arm.
-- **`crates/synth-ui/src/app/state.rs`** — append `"Seq"` to `MOD_SOURCE_LABELS` (and it inherits
-  the `MOD_SOURCE_ORDER` display list — decide placement; likely at the end after Env3).
+- **`crates/synth-ui/src/app/state.rs`** — append `"Seq"` to `MOD_SOURCE_LABELS` (and add it to the
+  `MOD_SOURCE_ORDER` display list — likely at the end after Env3).
 - **`crates/synth-engine/src/voice_manager.rs`** — `advance_modulators` builds `ModSources`; set
   `seq: self.global_seq_mod` from a value pushed by the engine each block (the active step's
   `mod_value`, held across the step). This mirrors how `global_mod_wheel`/`global_aftertouch` are
   stored and read.
 - **`engine.rs`** — each block, after `seq.process`, copy the current step's `mod_value` into
   `voices.set_global_seq_mod(..)`.
-- Per-step `SeqStepMod(u8)` param already added in Phase 1.
+- Per-step `SeqStepMod(u8)` param already added in Phase 2.
 
 ### Done when
 
 - Routing matrix source `Seq` → any destination (e.g. `F1 Cut`) makes the destination step through
   the lane's per-step values in time with the sequence.
-- The lane value round-trips in presets (covered by Phase 1's `seq_step{i}_mod` key).
+- The lane value round-trips in presets (covered by Phase 2's `seq_step{i}_mod` key).
 - `cargo fmt` / `clippy -D warnings` clean.
 
 ---
 
-## Phase 3 — Sequencer UI
+## Phase 4 — Sequencer UI
 
 ### Background
 
 The arp UI (`crates/synth-ui/src/sections/arp.rs`, rendered via `Tab::Arp` in `app/mod.rs:105`) is a
 flat row of toggles/combos/knobs. The sequencer needs a **step-grid** widget — 16 columns, each with
-note-offset, velocity, gate, rest, and mod-lane controls — plus length/rate/mode/swing selectors.
+note-offset, velocity, gate, rest, and mod-lane controls — plus length/rate/mode controls.
 
 ### Changes
 
 - **New tab.** Add `Tab::Seq` to the `Tab` enum and `Tab::ALL` (`app/state.rs`), a `seq_tab(ui)`
-  renderer (`sections/seq.rs`), and the dispatch arm in `app/mod.rs`. (Alternatively fold into the
-  Arp tab; a dedicated tab is cleaner given the grid's size — confirm with the note-engine choice
-  from Open Q #3, e.g. a shared "Sequencer/Arp" tab with a mode switch at the top.)
+  renderer (`sections/seq.rs`), and the dispatch arm in `app/mod.rs`. (Given Decision 3, a shared
+  "Sequencer/Arp" presentation with a note-engine switch at the top is an option; a dedicated Seq
+  tab is cleaner given the grid's size.)
 - **State mirrors** in `app/state.rs`: `seq_enabled`, `seq_length`, `seq_mode`, `seq_rate`,
   `seq_swing`, and per-step arrays; sync them in `sync_from_snapshot`.
 - **Step-grid widget.** 16 columns. Per column: a small note-offset control (drag or stepper,
@@ -226,7 +257,8 @@ note-offset, velocity, gate, rest, and mod-lane controls — plus length/rate/mo
   `lfo1_out`, so the UI can light the active column).
 - **Transport controls:** Enabled toggle, Length (1–16), Rate combo (reuse the arp's `1/32…1/2`
   labels), Mode combo (Forward/Reverse/PingPong/Random), Swing knob. Emit `ParamId::Seq*` changes
-  exactly like the arp section emits `ParamId::Arp*`.
+  exactly like the arp section emits `ParamId::Arp*`. BPM lives in the Master tab now (Phase 1), not
+  here.
 
 ### Done when
 
@@ -236,7 +268,7 @@ note-offset, velocity, gate, rest, and mod-lane controls — plus length/rate/mo
 
 ---
 
-## Phase 4 — Global (mono) LFO mode (bundled)
+## Phase 5 — Global (mono) LFO mode (bundled)
 
 ### Background
 
@@ -271,7 +303,7 @@ No new DSP math, no new event type. Old presets omit the keys → default per-vo
 
 ---
 
-## Phase 5 — Per-oscillator detune mod destinations (bundled)
+## Phase 6 — Per-oscillator detune mod destinations (bundled)
 
 ### Background
 
@@ -306,18 +338,19 @@ dest can't give, since it shifts all oscillators together). Pan for 2/3 is an op
 
 ## Milestone done when
 
-A 16-step melodic line plays with independent velocity and gate per step; the mod lane drives a
-destination audibly; switching an LFO to global mode locks all held voices to one shared phase; an
-LFO routed to `Osc2Det` detunes only OSC2; and the sequencer, LFO mode, and new oscillator dests all
-survive preset save/load round-trips.
+One Master-tab BPM drives the arp, LFO sync, and sequencer; a 16-step melodic line plays with
+independent velocity and gate per step; the mod lane drives a destination audibly; switching an LFO
+to global mode locks all held voices to one shared phase; an LFO routed to `Osc2Det` detunes only
+OSC2; and the sequencer, LFO mode, and new oscillator dests all survive preset save/load round-trips.
 
-1. Sequencer: 16 editable steps, four playback modes, internal BPM sync, moving playhead.
-2. Sequencer mod lane drives any matrix destination via the new `Seq` source.
-3. Sequencer/arp mutual exclusion with no stuck notes.
-4. Global LFO mode phase-locks chords; `Reset` greyed out when global.
-5. `Osc2Det` / `Osc3Det` mod destinations work and are append-only (no preset migration).
-6. Full preset round-trip for every new parameter.
-7. All phases pass `cargo fmt --check` and `cargo clippy -D warnings`, and the `no_alloc` test
+1. Single unified transport BPM in the Master tab; no separate Arp BPM.
+2. Sequencer: 16 editable steps, four playback modes, internal BPM sync, moving playhead.
+3. Sequencer mod lane drives any matrix destination via the new `Seq` source.
+4. Sequencer/arp mutual exclusion with no stuck notes.
+5. Global LFO mode phase-locks chords; `Reset` greyed out when global.
+6. `Osc2Det` / `Osc3Det` mod destinations work and are append-only (no preset migration).
+7. Full preset round-trip for every new parameter.
+8. All phases pass `cargo fmt --check` and `cargo clippy -D warnings`, and the `no_alloc` test
    covers the new audio-thread code.
 
 ---
@@ -326,32 +359,70 @@ survive preset save/load round-trips.
 
 | File | Phase(s) |
 |---|---|
-| `crates/synth-engine/src/seq.rs` (new) | 1, 2 |
-| `crates/synth-engine/src/params/ids.rs` | 1, 4 |
-| `crates/synth-engine/src/params/snapshot.rs` | 1, 3, 4 |
-| `crates/synth-engine/src/params/tree.rs` | 1, 4 |
-| `crates/synth-engine/src/engine.rs` | 1, 2, 4 |
-| `crates/synth-engine/src/voice_manager.rs` | 2, 4, 5 |
-| `crates/synth-engine/src/voice.rs` | 4 |
-| `crates/synth-engine/src/mod_matrix.rs` | 2, 5 |
-| `crates/synth-engine/src/lib.rs` | 1 (re-export `SEQ_MAX_STEPS`) |
-| `crates/synth-presets/src/preset_params.rs` | 1, 2, 4, 5 |
-| `crates/synth-ui/src/app/state.rs` | 1, 2, 3, 5 |
-| `crates/synth-ui/src/app/mod.rs` | 3 |
-| `crates/synth-ui/src/sections/seq.rs` (new) | 3 |
-| `crates/synth-ui/src/sections/envelopes.rs` | 4 |
-| `crates/synth-engine/tests/no_alloc.rs` | 1 |
+| `crates/synth-engine/src/arp.rs` | 1 (BPM source) |
+| `crates/synth-engine/src/seq.rs` (new) | 2, 3 |
+| `crates/synth-engine/src/params/ids.rs` | 2, 5 |
+| `crates/synth-engine/src/params/snapshot.rs` | 2, 4, 5 |
+| `crates/synth-engine/src/params/tree.rs` | 2, 5 |
+| `crates/synth-engine/src/engine.rs` | 1, 2, 3, 5 |
+| `crates/synth-engine/src/voice_manager.rs` | 3, 5, 6 |
+| `crates/synth-engine/src/voice.rs` | 5 |
+| `crates/synth-engine/src/mod_matrix.rs` | 3, 6 |
+| `crates/synth-engine/src/lib.rs` | 2 (re-export `SEQ_MAX_STEPS`) |
+| `crates/synth-presets/src/preset_params.rs` | 2, 3, 5, 6 |
+| `crates/synth-ui/src/sections/master.rs` | 1 (sole BPM control) |
+| `crates/synth-ui/src/sections/arp.rs` | 1 (remove BPM knob) |
+| `crates/synth-ui/src/app/midi_learn.rs` | 1 (arp_bpm alias) |
+| `crates/synth-ui/src/app/state.rs` | 1, 2, 3, 4, 6 |
+| `crates/synth-ui/src/app/mod.rs` | 4 |
+| `crates/synth-ui/src/sections/seq.rs` (new) | 4 |
+| `crates/synth-ui/src/sections/envelopes.rs` | 5 |
+| `crates/synth-engine/tests/no_alloc.rs` | 2 |
 
 ---
 
 ## Progress
 
-- [ ] Open questions confirmed with user
-- [ ] Phase 1 — Sequencer engine core
-- [ ] Phase 2 — Sequencer mod lane
-- [ ] Phase 3 — Sequencer UI
-- [ ] Phase 4 — Global (mono) LFO mode
-- [ ] Phase 5 — Per-oscillator detune dests
+- [x] Open questions resolved with user (2026-06-15) — see Decisions
+- [x] Phase 1 — Unify transport BPM
+- [x] Phase 2 — Sequencer engine core
+- [x] Phase 3 — Sequencer mod lane
+- [x] Phase 4 — Sequencer UI
+- [x] Phase 5 — Global (mono) LFO mode
+- [x] Phase 6 — Per-oscillator detune dests
+- [x] Post-plan addition — per-step **tie** (user request, 2026-06-15)
 
-Not started — plan drafted on the M17 branch ahead of M17 close-out. Do not begin implementation
-until the user gives the go-ahead and M17 is merged to `development`.
+All six phases implemented on `milestone/m18-step-sequencer`. Awaiting user testing of a build
+before close-out (merge to `development`/`main`, tag `m18`).
+
+### Post-plan addition — per-step tie
+
+Added after the six phases at the user's request. A per-step `tie` flag (`SeqStep.tie`,
+`ParamId::SeqStepTie(u8)`) marks the *originating* step: its note still articulates, but it then
+**extends forward** into the following step(s) instead of releasing — the next step does not
+retrigger (its note is consumed by the held one). There was previously no way for a note to ring
+longer than a single step (gate maxes at 100% of one step). Ties chain: a run of tie steps
+lengthens the note's *slot* to span the whole run plus the first step after it.
+
+**Gate over the tied span.** The originating step's own `gate` governs the note, scaled across the
+lengthened slot: at articulation the engine computes `release_at = gate * tie_span` (in step-units,
+via the `tie_span` helper, which counts the run forward in index order, bounded by the active
+length). A running `note_elapsed` accumulator fires the NoteOff when it crosses `release_at`, so
+gate 1.0 + a 2-step tie rings legato across both steps, while gate 0.5 sounds the first step and
+stays silent for the second. `release_at` is snapshotted when the note is articulated, so a live
+gate/tie edit takes effect on the next re-articulation (correct for the real-time path). This
+replaced the earlier "the first non-tie step's gate governs" rule — that ignored the originating
+step's gate entirely, which the user found unintuitive.
+
+A consumed step's note/velocity/gate and rest do nothing (its note is supplied by the tie), so the
+UI greys them out (`add_enabled_ui(!consumed, …)` where `consumed = prev step in index order is a
+tie`). Its **mod lane stays active** (the mod lane advances on every step including consumed ones)
+and its **tie toggle stays active** (toggling it extends the run by one more step). New
+`SeqStepTie` param follows the `SeqStepRest` plumbing through ids → tree → snapshot → engine →
+preset round-trip, with a **T** toggle beside the rest **R** in the step grid. Old presets omit the
+key and default to no tie.
+
+> The tie convention was revised twice after first implementation: (1) it originally marked the
+> *continuation* step (hold the previous note), which read off-by-one, and was flipped to mark the
+> originating step ("extend this note forward"); (2) the release was originally governed by the
+> first non-tie step's gate, and now uses the originating step's gate scaled across the tied span.

@@ -15,6 +15,7 @@ use crate::fx::FxChain;
 use crate::lfo::LfoShape;
 use crate::mod_matrix::{ModDest, ModSource};
 use crate::params::{ParamId, ParamSnapshot, ParameterTree};
+use crate::seq::{SeqEngine, SeqMode};
 use crate::voice_manager::VoiceManager;
 
 /// Maximum block size the engine promises to handle, in frames.
@@ -51,6 +52,9 @@ pub struct Engine {
 
     /// Arpeggiator — clocks NoteOn/NoteOff into the voice pool each block.
     arp: ArpEngine,
+
+    /// Step sequencer — sibling of the arp; mutually exclusive with it.
+    seq: SeqEngine,
 }
 
 impl Engine {
@@ -102,6 +106,7 @@ impl Engine {
             voices,
             fx: FxChain::new(sample_rate_hz),
             arp: ArpEngine::new(sample_rate_hz),
+            seq: SeqEngine::new(sample_rate_hz),
         }
     }
 
@@ -116,34 +121,58 @@ impl Engine {
     pub fn handle(&mut self, event: EngineEvent) {
         match event {
             EngineEvent::NoteOn { note_midi, velocity } => {
-                // Tell the arp about held notes regardless of arp state so
-                // enabling the arp mid-hold still has something to step through.
-                let is_first = self.arp.note_on(note_midi);
-                if !self.arp.enabled {
+                // Feed both note engines regardless of which is active so that
+                // toggling between arp and sequencer mid-hold always has a held
+                // set to step through. Only the active engine drives the voices;
+                // the two are mutually exclusive (see SeqEnabled/ArpEnabled).
+                let arp_first = self.arp.note_on(note_midi);
+                let seq_first = self.seq.note_on(note_midi);
+                if self.arp.enabled {
+                    if arp_first {
+                        // Fire the very first arp note immediately — before
+                        // process_stereo() — so there is no extra-block delay
+                        // regardless of gate setting. The arp already set
+                        // gate_open=true / phase=0.0 so process() handles
+                        // gate-off and subsequent steps normally.
+                        self.params.snap_for_note_on();
+                        self.voices.note_on(self.arp.current_note, velocity);
+                    }
+                } else if self.seq.enabled {
+                    if seq_first {
+                        // Same immediate-fire path, with the step's own velocity.
+                        self.params.snap_for_note_on();
+                        self.voices.note_on(self.seq.current_note, self.seq.current_velocity);
+                    }
+                } else {
                     self.params.snap_for_note_on();
                     self.voices.note_on(note_midi, velocity);
-                } else if is_first {
-                    // Fire the very first arp note immediately — before
-                    // process_stereo() — so there is no extra-block delay
-                    // regardless of gate setting. The arp already set
-                    // gate_open=true / phase=0.0 so process() handles
-                    // gate-off and subsequent steps normally.
-                    self.params.snap_for_note_on();
-                    self.voices.note_on(self.arp.current_note, velocity);
                 }
             }
             EngineEvent::NoteOff { note_midi } => {
                 self.arp.note_off(note_midi);
-                if !self.arp.enabled {
+                self.seq.note_off(note_midi);
+                if self.arp.enabled {
+                    // Releasing the last held note must release the immediate-
+                    // fired voice now; otherwise a fast re-press refills the held
+                    // set before process() cleans up and orphans the voice.
+                    if let Some(note) = self.arp.take_idle_note_off() {
+                        self.voices.note_off(note);
+                    }
+                } else if self.seq.enabled {
+                    if let Some(note) = self.seq.take_idle_note_off() {
+                        self.voices.note_off(note);
+                    }
+                } else {
                     self.voices.note_off(note_midi);
                 }
             }
             EngineEvent::AllNotesOff => {
                 // Stop everything, whatever state it's in: sounding
                 // voices, sustain-deferred releases, and any notes the
-                // arp is still holding. This is the stuck-note recovery.
+                // arp or sequencer is still holding. Stuck-note recovery.
                 self.voices.panic();
                 self.arp.clear();
+                self.seq.clear();
             }
             EngineEvent::SetOscillatorWaveform { waveform } => {
                 self.params.set_waveform(waveform);
@@ -214,9 +243,12 @@ impl Engine {
             ParamId::Lfo1RateHz | ParamId::Lfo1SyncEnabled | ParamId::Lfo1SyncDivision | ParamId::Bpm => {
                 // Re-derive LFO1 rate whenever anything that affects it changes.
                 self.voices.set_lfo1_rate_hz(self.params.lfo1_effective_rate_hz());
-                // Bpm also affects LFO2 if it's synced.
+                // Bpm is the single transport tempo: it also affects LFO2 (if
+                // synced) and drives the arp clock (and, from Phase 2, the seq).
                 if id == ParamId::Bpm {
                     self.voices.set_lfo2_rate_hz(self.params.lfo2_effective_rate_hz());
+                    self.arp.bpm = value;
+                    self.seq.bpm = value;
                 }
             }
             ParamId::Lfo1Shape => {
@@ -224,6 +256,9 @@ impl Engine {
             }
             ParamId::Lfo1ResetOnNoteOn => {
                 self.voices.set_lfo1_reset_on_note_on(value >= 0.5);
+            }
+            ParamId::Lfo1Global => {
+                self.voices.set_lfo1_global(value >= 0.5);
             }
 
             // ── LFO 2 ───────────────────────────────────────────────────────
@@ -235,6 +270,9 @@ impl Engine {
             }
             ParamId::Lfo2ResetOnNoteOn => {
                 self.voices.set_lfo2_reset_on_note_on(value >= 0.5);
+            }
+            ParamId::Lfo2Global => {
+                self.voices.set_lfo2_global(value >= 0.5);
             }
 
             // ── Env2 ────────────────────────────────────────────────────────
@@ -397,15 +435,62 @@ impl Engine {
                         // very next process() call rather than waiting
                         // a full step to accumulate phase.
                         self.arp.reset_clock();
+                        // Mutual exclusion: the sequencer and arp never clock
+                        // together. Force the sequencer off and mirror that
+                        // into the tree so the UI toggle clears too.
+                        if self.seq.enabled {
+                            self.seq.enabled = false;
+                            self.params.set_continuous(ParamId::SeqEnabled, 0.0);
+                        }
                     }
                 }
             }
             ParamId::ArpMode => self.arp.mode = ArpMode::from_f32(value),
             ParamId::ArpOctaves => self.arp.octaves = (value as u8).clamp(1, 4),
             ParamId::ArpRate => self.arp.rate = ArpRate::from_f32(value),
-            ParamId::ArpBpm => self.arp.bpm = value.clamp(20.0, 300.0),
             ParamId::ArpGate => self.arp.gate = value.clamp(0.01, 1.0),
             ParamId::ArpSwing => self.arp.swing = value.clamp(0.5, 0.75),
+
+            // ── Step sequencer ──────────────────────────────────────────────
+            ParamId::SeqEnabled => {
+                let new_enabled = value >= 0.5;
+                if new_enabled != self.seq.enabled {
+                    self.seq.enabled = new_enabled;
+                    self.voices.all_notes_off();
+                    if new_enabled {
+                        self.seq.reset_clock();
+                        // Mutual exclusion with the arp (mirror into the tree).
+                        if self.arp.enabled {
+                            self.arp.enabled = false;
+                            self.params.set_continuous(ParamId::ArpEnabled, 0.0);
+                        }
+                    }
+                }
+            }
+            ParamId::SeqLength => {
+                self.seq.length = (value as usize).clamp(1, crate::seq::SEQ_MAX_STEPS);
+            }
+            ParamId::SeqMode => self.seq.mode = SeqMode::from_f32(value),
+            ParamId::SeqRate => self.seq.rate = ArpRate::from_f32(value),
+            ParamId::SeqSwing => self.seq.swing = value.clamp(0.5, 0.75),
+            ParamId::SeqStepNote(i) if (i as usize) < crate::seq::SEQ_MAX_STEPS => {
+                self.seq.steps[i as usize].note_offset = (value.round() as i32).clamp(-24, 24) as i8;
+            }
+            ParamId::SeqStepVelocity(i) if (i as usize) < crate::seq::SEQ_MAX_STEPS => {
+                self.seq.steps[i as usize].velocity = (value.round() as i32).clamp(0, 127) as u8;
+            }
+            ParamId::SeqStepGate(i) if (i as usize) < crate::seq::SEQ_MAX_STEPS => {
+                self.seq.steps[i as usize].gate = value.clamp(0.0, 1.0);
+            }
+            ParamId::SeqStepRest(i) if (i as usize) < crate::seq::SEQ_MAX_STEPS => {
+                self.seq.steps[i as usize].rest = value >= 0.5;
+            }
+            ParamId::SeqStepTie(i) if (i as usize) < crate::seq::SEQ_MAX_STEPS => {
+                self.seq.steps[i as usize].tie = value >= 0.5;
+            }
+            ParamId::SeqStepMod(i) if (i as usize) < crate::seq::SEQ_MAX_STEPS => {
+                self.seq.steps[i as usize].mod_value = value.clamp(-1.0, 1.0);
+            }
 
             _ => {}
         }
@@ -420,13 +505,24 @@ impl Engine {
     pub fn process_stereo(&mut self, output: &mut [f32], frames: usize) {
         debug_assert_eq!(output.len(), frames * 2);
 
+        // Publish the sequencer's current mod-lane value (block-rate) so the
+        // `Seq` mod source picks it up when this block's modulation sources
+        // are built. Reads 0.0 when the sequencer is idle.
+        self.voices.set_global_seq_mod(self.seq.mod_value());
+
         // Advance block-rate modulators (LFOs and Env2) once per block
         // before the per-sample loop.
         self.voices.advance_modulators(frames);
 
-        // Tick the arpeggiator and dispatch any NoteOn/NoteOff it generates.
-        let arp_events = self.arp.process(frames);
-        for ev in arp_events.iter() {
+        // Tick the active note engine (arp or sequencer — never both) and
+        // dispatch any NoteOn/NoteOff it generates. When neither is enabled the
+        // sequencer's process() returns no events.
+        let note_events = if self.arp.enabled {
+            self.arp.process(frames)
+        } else {
+            self.seq.process(frames)
+        };
+        for ev in note_events.iter() {
             match *ev {
                 ArpEvent::NoteOn { note, velocity } => {
                     self.params.snap_for_note_on();
@@ -462,6 +558,9 @@ impl Engine {
         let (lfo1, lfo2, env2, env3) = self.voices.first_active_modulator_outputs();
         self.params.set_modulator_outputs(lfo1, lfo2, env2, env3);
         self.params.set_vu_peak(peak_l, peak_r);
+        // Mirror the sequencer playhead for the UI step grid (-1 when idle).
+        let seq_step = self.seq.current_step().map_or(-1, |i| i as i8);
+        self.params.set_seq_current_step(seq_step);
     }
 
     /// Returns the current parameter snapshot by value, without
@@ -571,6 +670,39 @@ mod tests {
         let mut buffer = [0.0f32; 2];
         engine.process_stereo(&mut buffer, 1);
         assert_eq!(engine.snapshot().active_voice_count, 1);
+    }
+
+    #[test]
+    fn rapid_notes_with_sequencer_do_not_stick() {
+        let mut engine = Engine::new(48_000.0);
+        // Turn the sequencer on.
+        engine.handle(EngineEvent::ParameterChange {
+            id: ParamId::SeqEnabled,
+            value: 1.0,
+        });
+        // Simulate dragging across the on-screen keyboard: many quick
+        // press/release pairs, each fully releasing before the next, all within
+        // a single block's event drain (no process() in between). Each press is
+        // a "first note into an empty held set" and immediate-fires a voice.
+        for note in 60u8..72 {
+            engine.handle(EngineEvent::NoteOn {
+                note_midi: note,
+                velocity: 100,
+            });
+            engine.handle(EngineEvent::NoteOff { note_midi: note });
+        }
+        // Drain well past the release tail so any genuinely-released voice has
+        // decayed to silence. Orphaned (still-gated) voices would never decay.
+        let mut buffer = [0.0f32; 1024 * 2];
+        for _ in 0..200 {
+            buffer.fill(0.0);
+            engine.process_stereo(&mut buffer, 1024);
+        }
+        assert_eq!(
+            engine.snapshot().active_voice_count,
+            0,
+            "rapid press/release with the sequencer on must not leave stuck voices"
+        );
     }
 
     #[test]

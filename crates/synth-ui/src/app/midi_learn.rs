@@ -203,8 +203,8 @@ impl ToneSmithyApp {
             "fx_reverb_size" => self.fx_reverb_size = value,
             "fx_reverb_damping" => self.fx_reverb_damping = value,
             "fx_reverb_mix" => self.fx_reverb_mix = value,
-            // Arp
-            "arp_bpm" => self.arp_bpm = value,
+            // Arp — `arp_bpm` is a legacy alias for the unified transport `bpm`.
+            "arp_bpm" => self.bpm = value,
             "arp_gate" => self.arp_gate = value,
             "arp_swing" => self.arp_swing = value,
             // Booleans: CC ≥ 0.5 = on, < 0.5 = off
@@ -387,8 +387,8 @@ pub(crate) fn key_to_param_id(key: &str) -> Option<ParamId> {
         "fx_reverb_size" => ParamId::FxReverbSize,
         "fx_reverb_damping" => ParamId::FxReverbDamping,
         "fx_reverb_mix" => ParamId::FxReverbMix,
-        // Arp
-        "arp_bpm" => ParamId::ArpBpm,
+        // Arp — `arp_bpm` is a legacy alias for the unified transport `bpm`.
+        "arp_bpm" => ParamId::Bpm,
         "arp_gate" => ParamId::ArpGate,
         "arp_swing" => ParamId::ArpSwing,
         // Booleans (CC ≥ 0.5 → on, < 0.5 → off)

@@ -17,7 +17,7 @@
 
 use crate::POLYPHONY;
 use crate::filter::{FilterMode, FilterRouting, FilterSlope};
-use crate::lfo::LfoShape;
+use crate::lfo::{Lfo, LfoShape};
 use crate::mod_matrix::{ModDest, ModMatrix, ModSource, ModSources};
 use crate::oscillator::Waveform;
 use crate::params::SampleParams;
@@ -89,6 +89,22 @@ pub struct VoiceManager {
     global_mod_wheel: f32,
     global_aftertouch: f32,
     global_pitch_bend: f32,
+    /// Step-sequencer mod-lane value for the active step (-1..=1), pushed by
+    /// the engine each block and read as the `Seq` mod source.
+    global_seq_mod: f32,
+
+    /// Shared (mono) LFO instances. When `lfo{1,2}_global` is set these run as
+    /// a single instance across all voices so chords stay phase-locked; they
+    /// track the same rate/shape/sync setters as the per-voice LFOs. The
+    /// per-voice LFOs keep running too (their output is simply ignored while
+    /// global is active), so toggling back is seamless.
+    shared_lfo1: Lfo,
+    shared_lfo2: Lfo,
+    lfo1_global: bool,
+    lfo2_global: bool,
+    /// Most recent shared-LFO outputs, refreshed once per block.
+    shared_lfo1_out: f32,
+    shared_lfo2_out: f32,
 }
 
 impl VoiceManager {
@@ -107,6 +123,13 @@ impl VoiceManager {
             global_mod_wheel: 0.0,
             global_aftertouch: 0.0,
             global_pitch_bend: 0.0,
+            global_seq_mod: 0.0,
+            shared_lfo1: Lfo::new(sample_rate_hz, 0x5EED_1F0A),
+            shared_lfo2: Lfo::new(sample_rate_hz, 0x5EED_2F0B),
+            lfo1_global: false,
+            lfo2_global: false,
+            shared_lfo1_out: 0.0,
+            shared_lfo2_out: 0.0,
         }
     }
 
@@ -276,18 +299,25 @@ impl VoiceManager {
         }
     }
 
-    /// Sets LFO1 rate (Hz) on every voice.
+    /// Sets LFO1 rate (Hz) on every voice and the shared instance.
     pub fn set_lfo1_rate_hz(&mut self, rate_hz: f32) {
         for v in &mut self.voices {
             v.set_lfo1_rate_hz(rate_hz);
         }
+        self.shared_lfo1.set_rate_hz(rate_hz);
     }
 
-    /// Sets LFO1 shape on every voice.
+    /// Sets LFO1 shape on every voice and the shared instance.
     pub fn set_lfo1_shape(&mut self, shape: LfoShape) {
         for v in &mut self.voices {
             v.set_lfo1_shape(shape);
         }
+        self.shared_lfo1.set_shape(shape);
+    }
+
+    /// Selects per-voice or global (mono) mode for LFO1.
+    pub fn set_lfo1_global(&mut self, global: bool) {
+        self.lfo1_global = global;
     }
 
     /// Sets LFO1 phase-reset-on-note-on on every voice.
@@ -297,18 +327,25 @@ impl VoiceManager {
         }
     }
 
-    /// Sets LFO2 rate (Hz) on every voice.
+    /// Sets LFO2 rate (Hz) on every voice and the shared instance.
     pub fn set_lfo2_rate_hz(&mut self, rate_hz: f32) {
         for v in &mut self.voices {
             v.set_lfo2_rate_hz(rate_hz);
         }
+        self.shared_lfo2.set_rate_hz(rate_hz);
     }
 
-    /// Sets LFO2 shape on every voice.
+    /// Sets LFO2 shape on every voice and the shared instance.
     pub fn set_lfo2_shape(&mut self, shape: LfoShape) {
         for v in &mut self.voices {
             v.set_lfo2_shape(shape);
         }
+        self.shared_lfo2.set_shape(shape);
+    }
+
+    /// Selects per-voice or global (mono) mode for LFO2.
+    pub fn set_lfo2_global(&mut self, global: bool) {
+        self.lfo2_global = global;
     }
 
     /// Sets LFO2 phase-reset-on-note-on on every voice.
@@ -470,6 +507,11 @@ impl VoiceManager {
         self.global_pitch_bend = value;
     }
 
+    /// Updates the step-sequencer mod-lane value (-1..=1) for the active step.
+    pub fn set_global_seq_mod(&mut self, value: f32) {
+        self.global_seq_mod = value;
+    }
+
     // ── FM synthesis ─────────────────────────────────────────────────────────
 
     /// Sets the mix level on slot `slot` of every voice.
@@ -554,6 +596,11 @@ impl VoiceManager {
     /// [`DestOffsets`] on the voice for use in the per-sample loop.
     /// Call once per inner block, before the per-sample loop.
     pub fn advance_modulators(&mut self, block_size: usize) {
+        // Advance the shared (mono) LFOs once per block so they free-run
+        // continuously regardless of how many voices are active.
+        self.shared_lfo1_out = self.shared_lfo1.advance(block_size);
+        self.shared_lfo2_out = self.shared_lfo2.advance(block_size);
+
         for v in &mut self.voices {
             if v.is_idle() {
                 continue;
@@ -562,9 +609,22 @@ impl VoiceManager {
 
             let key_tracking = v.held_note().map(|n| (f32::from(n) - 60.0) / 60.0).unwrap_or(0.0);
 
+            // In global mode every voice reads the same shared-LFO phase so a
+            // held chord stays phase-locked; otherwise each voice uses its own.
+            let lfo1 = if self.lfo1_global {
+                self.shared_lfo1_out
+            } else {
+                v.lfo1_out()
+            };
+            let lfo2 = if self.lfo2_global {
+                self.shared_lfo2_out
+            } else {
+                v.lfo2_out()
+            };
+
             let sources = ModSources {
-                lfo1: v.lfo1_out(),
-                lfo2: v.lfo2_out(),
+                lfo1,
+                lfo2,
                 env2: v.env2_out(),
                 amp_env: v.amp_env_level(),
                 velocity: v.velocity_scale(),
@@ -573,6 +633,7 @@ impl VoiceManager {
                 aftertouch: self.global_aftertouch,
                 pitch_bend: self.global_pitch_bend,
                 env3: v.env3_out(),
+                seq: self.global_seq_mod,
             };
             v.mod_offsets = self.matrix.compute_offsets(&sources);
         }
@@ -584,7 +645,19 @@ impl VoiceManager {
     pub fn first_active_modulator_outputs(&self) -> (f32, f32, f32, f32) {
         for v in &self.voices {
             if !v.is_idle() {
-                return (v.lfo1_out(), v.lfo2_out(), v.env2_out(), v.env3_out());
+                // Report the shared-LFO output when an LFO is global so the
+                // UI readout matches what every voice actually sees.
+                let lfo1 = if self.lfo1_global {
+                    self.shared_lfo1_out
+                } else {
+                    v.lfo1_out()
+                };
+                let lfo2 = if self.lfo2_global {
+                    self.shared_lfo2_out
+                } else {
+                    v.lfo2_out()
+                };
+                return (lfo1, lfo2, v.env2_out(), v.env3_out());
             }
         }
         (0.0, 0.0, 0.0, 0.0)
@@ -615,6 +688,8 @@ impl VoiceManager {
             vp.filter2_resonance = (vp.filter2_resonance + off.filter2_resonance).clamp(0.0, 1.0);
             vp.pitch_offset_semis += off.pitch_semis;
             vp.osc_main_detune_cents[0] += off.osc1_detune_cents;
+            vp.osc_main_detune_cents[1] += off.osc2_detune_cents;
+            vp.osc_main_detune_cents[2] += off.osc3_detune_cents;
             vp.osc_main_pans[0] = (vp.osc_main_pans[0] + off.osc1_pan).clamp(-1.0, 1.0);
 
             let (l, r) = v.next_sample(&vp);
@@ -974,5 +1049,55 @@ mod tests {
         let (l, r) = manager.next_sample(&params);
         assert_eq!(l, 0.0);
         assert_eq!(r, 0.0);
+    }
+
+    /// Routes LFO1 to filter cutoff, presses two notes at different times with
+    /// per-note phase reset enabled, advances one block, and returns each
+    /// active voice's resulting cutoff offset.
+    fn two_voice_lfo_offsets(global: bool) -> Vec<f32> {
+        let mut vm = VoiceManager::new(48_000.0);
+        vm.set_mod_slot_enabled(0, true);
+        vm.set_mod_slot_source(0, ModSource::Lfo1);
+        vm.set_mod_slot_dest(0, ModDest::FilterCutoffHz);
+        vm.set_mod_slot_amount(0, 1000.0);
+        vm.set_lfo1_shape(LfoShape::SawUp);
+        vm.set_lfo1_rate_hz(5.0);
+        vm.set_lfo1_reset_on_note_on(true);
+        vm.set_lfo1_global(global);
+
+        // First note, then advance so a per-voice LFO winds well past phase 0.
+        vm.note_on(60, 100);
+        for _ in 0..20 {
+            vm.advance_modulators(64);
+        }
+        // Second note resets *its* per-voice LFO to phase 0.
+        vm.note_on(64, 100);
+        vm.advance_modulators(64);
+
+        vm.voices
+            .iter()
+            .filter(|v| !v.is_idle())
+            .map(|v| v.mod_offsets.filter_cutoff_hz)
+            .collect()
+    }
+
+    #[test]
+    fn global_lfo_phase_locks_voices() {
+        let offs = two_voice_lfo_offsets(true);
+        assert_eq!(offs.len(), 2);
+        assert!(
+            (offs[0] - offs[1]).abs() < 1e-3,
+            "global LFO should phase-lock all voices: {offs:?}"
+        );
+    }
+
+    #[test]
+    fn per_voice_lfo_phases_differ() {
+        let offs = two_voice_lfo_offsets(false);
+        assert_eq!(offs.len(), 2);
+        assert!(
+            (offs[0] - offs[1]).abs() > 1e-2,
+            "per-voice LFOs reset independently and should differ: {offs:?}"
+        );
     }
 }

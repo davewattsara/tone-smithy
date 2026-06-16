@@ -79,7 +79,7 @@ Don't update it for internal refactors, doc-only planning changes, or conversati
 
 ## Project state at a glance
 
-- **Stage:** v1.0.0 shipped (tag `v1.0.0` on `main`). All v1 milestones (M0–M15) done. **Active: v1.1 planning — next milestone M16 (Quick wins).** v1.0 ships unsigned with the default icon (both deferred to a later version).
+- **Stage:** v1.0.0 shipped (tag `v1.0.0` on `main`). All v1 milestones (M0–M15) done. v1.1 in progress: **M16 (Quick wins, tag `m16`), M17 (Engine expansion, tag `m17`), and M18 (Step sequencer, tag `m18`) complete; M19 (Cross-platform installers) is next** — note M19 carries the "make filter 2 optional (off/serial/parallel)" engine pre-req that must land before the M20 factory-preset expansion. Awaiting explicit go-ahead before implementation. v1.0 ships unsigned with the default icon (both deferred to a later version).
 - **Licence:** `MIT OR Apache-2.0` dual.
 - **Product name:** Tone Smithy.
 - **Branches:** `main` (stable; v1.0.0 at tag `v1.0.0`); `development` (active work — commit here).

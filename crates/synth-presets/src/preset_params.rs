@@ -10,7 +10,8 @@ use std::collections::BTreeMap;
 
 use synth_engine::EngineEvent;
 use synth_engine::{
-    EngineEvent as Ev, FilterMode, FilterRouting, FilterSlope, MOD_MATRIX_SLOTS, ParamId, ParamSnapshot, Waveform,
+    EngineEvent as Ev, FilterMode, FilterRouting, FilterSlope, MOD_MATRIX_SLOTS, ParamId, ParamSnapshot, SEQ_MAX_STEPS,
+    Waveform,
 };
 
 /// Serialises all saveable params from `snap` into a stable string-keyed
@@ -67,6 +68,7 @@ pub fn snapshot_to_map(snap: &ParamSnapshot) -> BTreeMap<String, f32> {
     m.insert("lfo1_reset_on_note_on".into(), f32::from(snap.lfo1_reset_on_note_on));
     m.insert("lfo1_sync_enabled".into(), f32::from(snap.lfo1_sync_enabled));
     m.insert("lfo1_sync_division_index".into(), snap.lfo1_sync_division_index as f32);
+    m.insert("lfo1_global".into(), f32::from(snap.lfo1_global));
 
     // LFO 2
     m.insert("lfo2_rate_hz".into(), snap.lfo2_rate_hz);
@@ -74,6 +76,7 @@ pub fn snapshot_to_map(snap: &ParamSnapshot) -> BTreeMap<String, f32> {
     m.insert("lfo2_reset_on_note_on".into(), f32::from(snap.lfo2_reset_on_note_on));
     m.insert("lfo2_sync_enabled".into(), f32::from(snap.lfo2_sync_enabled));
     m.insert("lfo2_sync_division_index".into(), snap.lfo2_sync_division_index as f32);
+    m.insert("lfo2_global".into(), f32::from(snap.lfo2_global));
 
     // Env2
     m.insert("env2_attack_secs".into(), snap.env2_attack_secs);
@@ -159,9 +162,23 @@ pub fn snapshot_to_map(snap: &ParamSnapshot) -> BTreeMap<String, f32> {
     m.insert("arp_mode".into(), f32::from(snap.arp_mode));
     m.insert("arp_octaves".into(), f32::from(snap.arp_octaves));
     m.insert("arp_rate".into(), f32::from(snap.arp_rate));
-    m.insert("arp_bpm".into(), snap.arp_bpm);
     m.insert("arp_gate".into(), snap.arp_gate);
     m.insert("arp_swing".into(), snap.arp_swing);
+
+    // Step sequencer
+    m.insert("seq_enabled".into(), f32::from(snap.seq_enabled));
+    m.insert("seq_length".into(), f32::from(snap.seq_length));
+    m.insert("seq_mode".into(), f32::from(snap.seq_mode));
+    m.insert("seq_rate".into(), f32::from(snap.seq_rate));
+    m.insert("seq_swing".into(), snap.seq_swing);
+    for i in 0..SEQ_MAX_STEPS {
+        m.insert(format!("seq_step{i}_note"), f32::from(snap.seq_step_note[i]));
+        m.insert(format!("seq_step{i}_velocity"), f32::from(snap.seq_step_velocity[i]));
+        m.insert(format!("seq_step{i}_gate"), snap.seq_step_gate[i]);
+        m.insert(format!("seq_step{i}_rest"), f32::from(snap.seq_step_rest[i]));
+        m.insert(format!("seq_step{i}_tie"), f32::from(snap.seq_step_tie[i]));
+        m.insert(format!("seq_step{i}_mod"), snap.seq_step_mod[i]);
+    }
 
     m
 }
@@ -295,6 +312,7 @@ pub fn map_to_events(m: &BTreeMap<String, f32>) -> Vec<EngineEvent> {
     pc!("lfo1_reset_on_note_on", ParamId::Lfo1ResetOnNoteOn);
     pc!("lfo1_sync_enabled", ParamId::Lfo1SyncEnabled);
     pc!("lfo1_sync_division_index", ParamId::Lfo1SyncDivision);
+    pc!("lfo1_global", ParamId::Lfo1Global);
 
     // LFO 2
     pc!("lfo2_rate_hz", ParamId::Lfo2RateHz);
@@ -302,6 +320,7 @@ pub fn map_to_events(m: &BTreeMap<String, f32>) -> Vec<EngineEvent> {
     pc!("lfo2_reset_on_note_on", ParamId::Lfo2ResetOnNoteOn);
     pc!("lfo2_sync_enabled", ParamId::Lfo2SyncEnabled);
     pc!("lfo2_sync_division_index", ParamId::Lfo2SyncDivision);
+    pc!("lfo2_global", ParamId::Lfo2Global);
 
     // Env2
     pc!("env2_attack_secs", ParamId::Env2AttackSecs);
@@ -393,9 +412,27 @@ pub fn map_to_events(m: &BTreeMap<String, f32>) -> Vec<EngineEvent> {
     pc!("arp_mode", ParamId::ArpMode);
     pc!("arp_octaves", ParamId::ArpOctaves);
     pc!("arp_rate", ParamId::ArpRate);
-    pc!("arp_bpm", ParamId::ArpBpm);
+    // Back-compat: legacy presets stored a separate arp BPM. The transport
+    // tempo is now unified, so an old `arp_bpm` key drives the global Bpm.
+    pc!("arp_bpm", ParamId::Bpm);
     pc!("arp_gate", ParamId::ArpGate);
     pc!("arp_swing", ParamId::ArpSwing);
+
+    // Step sequencer
+    pc!("seq_enabled", ParamId::SeqEnabled);
+    pc!("seq_length", ParamId::SeqLength);
+    pc!("seq_mode", ParamId::SeqMode);
+    pc!("seq_rate", ParamId::SeqRate);
+    pc!("seq_swing", ParamId::SeqSwing);
+    for i in 0..SEQ_MAX_STEPS as u8 {
+        let ii = i as usize;
+        pc!(&format!("seq_step{ii}_note"), ParamId::SeqStepNote(i));
+        pc!(&format!("seq_step{ii}_velocity"), ParamId::SeqStepVelocity(i));
+        pc!(&format!("seq_step{ii}_gate"), ParamId::SeqStepGate(i));
+        pc!(&format!("seq_step{ii}_rest"), ParamId::SeqStepRest(i));
+        pc!(&format!("seq_step{ii}_tie"), ParamId::SeqStepTie(i));
+        pc!(&format!("seq_step{ii}_mod"), ParamId::SeqStepMod(i));
+    }
 
     ev
 }
@@ -426,6 +463,13 @@ pub fn map_to_snapshot(m: &BTreeMap<String, f32>) -> ParamSnapshot {
         ($key:expr, $field:expr) => {
             if let Some(&v) = m.get($key) {
                 $field = v as u8;
+            }
+        };
+    }
+    macro_rules! get_i8 {
+        ($key:expr, $field:expr) => {
+            if let Some(&v) = m.get($key) {
+                $field = v as i8;
             }
         };
     }
@@ -488,11 +532,13 @@ pub fn map_to_snapshot(m: &BTreeMap<String, f32>) -> ParamSnapshot {
     get_bool!("lfo1_reset_on_note_on", s.lfo1_reset_on_note_on);
     get_bool!("lfo1_sync_enabled", s.lfo1_sync_enabled);
     get_usize!("lfo1_sync_division_index", s.lfo1_sync_division_index);
+    get_bool!("lfo1_global", s.lfo1_global);
     get!("lfo2_rate_hz", s.lfo2_rate_hz);
     get_usize!("lfo2_shape_index", s.lfo2_shape_index);
     get_bool!("lfo2_reset_on_note_on", s.lfo2_reset_on_note_on);
     get_bool!("lfo2_sync_enabled", s.lfo2_sync_enabled);
     get_usize!("lfo2_sync_division_index", s.lfo2_sync_division_index);
+    get_bool!("lfo2_global", s.lfo2_global);
 
     get!("env2_attack_secs", s.env2_attack_secs);
     get!("env2_decay_secs", s.env2_decay_secs);
@@ -603,9 +649,25 @@ pub fn map_to_snapshot(m: &BTreeMap<String, f32>) -> ParamSnapshot {
     get_u8!("arp_mode", s.arp_mode);
     get_u8!("arp_octaves", s.arp_octaves);
     get_u8!("arp_rate", s.arp_rate);
-    get!("arp_bpm", s.arp_bpm);
+    // Back-compat: a legacy `arp_bpm` key feeds the now-unified transport Bpm.
+    get!("arp_bpm", s.bpm);
     get!("arp_gate", s.arp_gate);
     get!("arp_swing", s.arp_swing);
+
+    // Step sequencer
+    get_bool!("seq_enabled", s.seq_enabled);
+    get_u8!("seq_length", s.seq_length);
+    get_u8!("seq_mode", s.seq_mode);
+    get_u8!("seq_rate", s.seq_rate);
+    get!("seq_swing", s.seq_swing);
+    for i in 0..SEQ_MAX_STEPS {
+        get_i8!(&format!("seq_step{i}_note"), s.seq_step_note[i]);
+        get_u8!(&format!("seq_step{i}_velocity"), s.seq_step_velocity[i]);
+        get!(&format!("seq_step{i}_gate"), s.seq_step_gate[i]);
+        get_bool!(&format!("seq_step{i}_rest"), s.seq_step_rest[i]);
+        get_bool!(&format!("seq_step{i}_tie"), s.seq_step_tie[i]);
+        get!(&format!("seq_step{i}_mod"), s.seq_step_mod[i]);
+    }
 
     s
 }
@@ -654,9 +716,11 @@ mod tests {
         orig.lfo1_reset_on_note_on = true;
         orig.lfo1_sync_enabled = true;
         orig.lfo1_sync_division_index = 3;
+        orig.lfo1_global = true;
         orig.lfo2_rate_hz = 0.5;
         orig.lfo2_shape_index = 1;
         orig.lfo2_sync_division_index = 2;
+        orig.lfo2_global = true;
         orig.env2_attack_secs = 0.02;
         orig.env2_decay_secs = 0.5;
         orig.env2_sustain_level = 0.7;
@@ -725,9 +789,21 @@ mod tests {
         orig.arp_mode = 2;
         orig.arp_octaves = 3;
         orig.arp_rate = 1;
-        orig.arp_bpm = 130.0;
         orig.arp_gate = 0.7;
         orig.arp_swing = 0.6;
+        orig.seq_enabled = true;
+        orig.seq_length = 12;
+        orig.seq_mode = 2;
+        orig.seq_rate = 3;
+        orig.seq_swing = 0.65;
+        for i in 0..SEQ_MAX_STEPS {
+            orig.seq_step_note[i] = (i as i8) - 5;
+            orig.seq_step_velocity[i] = (i as u8) * 4;
+            orig.seq_step_gate[i] = (i as f32) / 16.0;
+            orig.seq_step_rest[i] = i % 3 == 0;
+            orig.seq_step_tie[i] = i % 4 == 1;
+            orig.seq_step_mod[i] = (i as f32) / 16.0 - 0.5;
+        }
 
         let map = snapshot_to_map(&orig);
         let got = map_to_snapshot(&map);
@@ -762,9 +838,11 @@ mod tests {
         assert_eq!(orig.lfo1_reset_on_note_on, got.lfo1_reset_on_note_on);
         assert_eq!(orig.lfo1_sync_enabled, got.lfo1_sync_enabled);
         assert_eq!(orig.lfo1_sync_division_index, got.lfo1_sync_division_index);
+        assert_eq!(orig.lfo1_global, got.lfo1_global);
         assert_eq!(orig.lfo2_rate_hz, got.lfo2_rate_hz);
         assert_eq!(orig.lfo2_shape_index, got.lfo2_shape_index);
         assert_eq!(orig.lfo2_sync_division_index, got.lfo2_sync_division_index);
+        assert_eq!(orig.lfo2_global, got.lfo2_global);
         assert_eq!(orig.env2_attack_secs, got.env2_attack_secs);
         assert_eq!(orig.env2_decay_secs, got.env2_decay_secs);
         assert_eq!(orig.env2_sustain_level, got.env2_sustain_level);
@@ -827,9 +905,19 @@ mod tests {
         assert_eq!(orig.arp_mode, got.arp_mode);
         assert_eq!(orig.arp_octaves, got.arp_octaves);
         assert_eq!(orig.arp_rate, got.arp_rate);
-        assert_eq!(orig.arp_bpm, got.arp_bpm);
         assert_eq!(orig.arp_gate, got.arp_gate);
         assert_eq!(orig.arp_swing, got.arp_swing);
+        assert_eq!(orig.seq_enabled, got.seq_enabled);
+        assert_eq!(orig.seq_length, got.seq_length);
+        assert_eq!(orig.seq_mode, got.seq_mode);
+        assert_eq!(orig.seq_rate, got.seq_rate);
+        assert_eq!(orig.seq_swing, got.seq_swing);
+        assert_eq!(orig.seq_step_note, got.seq_step_note);
+        assert_eq!(orig.seq_step_velocity, got.seq_step_velocity);
+        assert_eq!(orig.seq_step_gate, got.seq_step_gate);
+        assert_eq!(orig.seq_step_rest, got.seq_step_rest);
+        assert_eq!(orig.seq_step_tie, got.seq_step_tie);
+        assert_eq!(orig.seq_step_mod, got.seq_step_mod);
     }
 
     /// A sparse preset (only a few keys set) must expand to the *full*

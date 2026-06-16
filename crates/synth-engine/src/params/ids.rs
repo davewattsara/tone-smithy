@@ -116,6 +116,9 @@ pub enum ParamId {
     /// LFO1 BPM-sync division; value is the zero-based `SyncDivision`
     /// index. Only used when sync is enabled.
     Lfo1SyncDivision,
+    /// LFO1 global (mono) mode; 0.0 = per-voice, 1.0 = one shared instance
+    /// across all voices. Stepped.
+    Lfo1Global,
 
     // ── LFO 2 ──────────────────────────────────────────────────────────
     /// LFO2 rate in Hz when sync is off.
@@ -128,6 +131,8 @@ pub enum ParamId {
     Lfo2SyncEnabled,
     /// LFO2 BPM-sync division index.
     Lfo2SyncDivision,
+    /// LFO2 global (mono) mode; 0.0 = per-voice, 1.0 = one shared instance.
+    Lfo2Global,
 
     // ── Env2 (modulation envelope) ─────────────────────────────────────
     /// Env2 attack time, in seconds.
@@ -279,10 +284,32 @@ pub enum ParamId {
     ArpOctaves,
     /// Step rate: 0=1/32 1=1/16 2=1/8 3=1/4 4=1/2.
     ArpRate,
-    /// Internal BPM, 20–300.
-    ArpBpm,
     /// Gate fraction of step duration, 0.01–1.0.
     ArpGate,
     /// Swing fraction, 0.5–0.75.
     ArpSwing,
+
+    // ── Step sequencer ─────────────────────────────────────────────────────
+    /// Sequencer master enable (mutually exclusive with the arp).
+    SeqEnabled,
+    /// Active step count, 1–16.
+    SeqLength,
+    /// Playback mode: 0=Forward 1=Reverse 2=PingPong 3=Random.
+    SeqMode,
+    /// Step rate: 0=1/32 1=1/16 2=1/8 3=1/4 4=1/2.
+    SeqRate,
+    /// Swing fraction, 0.5–0.75.
+    SeqSwing,
+    /// Per-step note offset from the held root, -24..=24 semitones.
+    SeqStepNote(u8),
+    /// Per-step velocity, 0–127.
+    SeqStepVelocity(u8),
+    /// Per-step gate fraction, 0.0–1.0.
+    SeqStepGate(u8),
+    /// Per-step rest toggle (≥0.5 = rest).
+    SeqStepRest(u8),
+    /// Per-step tie toggle (≥0.5 = hold the previous note).
+    SeqStepTie(u8),
+    /// Per-step mod-lane CV value, -1.0..=1.0.
+    SeqStepMod(u8),
 }
