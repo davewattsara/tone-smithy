@@ -185,6 +185,21 @@ static FACTORY_RAWS: &[&str] = &[
     include_str!("../factory/bass_mono_tight.tsmith"),
     include_str!("../factory/bass_rubber.tsmith"),
     include_str!("../factory/bass_sine_sub_duo.tsmith"),
+    // v1.1 additions (M20)
+    include_str!("../factory/bass_reese_mk2.tsmith"),
+    include_str!("../factory/bass_neuro_growl.tsmith"),
+    include_str!("../factory/bass_wobble.tsmith"),
+    include_str!("../factory/bass_dist_reese.tsmith"),
+    include_str!("../factory/bass_amen_stab.tsmith"),
+    include_str!("../factory/bass_ladder_24.tsmith"),
+    include_str!("../factory/bass_split_filter.tsmith"),
+    include_str!("../factory/bass_formant_growl.tsmith"),
+    include_str!("../factory/bass_pluck.tsmith"),
+    include_str!("../factory/bass_house.tsmith"),
+    include_str!("../factory/bass_808.tsmith"),
+    include_str!("../factory/bass_fm_bite.tsmith"),
+    include_str!("../factory/bass_dub_sub.tsmith"),
+    include_str!("../factory/bass_hoover.tsmith"),
     // ── Lead ──────────────────────────────────────────────────────────────
     include_str!("../factory/saw_lead.tsmith"),
     include_str!("../factory/lead_screamer.tsmith"),
@@ -326,10 +341,12 @@ mod qa_tests {
     }
 
     #[test]
-    fn factory_bank_has_sixty_categorised_presets_plus_init() {
-        // 15 Bass + 15 Lead + 12 Pad + 8 Pluck + 6 Keys + 4 FX = 60,
-        // plus the Init patch.
-        assert_eq!(FACTORY_RAWS.len(), 61);
+    fn factory_bank_has_expected_preset_count() {
+        // v1.1 (M20) factory expansion, in progress. Current categorised total
+        // plus the Init patch. The per-category distribution and feature-coverage
+        // guards live in the tests below.
+        // 29 Bass + 15 Lead + 12 Pad + 8 Pluck + 6 Keys + 4 FX = 74, plus Init.
+        assert_eq!(FACTORY_RAWS.len(), 75);
     }
 
     #[test]
