@@ -335,6 +335,8 @@ the new oscillator dests survive preset save/load round-trips.
 
 ## M19 — Cross-platform installers (2–3 weeks) — v1.1
 
+> Implementation plan: [`m19-plan.md`](m19-plan.md)
+
 Extends `cargo xtask dist` and the release CI to produce Linux and macOS builds.
 
 - **Linux:** CI job on `ubuntu-latest`; package as AppImage and/or `.tar.gz`; audio via `cpal`
@@ -374,6 +376,31 @@ SVFs per voice. Make it genuinely optional by folding the on/off state into the 
 **Done when:** filter 2 defaults to off; old presets sound like v1.0 again; the filter 2 panel is
 disabled while routing is Off; existing serial/parallel presets still load correctly; serial and
 parallel still behave as before; `fmt` / `clippy -D warnings` / tests clean.
+
+### Engine addition — OSC2 / OSC3 pan mod destinations
+
+> Small, backward-compatible matrix addition, bundled here for the same reason as the filter-2 work:
+> it should land **before the M20 factory authoring** so new presets can route to it. Mirrors M18's
+> per-oscillator detune destinations (`Osc2Det` / `Osc3Det`).
+
+Today only OSC1 pan is a mod-matrix destination (`Osc1Pan`); OSC2 and OSC3 pan can be set statically
+but not modulated. Add **`Osc2Pan`** and **`Osc3Pan`** so an LFO/Env/Seq can move each oscillator's
+position in the stereo field independently — an evolving stereo width the single `Osc1Pan` can't
+produce.
+
+- **Append `Osc2Pan` / `Osc3Pan` to `ModDest`** (new indices **10 / 11**, after `Osc3DetuneCents`);
+  bump `ModDest::COUNT` to 12. No renumbering, so saved presets keep their destination meanings.
+- The pan params already exist as base params (`osc_main_pans`), so this is a **mod destination
+  only** — no new `ParamId`. Apply the offset in `voice_manager.rs` next to the existing
+  `osc1_pan` line, clamped to ±1.
+- **UI:** append `Osc2Pan` / `Osc3Pan` to `MOD_DEST_LABELS` and their ±1 ranges to
+  `MOD_AMOUNT_RANGES` (the guard test keeps both the same length as `ModDest`); extend `ModDisplay`
+  and fix the OSC pan knob to read the per-oscillator offset (same hard-coded-`osc1_pan` fix M18
+  applied to the detune knob).
+
+**Done when:** routing an LFO → `Osc2Pan` pans only OSC2 (OSC1/OSC3 stay put), `Osc3Pan` moves OSC3
+independently; the OSC2/OSC3 pan knobs animate their mod ring; old presets load unchanged (no
+migration); `fmt` / `clippy -D warnings` / tests clean.
 
 ---
 
