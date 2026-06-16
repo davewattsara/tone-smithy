@@ -110,11 +110,16 @@ pub enum ModDest {
     Osc2DetuneCents,
     /// Additive offset to oscillator 3 detune, in cents.
     Osc3DetuneCents,
+    /// Additive offset to oscillator 2 pan, -1..=1 units. Appended so existing
+    /// destination indices (and saved presets) keep their meaning.
+    Osc2Pan,
+    /// Additive offset to oscillator 3 pan, -1..=1 units.
+    Osc3Pan,
 }
 
 impl ModDest {
     /// Total number of variants.
-    pub const COUNT: u8 = 10;
+    pub const COUNT: u8 = 12;
 
     /// Converts a `u8` index to a variant.
     pub fn from_index(i: u8) -> Option<Self> {
@@ -129,6 +134,8 @@ impl ModDest {
             7 => Some(Self::Filter2Resonance),
             8 => Some(Self::Osc2DetuneCents),
             9 => Some(Self::Osc3DetuneCents),
+            10 => Some(Self::Osc2Pan),
+            11 => Some(Self::Osc3Pan),
             _ => None,
         }
     }
@@ -187,6 +194,8 @@ pub struct DestOffsets {
     pub osc2_detune_cents: f32,
     pub osc3_detune_cents: f32,
     pub osc1_pan: f32,
+    pub osc2_pan: f32,
+    pub osc3_pan: f32,
     pub filter2_cutoff_hz: f32,
     pub filter2_resonance: f32,
 }
@@ -248,6 +257,8 @@ impl ModMatrix {
                 ModDest::Filter2Resonance => out.filter2_resonance += contribution,
                 ModDest::Osc2DetuneCents => out.osc2_detune_cents += contribution,
                 ModDest::Osc3DetuneCents => out.osc3_detune_cents += contribution,
+                ModDest::Osc2Pan => out.osc2_pan += contribution,
+                ModDest::Osc3Pan => out.osc3_pan += contribution,
             }
         }
         out
@@ -381,6 +392,21 @@ mod tests {
         let m = single_slot(ModSource::Lfo2, ModDest::Osc1Pan, 1.0, ModSource::Off);
         let s = sources_with(|s| s.lfo2 = 0.3);
         assert!((m.compute_offsets(&s).osc1_pan - 0.3).abs() < 1e-4);
+    }
+
+    #[test]
+    fn osc2_and_osc3_pan_are_independent() {
+        // OSC2 pan dest only touches osc2; OSC1/OSC3 stay put.
+        let m = single_slot(ModSource::Lfo1, ModDest::Osc2Pan, 1.0, ModSource::Off);
+        let s = sources_with(|s| s.lfo1 = 0.4);
+        let off = m.compute_offsets(&s);
+        assert!((off.osc2_pan - 0.4).abs() < 1e-4);
+        assert_eq!(off.osc1_pan, 0.0);
+        assert_eq!(off.osc3_pan, 0.0);
+
+        let m3 = single_slot(ModSource::Lfo2, ModDest::Osc3Pan, 1.0, ModSource::Off);
+        let s3 = sources_with(|s| s.lfo2 = -0.7);
+        assert!((m3.compute_offsets(&s3).osc3_pan - -0.7).abs() < 1e-4);
     }
 
     // ── Via scaling ──────────────────────────────────────────────────────────
