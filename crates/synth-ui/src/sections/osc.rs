@@ -145,7 +145,7 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.osc_pan[idx], -1.0..=1.0, "Pan")
                         .default_value(0.0)
-                        .mod_offset(md.map_or(0.0, |m| m.osc1_pan))
+                        .mod_offset(md.map_or(0.0, |m| [m.osc1_pan, m.osc2_pan, m.osc3_pan][idx]))
                         .param_key(osc_pan_key)
                         .format(|v| {
                             if v < -0.01 {

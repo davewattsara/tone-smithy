@@ -117,7 +117,7 @@ impl Voice {
             filter_r: StateVariableFilter::new(sample_rate_hz),
             filter2_l: StateVariableFilter::new(sample_rate_hz),
             filter2_r: StateVariableFilter::new(sample_rate_hz),
-            filter_routing: FilterRouting::Serial,
+            filter_routing: FilterRouting::Off,
             amp_envelope: Adsr::new(sample_rate_hz),
             lfo1: Lfo::new(sample_rate_hz, LFO1_SEED),
             lfo2: Lfo::new(sample_rate_hz, LFO2_SEED),
@@ -566,18 +566,28 @@ impl Voice {
             .set_params(params.filter_cutoff_hz, params.filter_resonance);
         self.filter_r
             .set_params(params.filter_cutoff_hz, params.filter_resonance);
-        self.filter2_l
-            .set_params(params.filter2_cutoff_hz, params.filter2_resonance);
-        self.filter2_r
-            .set_params(params.filter2_cutoff_hz, params.filter2_resonance);
 
         let (filtered_l, filtered_r) = match self.filter_routing {
+            FilterRouting::Off => {
+                // Filter 2 bypassed: output is filter 1 only, and filter 2 is
+                // not evaluated (skips two SVFs per voice). Restores the v1.0
+                // single-filter signal path for presets that predate filter 2.
+                (self.filter_l.next_sample(mixed_l), self.filter_r.next_sample(mixed_r))
+            }
             FilterRouting::Serial => {
+                self.filter2_l
+                    .set_params(params.filter2_cutoff_hz, params.filter2_resonance);
+                self.filter2_r
+                    .set_params(params.filter2_cutoff_hz, params.filter2_resonance);
                 let f1_l = self.filter_l.next_sample(mixed_l);
                 let f1_r = self.filter_r.next_sample(mixed_r);
                 (self.filter2_l.next_sample(f1_l), self.filter2_r.next_sample(f1_r))
             }
             FilterRouting::Parallel => {
+                self.filter2_l
+                    .set_params(params.filter2_cutoff_hz, params.filter2_resonance);
+                self.filter2_r
+                    .set_params(params.filter2_cutoff_hz, params.filter2_resonance);
                 // Each filter sees the slot mix; outputs are averaged so a
                 // parallel patch keeps roughly the same level as serial.
                 let f1_l = self.filter_l.next_sample(mixed_l);
@@ -857,5 +867,37 @@ mod tests {
         }
         assert!(peak > 0.001, "FM-only voice should produce audio, peak={peak}");
         assert!(peak < 2.0, "FM voice output should stay bounded, peak={peak}");
+    }
+
+    #[test]
+    fn off_routing_bypasses_filter_two() {
+        let sr = 48_000.0;
+        let render = |routing: FilterRouting, f2_cutoff_hz: f32| -> f32 {
+            let mut voice = Voice::new(sr);
+            voice.set_filter_routing(routing);
+            voice.note_on(69, 100); // A4 = 440 Hz
+            let mut params = default_sample_params();
+            params.filter2_cutoff_hz = f2_cutoff_hz;
+            let mut peak = 0.0_f32;
+            for _ in 0..2_000 {
+                let (l, _r) = voice.next_sample(&params);
+                peak = peak.max(l.abs());
+            }
+            peak
+        };
+
+        // With routing Off, filter 2 is never evaluated, so its cutoff has no
+        // effect: a near-closed filter 2 produces bit-identical output.
+        let off_open = render(FilterRouting::Off, 22_000.0);
+        let off_closed = render(FilterRouting::Off, 100.0);
+        assert_eq!(off_open, off_closed, "Off routing must ignore filter 2 entirely");
+
+        // Sanity: in Serial the same near-closed filter 2 *does* attenuate the
+        // 440 Hz tone, proving the test would catch a missing bypass.
+        let serial_closed = render(FilterRouting::Serial, 100.0);
+        assert!(
+            serial_closed < off_open * 0.5,
+            "Serial filter 2 at 100 Hz should attenuate (serial={serial_closed}, off={off_open})"
+        );
     }
 }

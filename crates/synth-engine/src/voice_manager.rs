@@ -691,6 +691,8 @@ impl VoiceManager {
             vp.osc_main_detune_cents[1] += off.osc2_detune_cents;
             vp.osc_main_detune_cents[2] += off.osc3_detune_cents;
             vp.osc_main_pans[0] = (vp.osc_main_pans[0] + off.osc1_pan).clamp(-1.0, 1.0);
+            vp.osc_main_pans[1] = (vp.osc_main_pans[1] + off.osc2_pan).clamp(-1.0, 1.0);
+            vp.osc_main_pans[2] = (vp.osc_main_pans[2] + off.osc3_pan).clamp(-1.0, 1.0);
 
             let (l, r) = v.next_sample(&vp);
             sum_l += l;
