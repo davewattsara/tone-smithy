@@ -291,6 +291,15 @@ static FACTORY_RAWS: &[&str] = &[
     include_str!("../factory/fx_sweep_rise.tsmith"),
     include_str!("../factory/fx_glitch_bell.tsmith"),
     include_str!("../factory/fx_alien_texture.tsmith"),
+    // v1.1 additions (M20)
+    include_str!("../factory/fx_riser.tsmith"),
+    include_str!("../factory/fx_downlifter.tsmith"),
+    include_str!("../factory/fx_seq_pulse.tsmith"),
+    include_str!("../factory/fx_dark_drone.tsmith"),
+    include_str!("../factory/fx_metallic.tsmith"),
+    include_str!("../factory/fx_warp.tsmith"),
+    include_str!("../factory/fx_impact.tsmith"),
+    include_str!("../factory/fx_air_texture.tsmith"),
 ];
 
 #[cfg(test)]
@@ -386,8 +395,8 @@ mod qa_tests {
         // v1.1 (M20) factory expansion, in progress. Current categorised total
         // plus the Init patch. The per-category distribution and feature-coverage
         // guards live in the tests below.
-        // 29 Bass + 26 Lead + 22 Pad + 14 Pluck + 16 Keys + 4 FX = 111, plus Init.
-        assert_eq!(FACTORY_RAWS.len(), 112);
+        // 29 Bass + 26 Lead + 22 Pad + 14 Pluck + 16 Keys + 12 FX = 119, plus Init.
+        assert_eq!(FACTORY_RAWS.len(), 120);
     }
 
     #[test]
