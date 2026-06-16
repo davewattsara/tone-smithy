@@ -41,8 +41,12 @@ pub struct SeqStep {
     /// When true the step's note extends forward into the following step(s)
     /// instead of releasing — the step itself still plays its own note, but the
     /// *next* step does not retrigger (its note is consumed by the held one).
-    /// Ties chain: a run of tie steps rings continuously, and the first non-tie
-    /// step after the run governs the release via its own `gate`.
+    /// Ties chain: a run of tie steps lengthens the note's slot to span the
+    /// whole run plus the first step after it. The **originating** step's own
+    /// `gate` then governs the note, scaled across that longer span: gate 1.0
+    /// rings the full tied duration (legato), gate 0.5 sounds the first half and
+    /// is silent for the rest. The consumed steps' note/velocity/gate are unused
+    /// (their mod lane still advances).
     pub tie: bool,
     /// Mod-lane CV value, -1.0..=1.0.
     pub mod_value: f32,
@@ -116,8 +120,13 @@ pub struct SeqEngine {
     /// Velocity of the currently sounding step (used when the engine fires
     /// the very first note directly on key-down).
     pub current_velocity: u8,
-    /// Gate fraction of the currently sounding step.
-    current_gate: f32,
+    /// Release point of the currently sounding note, in step-units measured from
+    /// its articulation: `gate * tie_span`. For an untied note this is just the
+    /// step's gate (0.0–1.0); a tie lengthens the slot so it can exceed 1.0.
+    release_at: f32,
+    /// Step-units elapsed since the current note was articulated. Compared
+    /// against `release_at` to fire the NoteOff. Accumulates across tied steps.
+    note_elapsed: f32,
     /// Mod-lane value of the current step, held across the step.
     current_mod: f32,
     /// Direction flag for PingPong (true = ascending).
@@ -147,7 +156,8 @@ impl SeqEngine {
             gate_open: false,
             current_note: 0,
             current_velocity: 100,
-            current_gate: 0.5,
+            release_at: 0.5,
+            note_elapsed: 0.0,
             current_mod: 0.0,
             going_up: true,
             even_step: true,
@@ -220,7 +230,8 @@ impl SeqEngine {
             }
             self.current_note = self.note_at(self.step_index);
             self.current_velocity = step.velocity;
-            self.current_gate = step.gate;
+            self.release_at = step.gate * self.tie_span(self.step_index) as f32;
+            self.note_elapsed = 0.0;
             self.gate_open = true;
             return true;
         }
@@ -277,14 +288,14 @@ impl SeqEngine {
         let step_samples = self.step_samples();
         let phase_advance = n_frames as f32 / step_samples;
 
-        let prev_phase = self.phase;
         self.phase += phase_advance;
+        self.note_elapsed += phase_advance;
 
-        // A tie marks the *originating* step: its note extends forward into the
-        // following step(s). So while the cursor sits on a tie step its gate-off
-        // is suppressed — the note rings on instead of releasing within the step.
-        let current_is_tie = self.step_index != usize::MAX && self.steps[self.step_index].tie;
-        if self.gate_open && !current_is_tie && prev_phase < self.current_gate && self.phase >= self.current_gate {
+        // Release the current note once it has sounded for its gated length.
+        // `release_at` is `gate * tie_span` in step-units, so a tie raises it
+        // above 1.0 and the note simply rings on across the consumed step(s)
+        // until this threshold is reached.
+        if self.gate_open && self.note_elapsed >= self.release_at {
             out.push(ArpEvent::NoteOff {
                 note: self.current_note,
             });
@@ -302,12 +313,12 @@ impl SeqEngine {
             self.advance_step();
             let step = self.steps[self.step_index];
 
-            if extend && self.gate_open {
-                // The previous step tied its note onward: hold it across this
-                // step (no NoteOff, no retrigger — this step's own note is
-                // consumed). This step's gate governs the release once the tie
-                // chain reaches a non-tie step.
-                self.current_gate = step.gate;
+            if extend {
+                // Consumed step: the held note's slot continues across it — no
+                // retrigger, no new gate. Its note/velocity/gate are unused; the
+                // mod lane (refreshed in advance_step) still applies. The note
+                // may already have released early within the slot for a short
+                // gate — that is fine, it stays silent for the rest of the slot.
             } else {
                 // Silence any still-open gate from the previous step.
                 if self.gate_open {
@@ -317,14 +328,15 @@ impl SeqEngine {
                     self.gate_open = false;
                 }
 
-                // A rest stays silent; otherwise trigger this step's note. A
-                // tie step still plays its own note here — the tie only affects
-                // what happens at the *next* boundary.
+                // A rest stays silent; otherwise articulate this step's note. A
+                // tie step still plays its own note here — the tie lengthens the
+                // slot it occupies, via `release_at` below.
                 if !step.rest {
                     let note = self.note_at(self.step_index);
                     self.current_note = note;
                     self.current_velocity = step.velocity;
-                    self.current_gate = step.gate;
+                    self.release_at = step.gate * self.tie_span(self.step_index) as f32;
+                    self.note_elapsed = self.phase;
                     out.push(ArpEvent::NoteOn {
                         note,
                         velocity: step.velocity,
@@ -332,8 +344,8 @@ impl SeqEngine {
                     self.gate_open = true;
 
                     // Very short gate that closes before the next block: fire
-                    // off now — unless this step ties its note onward.
-                    if !step.tie && self.current_gate <= self.phase {
+                    // off now.
+                    if self.note_elapsed >= self.release_at {
                         out.push(ArpEvent::NoteOff { note });
                         self.gate_open = false;
                     }
@@ -409,6 +421,23 @@ impl SeqEngine {
         self.current_mod = self.steps[self.step_index].mod_value;
     }
 
+    /// Number of steps a note articulated at `start` occupies, following the
+    /// tie run forward in index order: 1 for an untied step, +1 for each
+    /// consecutive tie step in the run (the run ends at, and includes, the first
+    /// non-tie step). The originating step's gate is scaled by this so the note
+    /// fills its lengthened slot. Bounded by the active length to stay finite
+    /// when every step is tied.
+    fn tie_span(&self, start: usize) -> usize {
+        let len = self.active_len();
+        let mut span = 1;
+        let mut idx = start;
+        while self.steps[idx].tie && span < len {
+            idx = (idx + 1) % len;
+            span += 1;
+        }
+        span
+    }
+
     /// MIDI note for a step: the held root transposed by the step's offset,
     /// clamped to the valid MIDI range.
     fn note_at(&self, idx: usize) -> u8 {
@@ -424,8 +453,10 @@ mod tests {
     use super::*;
 
     /// Build a sequencer with ascending offsets 0,1,2,… so each step's pitch
-    /// reveals its index, then press the root note.
-    fn make_seq(mode: SeqMode, length: usize, root: u8) -> SeqEngine {
+    /// reveals its index, *without* pressing a key yet. Use this when a test
+    /// needs to configure steps (e.g. ties) before the first articulation, since
+    /// `release_at` is snapshotted at the moment a note is articulated.
+    fn make_seq_idle(mode: SeqMode, length: usize) -> SeqEngine {
         let mut s = SeqEngine::new(48_000.0);
         s.enabled = true;
         s.mode = mode;
@@ -438,6 +469,12 @@ mod tests {
             step.velocity = 100;
             step.gate = 0.5;
         }
+        s
+    }
+
+    /// `make_seq_idle` plus an immediate key-down on `root`.
+    fn make_seq(mode: SeqMode, length: usize, root: u8) -> SeqEngine {
+        let mut s = make_seq_idle(mode, length);
         s.note_on(root);
         s
     }
@@ -503,11 +540,12 @@ mod tests {
 
     #[test]
     fn tie_extends_note_forward_over_next_step() {
-        let mut s = make_seq(SeqMode::Forward, 2, 60);
+        let mut s = make_seq_idle(SeqMode::Forward, 2);
         // Step 0 ties its note (60) forward, consuming step 1. Full gate so the
         // note rings the whole of step 0.
         s.steps[0].tie = true;
         s.steps[0].gate = 1.0;
+        s.note_on(60);
         // Step 0 (note 60) was dispatched on key-down. Extending into step 1
         // must not retrigger or release — the note rings on.
         let evs = s.process(12_000);
@@ -539,6 +577,56 @@ mod tests {
         assert!(
             !evs.iter().any(|e| matches!(e, ArpEvent::NoteOn { .. })),
             "the step after a tie is consumed by the held note"
+        );
+    }
+
+    #[test]
+    fn tie_scales_originating_gate_over_the_longer_span() {
+        // Step 0 ties forward (2-step slot). Its own gate of 0.5 should make the
+        // note sound for half of the *two-step* span — i.e. one full step — then
+        // release. Step 1's gate is irrelevant (its note is consumed).
+        let mut s = make_seq_idle(SeqMode::Forward, 2);
+        s.steps[0].tie = true;
+        s.steps[0].gate = 0.5;
+        s.steps[1].gate = 1.0; // must have no effect
+        s.note_on(60);
+        // First half-step: note still ringing.
+        let evs = s.process(6_000);
+        assert_eq!(evs.iter().count(), 0, "note should still ring at quarter span");
+        // Second half-step completes step 0 -> note has sounded 1 of 2 steps.
+        let evs = s.process(6_000);
+        assert!(
+            evs.iter().any(|e| matches!(e, ArpEvent::NoteOff { note: 60 })),
+            "tied note should release at gate*span (one full step in)"
+        );
+        // The consumed step must not retrigger.
+        assert!(
+            !evs.iter().any(|e| matches!(e, ArpEvent::NoteOn { .. })),
+            "consumed step must not articulate"
+        );
+    }
+
+    #[test]
+    fn tie_with_full_gate_rings_the_whole_span() {
+        // gate 1.0 + tie => legato across the full two-step slot, releasing only
+        // when the slot ends (and re-articulating step 0).
+        let mut s = make_seq_idle(SeqMode::Forward, 2);
+        s.steps[0].tie = true;
+        s.steps[0].gate = 1.0;
+        s.note_on(60);
+        // Across the whole of step 0 and the consumed step 1: no release.
+        for _ in 0..3 {
+            let evs = s.process(6_000);
+            assert!(
+                !evs.iter().any(|e| matches!(e, ArpEvent::NoteOff { .. })),
+                "full-gate tie must not release before the slot ends"
+            );
+        }
+        // Final half-step of the slot: release and re-articulate.
+        let evs = s.process(6_000);
+        assert!(
+            evs.iter().any(|e| matches!(e, ArpEvent::NoteOff { note: 60 })),
+            "tied note should release at the end of its slot"
         );
     }
 

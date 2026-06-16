@@ -128,6 +128,11 @@ impl ToneSmithyApp {
             for i in 0..SEQ_MAX_STEPS {
                 let in_range = i < length;
                 let is_playhead = i32::from(playhead) == i as i32;
+                // A step is "consumed" when the previous step (index order,
+                // wrapping within the active range) ties its note forward into
+                // it: this step does not articulate, so its note/velocity/gate
+                // and rest do nothing. Its mod lane and tie toggle still matter.
+                let consumed = in_range && length > 1 && self.seq_step_tie[(i + length - 1) % length];
 
                 ui.vertical(|ui| {
                     ui.set_width(38.0);
@@ -147,7 +152,7 @@ impl ToneSmithyApp {
                     );
 
                     ui.add_enabled_ui(in_range, |ui| {
-                        self.seq_step_column(ui, i);
+                        self.seq_step_column(ui, i, consumed);
                     });
                 });
 
@@ -167,56 +172,66 @@ impl ToneSmithyApp {
         );
     }
 
-    /// One step's stacked controls.
-    fn seq_step_column(&mut self, ui: &mut egui::Ui, i: usize) {
-        // Note offset.
-        let mut note = self.seq_step_note[i];
-        if ui
-            .add(egui::DragValue::new(&mut note).range(-24..=24).speed(0.15).prefix("n "))
-            .changed()
-        {
-            self.seq_step_note[i] = note;
-            self.events.send(EngineEvent::ParameterChange {
-                id: ParamId::SeqStepNote(i as u8),
-                value: f32::from(note),
-            });
-        }
+    /// One step's stacked controls. When `consumed` is true the step's note is
+    /// supplied by a tie from the previous step, so its note/velocity/gate and
+    /// rest are greyed out (they have no effect); the mod lane and tie toggle
+    /// stay active.
+    fn seq_step_column(&mut self, ui: &mut egui::Ui, i: usize, consumed: bool) {
+        // Note offset, velocity, and gate are dead on a consumed (tied-into)
+        // step — disable them so it is clear they do nothing.
+        ui.add_enabled_ui(!consumed, |ui| {
+            // Note offset.
+            let mut note = self.seq_step_note[i];
+            if ui
+                .add(egui::DragValue::new(&mut note).range(-24..=24).speed(0.15).prefix("n "))
+                .on_disabled_hover_text("Consumed by a tie from the previous step")
+                .changed()
+            {
+                self.seq_step_note[i] = note;
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::SeqStepNote(i as u8),
+                    value: f32::from(note),
+                });
+            }
 
-        // Velocity.
-        let mut vel = self.seq_step_velocity[i];
-        if ui
-            .add_sized(
-                [28.0, 56.0],
-                egui::Slider::new(&mut vel, 0..=127).vertical().show_value(false),
-            )
-            .on_hover_text("Velocity")
-            .changed()
-        {
-            self.seq_step_velocity[i] = vel;
-            self.events.send(EngineEvent::ParameterChange {
-                id: ParamId::SeqStepVelocity(i as u8),
-                value: f32::from(vel),
-            });
-        }
+            // Velocity.
+            let mut vel = self.seq_step_velocity[i];
+            if ui
+                .add_sized(
+                    [28.0, 56.0],
+                    egui::Slider::new(&mut vel, 0..=127).vertical().show_value(false),
+                )
+                .on_hover_text("Velocity")
+                .on_disabled_hover_text("Consumed by a tie from the previous step")
+                .changed()
+            {
+                self.seq_step_velocity[i] = vel;
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::SeqStepVelocity(i as u8),
+                    value: f32::from(vel),
+                });
+            }
 
-        // Gate.
-        let mut gate = self.seq_step_gate[i];
-        if ui
-            .add_sized(
-                [28.0, 56.0],
-                egui::Slider::new(&mut gate, 0.0..=1.0).vertical().show_value(false),
-            )
-            .on_hover_text("Gate")
-            .changed()
-        {
-            self.seq_step_gate[i] = gate;
-            self.events.send(EngineEvent::ParameterChange {
-                id: ParamId::SeqStepGate(i as u8),
-                value: gate,
-            });
-        }
+            // Gate.
+            let mut gate = self.seq_step_gate[i];
+            if ui
+                .add_sized(
+                    [28.0, 56.0],
+                    egui::Slider::new(&mut gate, 0.0..=1.0).vertical().show_value(false),
+                )
+                .on_hover_text("Gate (scaled across the tie span for the originating step)")
+                .on_disabled_hover_text("Consumed by a tie from the previous step")
+                .changed()
+            {
+                self.seq_step_gate[i] = gate;
+                self.events.send(EngineEvent::ParameterChange {
+                    id: ParamId::SeqStepGate(i as u8),
+                    value: gate,
+                });
+            }
+        });
 
-        // Mod lane.
+        // Mod lane (still advances on a consumed step, so it stays enabled).
         let mut modv = self.seq_step_mod[i];
         if ui
             .add_sized(
@@ -240,9 +255,11 @@ impl ToneSmithyApp {
             let rest_label = egui::RichText::new("R")
                 .color(if rest { theme::WARN } else { theme::FG2 })
                 .font(theme::font_small());
+            // Rest is dead on a consumed step (it never articulates anyway).
             if ui
-                .selectable_label(rest, rest_label)
+                .add_enabled(!consumed, egui::SelectableLabel::new(rest, rest_label))
                 .on_hover_text("Rest (silent step)")
+                .on_disabled_hover_text("Consumed by a tie from the previous step")
                 .clicked()
             {
                 self.seq_step_rest[i] = !rest;
@@ -252,6 +269,8 @@ impl ToneSmithyApp {
                 });
             }
 
+            // Tie stays enabled even on a consumed step: toggling it extends the
+            // run by one more step.
             let tie = self.seq_step_tie[i];
             let tie_label = egui::RichText::new("T")
                 .color(if tie { theme::ACCENT } else { theme::FG2 })

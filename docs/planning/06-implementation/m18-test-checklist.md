@@ -31,8 +31,10 @@ suite. Tick each box as you verify it.
 - [x] **Rest** steps are silent and still consume their time slot.
 - [ ] **Tie** (the **T** toggle): a tie extends *this* step's note forward into the next step —
       tie **step 1** and its note rings through step 2 with no re-attack (step 2's own note is
-      consumed). Chained ties ring continuously; the first non-tie step after the run sets where
-      it ends. A tie step still plays its own note.
+      consumed). Chained ties lengthen the slot further. The **originating** step's own gate now
+      governs, scaled over the longer span: gate 1.0 = legato across the whole tie, gate 0.5 =
+      sounds the first half then silent. A consumed step's note/velocity/gate and rest are **greyed
+      out** (they do nothing); its mod lane and tie toggle stay active.
 - [ ] **Length** (1–16) shortens the active pattern; steps beyond the length are dimmed/disabled.
 - [ ] **Rate** (1/32…1/2) changes step speed; **Swing** shuffles the timing.
 - [ ] **Playback modes** all walk correctly: **Fwd**, **Rev**, **Ping** (no doubled endpoints),
