@@ -406,10 +406,15 @@ migration); `fmt` / `clippy -D warnings` / tests clean.
 
 ## M20 — v1.1 factory expansion + release (2–4 weeks) — v1.1
 
+> Implementation plan: [`m20-plan.md`](m20-plan.md)
+
 Content authoring and the v1.1 release cut.
 
-- Add 40–60 new presets to the factory bank to reach ~120 total; include patches that showcase
-  the second filter, Env3, and the step sequencer.
+- Add ~60 new presets to the factory bank to reach ~120 total; include patches that showcase
+  the second filter (serial/parallel, 12 & 24 dB/oct), Env3, the 16-slot matrix, and the step
+  sequencer. Targeted showcases: a Hammond organ + Leslie family, grimy/filthy DnB basses,
+  multi-filter and >8-slot (every slot justified) patches, and revised versions of the original
+  prefabs.
 - QA pass: listen to every new preset in context, normalise levels, write descriptions.
 - Update `CHANGELOG.md` with the v1.1 entry.
 - Tag `v1.1.0` on `main`; GitHub Release publishes the Windows, Linux, and macOS installers.
