@@ -172,19 +172,27 @@ impl ToneSmithyApp {
         );
     }
 
-    /// One step's stacked controls. When `consumed` is true the step's note is
-    /// supplied by a tie from the previous step, so its note/velocity/gate and
-    /// rest are greyed out (they have no effect); the mod lane and tie toggle
-    /// stay active.
+    /// One step's stacked controls. The note/velocity/gate are greyed out when
+    /// the step does not articulate a note of its own — either it is `consumed`
+    /// (supplied by a tie from the previous step) or it is a `rest`. The mod lane
+    /// and tie toggle stay active in both cases; the rest toggle stays active
+    /// unless consumed.
     fn seq_step_column(&mut self, ui: &mut egui::Ui, i: usize, consumed: bool) {
-        // Note offset, velocity, and gate are dead on a consumed (tied-into)
-        // step — disable them so it is clear they do nothing.
-        ui.add_enabled_ui(!consumed, |ui| {
+        let rest = self.seq_step_rest[i];
+        // Note offset, velocity, and gate are dead when the step articulates no
+        // note — disable them so it is clear they do nothing.
+        let note_dead = consumed || rest;
+        let dead_hint = if consumed {
+            "Consumed by a tie from the previous step"
+        } else {
+            "Rest step is silent"
+        };
+        ui.add_enabled_ui(!note_dead, |ui| {
             // Note offset.
             let mut note = self.seq_step_note[i];
             if ui
                 .add(egui::DragValue::new(&mut note).range(-24..=24).speed(0.15).prefix("n "))
-                .on_disabled_hover_text("Consumed by a tie from the previous step")
+                .on_disabled_hover_text(dead_hint)
                 .changed()
             {
                 self.seq_step_note[i] = note;
@@ -202,7 +210,7 @@ impl ToneSmithyApp {
                     egui::Slider::new(&mut vel, 0..=127).vertical().show_value(false),
                 )
                 .on_hover_text("Velocity")
-                .on_disabled_hover_text("Consumed by a tie from the previous step")
+                .on_disabled_hover_text(dead_hint)
                 .changed()
             {
                 self.seq_step_velocity[i] = vel;
@@ -220,7 +228,7 @@ impl ToneSmithyApp {
                     egui::Slider::new(&mut gate, 0.0..=1.0).vertical().show_value(false),
                 )
                 .on_hover_text("Gate (scaled across the tie span for the originating step)")
-                .on_disabled_hover_text("Consumed by a tie from the previous step")
+                .on_disabled_hover_text(dead_hint)
                 .changed()
             {
                 self.seq_step_gate[i] = gate;
@@ -251,7 +259,6 @@ impl ToneSmithyApp {
         // Rest (R) and tie (T) toggles, side by side. A tie extends *this*
         // step's note forward into the next step.
         ui.horizontal(|ui| {
-            let rest = self.seq_step_rest[i];
             let rest_label = egui::RichText::new("R")
                 .color(if rest { theme::WARN } else { theme::FG2 })
                 .font(theme::font_small());
