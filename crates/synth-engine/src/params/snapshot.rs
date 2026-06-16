@@ -309,7 +309,7 @@ impl Default for ParamSnapshot {
             filter2_cutoff_hz: DEFAULT_FILTER2_CUTOFF_HZ,
             filter2_resonance: DEFAULT_FILTER_RESONANCE,
             filter2_mode: FilterMode::LowPass,
-            filter_routing: FilterRouting::Serial,
+            filter_routing: FilterRouting::Off,
             filter_slope: [FilterSlope::TwelveDbOct; 2],
             osc_main_levels: [DEFAULT_OSC_LEVEL; MAIN_OSCILLATOR_COUNT],
             sub_level: DEFAULT_OSC_LEVEL,

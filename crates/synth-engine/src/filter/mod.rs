@@ -11,13 +11,19 @@ mod svf;
 /// How the two per-voice filters are connected in the signal path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum FilterRouting {
-    /// Filter 1 feeds filter 2 (series). The default, matching the
-    /// single-filter behaviour when filter 2 is left wide open.
-    #[default]
+    /// Filter 1 feeds filter 2 (series).
     Serial,
     /// Filter 1 and filter 2 process the slot mix independently and
     /// their outputs are averaged (equal-power-ish at 0.5 each).
     Parallel,
+    /// Filter 2 is bypassed entirely — the voice output is filter 1 only,
+    /// and filter 2 is not evaluated (no extra SVFs per voice). The
+    /// **default**, so presets that omit the routing key — every v1.0
+    /// preset, which predates filter 2 — sound exactly as they did before
+    /// filter 2 existed. Appended at index 2 so saved 0/1 values keep
+    /// their meaning.
+    #[default]
+    Off,
 }
 
 impl FilterRouting {
@@ -27,16 +33,18 @@ impl FilterRouting {
         match self {
             Self::Serial => 0,
             Self::Parallel => 1,
+            Self::Off => 2,
         }
     }
 
     /// Inverse of [`index`](Self::index). Any out-of-range value maps to
-    /// the default (`Serial`).
+    /// the default (`Off`).
     #[must_use]
     pub fn from_index(i: usize) -> Self {
         match i {
+            0 => Self::Serial,
             1 => Self::Parallel,
-            _ => Self::Serial,
+            _ => Self::Off,
         }
     }
 }
