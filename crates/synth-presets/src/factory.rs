@@ -241,6 +241,17 @@ static FACTORY_RAWS: &[&str] = &[
     include_str!("../factory/pad_drone.tsmith"),
     include_str!("../factory/pad_brass_spread.tsmith"),
     include_str!("../factory/pad_cosmic.tsmith"),
+    // v1.1 additions (M20)
+    include_str!("../factory/pad_evolving.tsmith"),
+    include_str!("../factory/pad_glass_fm.tsmith"),
+    include_str!("../factory/pad_choir.tsmith"),
+    include_str!("../factory/pad_synth_strings.tsmith"),
+    include_str!("../factory/pad_halo.tsmith"),
+    include_str!("../factory/pad_vox.tsmith"),
+    include_str!("../factory/pad_ambient_wash.tsmith"),
+    include_str!("../factory/pad_super_wide.tsmith"),
+    include_str!("../factory/pad_bell.tsmith"),
+    include_str!("../factory/pad_juno.tsmith"),
     // ── Pluck ─────────────────────────────────────────────────────────────
     include_str!("../factory/pluck.tsmith"),
     include_str!("../factory/pluck_koto.tsmith"),
@@ -368,8 +379,8 @@ mod qa_tests {
         // v1.1 (M20) factory expansion, in progress. Current categorised total
         // plus the Init patch. The per-category distribution and feature-coverage
         // guards live in the tests below.
-        // 29 Bass + 26 Lead + 12 Pad + 8 Pluck + 16 Keys + 4 FX = 95, plus Init.
-        assert_eq!(FACTORY_RAWS.len(), 96);
+        // 29 Bass + 26 Lead + 22 Pad + 8 Pluck + 16 Keys + 4 FX = 105, plus Init.
+        assert_eq!(FACTORY_RAWS.len(), 106);
     }
 
     #[test]
