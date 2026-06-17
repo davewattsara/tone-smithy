@@ -388,5 +388,8 @@ impl ToneSmithyApp {
                     } // slot-specific controls
                 }); // CollapsingHeader
         } // for slot_idx
+
+        // Flag has served its purpose now that the section has rendered.
+        self.just_loaded_preset = false;
     }
 }

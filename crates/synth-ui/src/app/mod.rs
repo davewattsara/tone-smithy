@@ -141,9 +141,6 @@ impl eframe::App for ToneSmithyApp {
         // ── Unsaved-changes modals ───────────────────────────────────────────
         self.show_unsaved_modals(ctx);
 
-        // One-frame foldout override is done; let CollapsingHeader take over.
-        self.just_loaded_preset = false;
-
         ctx.request_repaint_after(std::time::Duration::from_millis(33));
     }
 }
