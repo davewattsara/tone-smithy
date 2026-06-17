@@ -150,18 +150,33 @@ impl eframe::App for ToneSmithyApp {
 
 impl ToneSmithyApp {
     fn show_unsaved_modals(&mut self, ctx: &egui::Context) {
+        let needs_modal = self.pending_load.is_some() || self.pending_quit;
+        if !needs_modal {
+            return;
+        }
+
+        // Dark scrim over the whole window. Painted at Middle order (same as
+        // panels) but added later in the frame, so it layers above them.
+        // The Window itself uses Foreground order, which is above Middle.
+        ctx.layer_painter(egui::LayerId::new(egui::Order::Middle, egui::Id::new("modal_scrim")))
+            .rect_filled(ctx.screen_rect(), 0.0, egui::Color32::from_black_alpha(160));
+
         // Pending load: user clicked a preset while the patch was dirty.
         if self.pending_load.is_some() {
             let mut do_save = false;
             let mut do_discard = false;
             let mut do_cancel = false;
             egui::Window::new("Unsaved changes")
+                .id(egui::Id::new("unsaved_load_modal"))
+                .order(egui::Order::Foreground)
                 .collapsible(false)
                 .resizable(false)
                 .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
                 .show(ctx, |ui| {
+                    ui.heading("Unsaved changes");
+                    ui.add_space(4.0);
                     ui.label("You have unsaved changes. What would you like to do?");
-                    ui.add_space(8.0);
+                    ui.add_space(12.0);
                     ui.horizontal(|ui| {
                         if ui.button("Save").clicked() {
                             do_save = true;
@@ -192,12 +207,16 @@ impl ToneSmithyApp {
             let mut do_discard = false;
             let mut do_cancel = false;
             egui::Window::new("Unsaved changes")
+                .id(egui::Id::new("unsaved_quit_modal"))
+                .order(egui::Order::Foreground)
                 .collapsible(false)
                 .resizable(false)
                 .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
                 .show(ctx, |ui| {
+                    ui.heading("Unsaved changes");
+                    ui.add_space(4.0);
                     ui.label("You have unsaved changes. Quit anyway?");
-                    ui.add_space(8.0);
+                    ui.add_space(12.0);
                     ui.horizontal(|ui| {
                         if ui.button("Save and quit").clicked() {
                             do_save = true;
