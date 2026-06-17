@@ -48,6 +48,8 @@ improvements and platform expansion:
 
 ## v1.2 — Polish & quality of life
 
+Planned as milestones M21–M24 (see [`docs/planning/06-implementation/milestones.md`](../06-implementation/milestones.md)).
+
 - Auto-update check (GitHub Releases).
 - Editable FM operator routing (user algorithms in addition to the 8 factory algorithms).
 - An additional mod lane in the step sequencer.
