@@ -273,6 +273,7 @@ pub struct ParameterTree {
     pub(super) seq_step_rest: [bool; SEQ_MAX_STEPS],
     pub(super) seq_step_tie: [bool; SEQ_MAX_STEPS],
     pub(super) seq_step_mod: [f32; SEQ_MAX_STEPS],
+    pub(super) seq_step_mod2: [f32; SEQ_MAX_STEPS],
 }
 
 impl ParameterTree {
@@ -412,6 +413,7 @@ impl ParameterTree {
             seq_step_rest: defaults.seq_step_rest,
             seq_step_tie: defaults.seq_step_tie,
             seq_step_mod: defaults.seq_step_mod,
+            seq_step_mod2: defaults.seq_step_mod2,
         }
     }
 
@@ -651,6 +653,11 @@ impl ParameterTree {
             ParamId::SeqStepMod(i) => {
                 if (i as usize) < SEQ_MAX_STEPS {
                     self.seq_step_mod[i as usize] = value.clamp(-1.0, 1.0);
+                }
+            }
+            ParamId::SeqStepMod2(i) => {
+                if (i as usize) < SEQ_MAX_STEPS {
+                    self.seq_step_mod2[i as usize] = value.clamp(-1.0, 1.0);
                 }
             }
         }
@@ -1123,6 +1130,7 @@ impl ParameterTree {
             seq_step_rest: self.seq_step_rest,
             seq_step_tie: self.seq_step_tie,
             seq_step_mod: self.seq_step_mod,
+            seq_step_mod2: self.seq_step_mod2,
             seq_current_step: self.seq_current_step,
         }
     }

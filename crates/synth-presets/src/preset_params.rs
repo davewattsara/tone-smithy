@@ -178,6 +178,7 @@ pub fn snapshot_to_map(snap: &ParamSnapshot) -> BTreeMap<String, f32> {
         m.insert(format!("seq_step{i}_rest"), f32::from(snap.seq_step_rest[i]));
         m.insert(format!("seq_step{i}_tie"), f32::from(snap.seq_step_tie[i]));
         m.insert(format!("seq_step{i}_mod"), snap.seq_step_mod[i]);
+        m.insert(format!("seq_step{i}_mod2"), snap.seq_step_mod2[i]);
     }
 
     m
@@ -432,6 +433,7 @@ pub fn map_to_events(m: &BTreeMap<String, f32>) -> Vec<EngineEvent> {
         pc!(&format!("seq_step{ii}_rest"), ParamId::SeqStepRest(i));
         pc!(&format!("seq_step{ii}_tie"), ParamId::SeqStepTie(i));
         pc!(&format!("seq_step{ii}_mod"), ParamId::SeqStepMod(i));
+        pc!(&format!("seq_step{ii}_mod2"), ParamId::SeqStepMod2(i));
     }
 
     ev
@@ -667,6 +669,7 @@ pub fn map_to_snapshot(m: &BTreeMap<String, f32>) -> ParamSnapshot {
         get_bool!(&format!("seq_step{i}_rest"), s.seq_step_rest[i]);
         get_bool!(&format!("seq_step{i}_tie"), s.seq_step_tie[i]);
         get!(&format!("seq_step{i}_mod"), s.seq_step_mod[i]);
+        get!(&format!("seq_step{i}_mod2"), s.seq_step_mod2[i]);
     }
 
     s
@@ -803,6 +806,7 @@ mod tests {
             orig.seq_step_rest[i] = i % 3 == 0;
             orig.seq_step_tie[i] = i % 4 == 1;
             orig.seq_step_mod[i] = (i as f32) / 16.0 - 0.5;
+            orig.seq_step_mod2[i] = 0.5 - (i as f32) / 16.0;
         }
 
         let map = snapshot_to_map(&orig);
@@ -918,6 +922,7 @@ mod tests {
         assert_eq!(orig.seq_step_rest, got.seq_step_rest);
         assert_eq!(orig.seq_step_tie, got.seq_step_tie);
         assert_eq!(orig.seq_step_mod, got.seq_step_mod);
+        assert_eq!(orig.seq_step_mod2, got.seq_step_mod2);
     }
 
     /// A sparse preset (only a few keys set) must expand to the *full*

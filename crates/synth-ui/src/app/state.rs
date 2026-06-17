@@ -49,13 +49,13 @@ pub(crate) const FM_OP_ENV_MIN_SECS: f32 = 0.001;
 pub(crate) const FM_OP_ENV_MAX_SECS: f32 = 10.0;
 
 pub(crate) const MOD_SOURCE_LABELS: &[&str] = &[
-    "Off", "LFO1", "LFO2", "Env2", "AmpEnv", "Vel", "Key", "ModWhl", "AfterT", "Bend", "Env3", "Seq",
+    "Off", "LFO1", "LFO2", "Env2", "AmpEnv", "Vel", "Key", "ModWhl", "AfterT", "Bend", "Env3", "Seq", "Seq2",
 ];
 /// Display order for the source dropdowns. The stored value is still the
 /// `ModSource` index, but Env3 (index 10, appended for preset back-compat) is
-/// shown right after Env2 instead of last; the sequencer lane (index 11) is
-/// shown last.
-pub(crate) const MOD_SOURCE_ORDER: &[usize] = &[0, 1, 2, 3, 10, 4, 5, 6, 7, 8, 9, 11];
+/// shown right after Env2 instead of last; the two sequencer lanes (indices 11
+/// and 12) are shown last.
+pub(crate) const MOD_SOURCE_ORDER: &[usize] = &[0, 1, 2, 3, 10, 4, 5, 6, 7, 8, 9, 11, 12];
 pub(crate) const MOD_DEST_LABELS: &[&str] = &[
     "F1 Cut", "F1 Res", "Pitch", "Vol", "Osc1Det", "Osc1Pan", "F2 Cut", "F2 Res", "Osc2Det", "Osc3Det", "Osc2Pan",
     "Osc3Pan",
@@ -91,6 +91,7 @@ pub(crate) const MOD_SOURCE_TOOLTIPS: &[&str] = &[
     "MIDI pitch bend (-1 to +1).",
     "Mod envelope 3 output (0 to 1).",
     "Step sequencer mod lane 1 — current step CV (-1 to +1).",
+    "Step sequencer mod lane 2 — current step CV (-1 to +1).",
 ];
 pub(crate) const MOD_DEST_TOOLTIPS: &[&str] = &[
     "Filter 1 cutoff frequency (Hz).",
@@ -298,6 +299,7 @@ pub struct ToneSmithyApp {
     pub(crate) seq_step_rest: [bool; SEQ_MAX_STEPS],
     pub(crate) seq_step_tie: [bool; SEQ_MAX_STEPS],
     pub(crate) seq_step_mod: [f32; SEQ_MAX_STEPS],
+    pub(crate) seq_step_mod2: [f32; SEQ_MAX_STEPS],
 
     // ── Global ───────────────────────────────────────────────────────────────
     pub(crate) pitch_offset_semis: f32,
@@ -496,6 +498,7 @@ impl ToneSmithyApp {
             seq_step_rest: snap.seq_step_rest,
             seq_step_tie: snap.seq_step_tie,
             seq_step_mod: snap.seq_step_mod,
+            seq_step_mod2: snap.seq_step_mod2,
             pitch_offset_semis: snap.pitch_offset_semis,
             master_volume: snap.master_volume,
             bpm: snap.bpm,
@@ -737,6 +740,7 @@ impl ToneSmithyApp {
         self.seq_step_rest = snap.seq_step_rest;
         self.seq_step_tie = snap.seq_step_tie;
         self.seq_step_mod = snap.seq_step_mod;
+        self.seq_step_mod2 = snap.seq_step_mod2;
         self.pitch_offset_semis = snap.pitch_offset_semis;
         self.master_volume = snap.master_volume;
         self.bpm = snap.bpm;

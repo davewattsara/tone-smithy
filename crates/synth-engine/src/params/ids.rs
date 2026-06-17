@@ -312,4 +312,6 @@ pub enum ParamId {
     SeqStepTie(u8),
     /// Per-step mod-lane CV value, -1.0..=1.0.
     SeqStepMod(u8),
+    /// Per-step second mod-lane CV value, -1.0..=1.0 (the `Seq2` source).
+    SeqStepMod2(u8),
 }
