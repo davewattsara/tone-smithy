@@ -509,7 +509,7 @@ impl ToneSmithyApp {
             pending_quit: false,
             pending_load: None,
             slot_foldout_open: [true, false],
-            just_loaded_preset: false,
+            just_loaded_preset: true, // force foldout state on the first frame
             current_preset_description: String::new(),
             patch_name: "Untitled".into(),
             preset_error: None,
