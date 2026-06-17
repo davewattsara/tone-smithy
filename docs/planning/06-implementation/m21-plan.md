@@ -239,11 +239,60 @@ The existing `save_current_preset` path already exists (it's what Save does in t
 If it requires a name or confirmation, use Save As instead and skip it — keep the dialog
 simple: Save overwrites the current file, Discard abandons, Cancel aborts.
 
+### Intercepting app quit
+
+In egui, the close button sets a flag on the viewport. Check it each frame and, if dirty,
+cancel the close and show the dialog instead:
+
+```rust
+// In update(), before rendering anything else
+if ctx.input(|i| i.viewport().close_requested()) {
+    if self.state.is_dirty {
+        ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+        self.state.pending_quit = true;
+    }
+    // if not dirty, the close proceeds normally
+}
+```
+
+Add `pending_quit: bool` to `AppState`. When `pending_quit` is true, render the same
+Save / Discard / Cancel dialog but with quit-specific wording ("You have unsaved changes.
+Quit anyway?"):
+
+```rust
+if self.state.pending_quit {
+    egui::Window::new("Unsaved changes")
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .show(ctx, |ui| {
+            ui.label("You have unsaved changes. Quit anyway?");
+            ui.horizontal(|ui| {
+                if ui.button("Save and quit").clicked() {
+                    self.save_current_preset();
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+                if ui.button("Discard and quit").clicked() {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+                if ui.button("Cancel").clicked() {
+                    self.state.pending_quit = false;
+                }
+            });
+        });
+}
+```
+
+`ViewportCommand::Close` (issued after Save or Discard) triggers the actual OS-level close,
+bypassing the `close_requested` check that would normally re-cancel it.
+
 ### Done when
 
 Loading a preset after making a parameter change shows the dialog. Save saves and loads.
-Discard loads without saving. Cancel returns to the current patch unchanged. `is_dirty` is
-correctly false after a clean load or save.
+Discard loads without saving. Cancel returns to the current patch unchanged. Closing the
+app window while dirty shows "Quit anyway?" — Save and quit saves first; Discard and quit
+closes without saving; Cancel keeps the app open. `is_dirty` is correctly false after a
+clean load or save.
 
 ---
 
