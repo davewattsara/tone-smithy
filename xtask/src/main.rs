@@ -459,9 +459,13 @@ fn macos_info_plist(version: &str, has_icon: bool) -> String {
 /// (the unsigned-release path) or off macOS, mirroring the Windows `signtool`
 /// gate.
 fn sign_macos_if_configured(app: &Path) -> Result<()> {
-    let Ok(identity) = std::env::var("APPLE_SIGNING_IDENTITY") else {
+    // An unset GitHub Actions secret is passed through as an empty string, not
+    // absent, so treat empty the same as unset — otherwise we'd codesign with a
+    // blank identity.
+    let identity = std::env::var("APPLE_SIGNING_IDENTITY").unwrap_or_default();
+    if identity.is_empty() {
         return Ok(());
-    };
+    }
     if !cfg!(target_os = "macos") {
         eprintln!(
             "dist: APPLE_SIGNING_IDENTITY set but not on macOS; skipping signing of {}",
@@ -486,13 +490,16 @@ fn sign_macos_if_configured(app: &Path) -> Result<()> {
 /// — an app-specific password — and `APPLE_NOTARY_TEAM_ID`). A no-op when any is
 /// unset or off macOS.
 fn notarize_macos_if_configured(dmg: &Path) -> Result<()> {
-    let (Ok(apple_id), Ok(password), Ok(team_id)) = (
-        std::env::var("APPLE_NOTARY_APPLE_ID"),
-        std::env::var("APPLE_NOTARY_PASSWORD"),
-        std::env::var("APPLE_NOTARY_TEAM_ID"),
-    ) else {
+    // An unset GitHub Actions secret arrives as an empty string (not absent), so
+    // `env::var` returns `Ok("")` rather than `Err`. Treat any empty credential
+    // as "notarization not configured" and skip — otherwise `notarytool` is
+    // called with blank values and fails ("Team ID must be at least 3 chars").
+    let apple_id = std::env::var("APPLE_NOTARY_APPLE_ID").unwrap_or_default();
+    let password = std::env::var("APPLE_NOTARY_PASSWORD").unwrap_or_default();
+    let team_id = std::env::var("APPLE_NOTARY_TEAM_ID").unwrap_or_default();
+    if apple_id.is_empty() || password.is_empty() || team_id.is_empty() {
         return Ok(());
-    };
+    }
     if !cfg!(target_os = "macos") {
         eprintln!(
             "dist: notarization credentials set but not on macOS; skipping notarization of {}",
@@ -522,9 +529,11 @@ fn notarize_macos_if_configured(dmg: &Path) -> Result<()> {
 /// Sign `target` with `signtool` when `TONESMITHY_CERT` points at a `.pfx`.
 /// Silently a no-op when unset (the unsigned-release path) or off-Windows.
 fn sign_if_configured(target: &Path) -> Result<()> {
-    let Ok(cert) = std::env::var("TONESMITHY_CERT") else {
+    // Empty (an unset CI secret) is treated the same as unset — the unsigned path.
+    let cert = std::env::var("TONESMITHY_CERT").unwrap_or_default();
+    if cert.is_empty() {
         return Ok(());
-    };
+    }
     if !cfg!(windows) {
         eprintln!(
             "dist: TONESMITHY_CERT set but not on Windows; skipping signing of {}",
