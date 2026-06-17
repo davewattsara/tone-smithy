@@ -173,8 +173,6 @@ impl ToneSmithyApp {
                 .resizable(false)
                 .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
                 .show(ctx, |ui| {
-                    ui.heading("Unsaved changes");
-                    ui.add_space(4.0);
                     ui.label("You have unsaved changes. What would you like to do?");
                     ui.add_space(12.0);
                     ui.horizontal(|ui| {
@@ -213,8 +211,6 @@ impl ToneSmithyApp {
                 .resizable(false)
                 .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
                 .show(ctx, |ui| {
-                    ui.heading("Unsaved changes");
-                    ui.add_space(4.0);
                     ui.label("You have unsaved changes. Quit anyway?");
                     ui.add_space(12.0);
                     ui.horizontal(|ui| {
