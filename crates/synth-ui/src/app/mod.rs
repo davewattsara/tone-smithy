@@ -212,8 +212,13 @@ impl ToneSmithyApp {
                 });
             if do_save {
                 self.save_preset();
+                // Clear dirty so the close-requested intercept doesn't re-trigger.
+                self.is_dirty = false;
+                self.pending_quit = false;
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             } else if do_discard {
+                self.is_dirty = false;
+                self.pending_quit = false;
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             } else if do_cancel {
                 self.pending_quit = false;
