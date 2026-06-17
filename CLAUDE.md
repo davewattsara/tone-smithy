@@ -8,7 +8,7 @@ This is the Tone Smithy repo: a hybrid (subtractive + FM) standalone software sy
 - **Never begin milestone implementation work without explicit user instruction.** Finishing a previous milestone, reading a plan, or reaching the end of a session does not constitute permission to start the next one. Wait for the user to say "start M16" (or equivalent) before writing any code.
 
 ### Closing out a milestone
-- When marking a milestone complete in `docs/planning/06-implementation/milestones.md`, always include the date: `— **complete (YYYY-MM-DD, tag \`mXX\`)**`. Use the user's local date (today's conversation log filename, e.g. `docs/conversations/2026-06-09.md` → `2026-06-09`).
+- When marking a milestone complete in `docs/planning/06-implementation/milestones.md`, always include the date: `— **complete (YYYY-MM-DD, tag \`mXX\`)**`. Use the current date from the `currentDate` context or ask the user if unsure.
 - The sign-off goes on the `## MXX — Title` heading line itself, matching the format used for M0 and M1.
 
 ### After making file changes
@@ -22,7 +22,7 @@ This is the Tone Smithy repo: a hybrid (subtractive + FM) standalone software sy
 - Full git workflow: [`docs/working-conventions.md`](docs/working-conventions.md#git-workflow).
 
 ### On which branch
-- **`development` is the default working branch.** Routine work (single-commit fixes, doc updates, planning iterations, conversation logs) commits directly to `development`.
+- **`development` is the default working branch.** Routine work (single-commit fixes, doc updates, planning iterations) commits directly to `development`.
 - **Branch off `development` for substantial work.** Before starting a milestone implementation (M1, M2, …), an experiment that might be thrown away, or any work that will span multiple sessions and could leave `development` in a non-working state in between, run `git checkout -b <name>` first. Merge back to `development` with a regular merge when the work is done. *This rule fires on every new milestone — don't skip it.* Full criteria: [`docs/working-conventions.md#when-to-branch-off-development`](docs/working-conventions.md#when-to-branch-off-development).
 - **Branch naming:** `feat/`, `fix/`, `docs/`, `chore/`, `experiment/`, or `milestone/m<NN>-<short>`. Milestone work uses the `milestone/` prefix.
 - **`main` is only updated at milestone boundaries** via `git merge --no-ff` from `development` (see the milestone workflow in [`docs/working-conventions.md`](docs/working-conventions.md#milestone-completion-‐-merge-development-to-main)).
@@ -45,7 +45,7 @@ Update `README.md` **in the same commit** as any change that:
 - Adds a top-level directory or a new system dependency a builder would need.
 - Changes the licence.
 
-Don't update it for internal refactors, doc-only planning changes, or conversation log entries. Full triggers: [`docs/working-conventions.md#keeping-the-readme-up-to-date`](docs/working-conventions.md#keeping-the-readme-up-to-date).
+Don't update it for internal refactors or doc-only planning changes. Full triggers: [`docs/working-conventions.md#keeping-the-readme-up-to-date`](docs/working-conventions.md#keeping-the-readme-up-to-date).
 
 ### When considering a new feature or change
 - Check [`docs/planning/02-scope/features-v1.md`](docs/planning/02-scope/features-v1.md) and [`docs/planning/02-scope/out-of-scope.md`](docs/planning/02-scope/out-of-scope.md) first. Don't expand scope without updating the plan.
@@ -68,7 +68,6 @@ Don't update it for internal refactors, doc-only planning changes, or conversati
 | The full plan index | [`docs/planning/README.md`](docs/planning/README.md) |
 | How we work in this repo | [`docs/working-conventions.md`](docs/working-conventions.md) |
 | When to update README.md | [`docs/working-conventions.md#keeping-the-readme-up-to-date`](docs/working-conventions.md#keeping-the-readme-up-to-date) |
-| Conversation log format | [`docs/conversations/README.md`](docs/conversations/README.md) |
 | What's still undecided | [`docs/planning/01-vision/open-questions.md`](docs/planning/01-vision/open-questions.md) |
 
 ## Project state at a glance

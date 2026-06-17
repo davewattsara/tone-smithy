@@ -58,4 +58,4 @@ The plan is organised as a set of small, focused markdown documents. It is inten
 ## Related docs (outside the plan)
 
 - [`/CLAUDE.md`](../../CLAUDE.md) — agent-facing instructions, auto-loaded by Claude Code.
-- [`../working-conventions.md`](../working-conventions.md) — git workflow, conversation logging, commit cadence, and reading order for new contributors.
+- [`../working-conventions.md`](../working-conventions.md) — git workflow, commit cadence, and reading order for new contributors.
