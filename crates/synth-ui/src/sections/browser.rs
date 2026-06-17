@@ -134,6 +134,18 @@ impl ToneSmithyApp {
                     .color(theme::FG1)
                     .font(theme::font_body()),
             );
+            if !self.current_preset_description.is_empty() {
+                cols[1].add_space(4.0);
+                cols[1].add(
+                    egui::Label::new(
+                        egui::RichText::new(&self.current_preset_description)
+                            .italics()
+                            .color(theme::FG2)
+                            .font(theme::font_small()),
+                    )
+                    .wrap(),
+                );
+            }
             cols[1].add_space(theme::GROUP_GAP);
             if let Some(dir) = user_presets_dir() {
                 cols[1].label(

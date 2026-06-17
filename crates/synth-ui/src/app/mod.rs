@@ -70,26 +70,6 @@ impl eframe::App for ToneSmithyApp {
                 self.header_bar(ui);
             });
 
-        // Description bar — shown only when the active preset has a description
-        if !self.current_preset_description.is_empty() {
-            egui::TopBottomPanel::top("description_bar").show(ctx, |ui| {
-                ui.add_space(2.0);
-                ui.horizontal(|ui| {
-                    ui.add_space(theme::PANEL_PADDING);
-                    ui.add(
-                        egui::Label::new(
-                            egui::RichText::new(self.current_preset_description.clone())
-                                .italics()
-                                .color(theme::FG2)
-                                .font(theme::font_small()),
-                        )
-                        .wrap(),
-                    );
-                });
-                ui.add_space(2.0);
-            });
-        }
-
         // Error bar — only present when a preset error is active
         if self.preset_error.is_some() {
             egui::TopBottomPanel::top("error_bar").show(ctx, |ui| {
