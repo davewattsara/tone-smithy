@@ -127,6 +127,11 @@ jobs:
   release:
     name: Publish GitHub Release
     needs: build
+    # Run once every build job has finished, even if some failed, so a single
+    # platform's packaging error can't block publishing the others. `!cancelled()`
+    # still skips the job if the run was cancelled. The collect step below fails
+    # only when *no* platform produced a package.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -145,6 +150,12 @@ jobs:
             -name 'tonesmithy-*-macos*.dmg' \
           \) -exec cp {} release/ \;
           cd release
+          # Publish whatever platforms succeeded, but fail loudly if none did
+          # (otherwise we'd publish an empty release).
+          if [ -z "$(ls -A)" ]; then
+            echo "No platform packages were produced — nothing to publish."
+            exit 1
+          fi
           sha256sum * > SHA256SUMS
           echo "Release assets:"
           cat SHA256SUMS

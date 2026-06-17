@@ -199,10 +199,39 @@ fn copy_into(src: &Path, dir: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Cargo's binary directory (`$CARGO_HOME/bin`, else `~/.cargo/bin`). This is
+/// where `cargo install` puts subcommands like `cargo-about`. CI installs the
+/// tool here, but the directory isn't always on the inherited `PATH` (seen on
+/// the macOS runner), so we resolve it explicitly.
+fn cargo_bin_dir() -> Option<PathBuf> {
+    if let Some(home) = std::env::var_os("CARGO_HOME") {
+        return Some(PathBuf::from(home).join("bin"));
+    }
+    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"))?;
+    Some(PathBuf::from(home).join(".cargo").join("bin"))
+}
+
+/// Locate the `cargo-about` subcommand binary: `PATH` first, then Cargo's bin
+/// dir. Returns `None` only when the tool is genuinely not installed.
+fn find_cargo_about() -> Option<PathBuf> {
+    if let Some(p) = which("cargo-about") {
+        return Some(p);
+    }
+    let name = if cfg!(windows) {
+        "cargo-about.exe"
+    } else {
+        "cargo-about"
+    };
+    let candidate = cargo_bin_dir()?.join(name);
+    candidate.is_file().then_some(candidate)
+}
+
 /// Generate `THIRD-PARTY-LICENSES.txt` via `cargo about`, warning (not failing)
-/// when the tool is absent so a dev-sandbox `dist` still completes.
+/// when the tool is absent so a dev-sandbox `dist` still completes. When the
+/// tool *is* installed but `~/.cargo/bin` is missing from `PATH`, that directory
+/// is prepended for the invocation so Cargo can still resolve the subcommand.
 fn third_party_licenses(root: &Path, dest: &Path) -> Result<()> {
-    if which("cargo-about").is_none() {
+    if find_cargo_about().is_none() {
         eprintln!(
             "dist: warning — `cargo about` not found; skipping THIRD-PARTY-LICENSES.txt.\n\
              dist:           install with `cargo install cargo-about` to include it."
@@ -217,12 +246,21 @@ fn third_party_licenses(root: &Path, dest: &Path) -> Result<()> {
         return Ok(());
     }
 
-    let out = run_capture(
-        Command::new("cargo")
-            .current_dir(root)
-            .args(["about", "generate", "about.hbs"]),
-    )
-    .context("running `cargo about generate`")?;
+    let mut cmd = Command::new("cargo");
+    cmd.current_dir(root).args(["about", "generate", "about.hbs"]);
+    // Make sure Cargo can find the `cargo-about` subcommand even when
+    // `~/.cargo/bin` isn't on the inherited PATH.
+    if let Some(bin) = cargo_bin_dir() {
+        let existing = std::env::var_os("PATH").unwrap_or_default();
+        let mut paths: Vec<PathBuf> = std::env::split_paths(&existing).collect();
+        if !paths.contains(&bin) {
+            paths.insert(0, bin);
+            if let Ok(joined) = std::env::join_paths(paths) {
+                cmd.env("PATH", joined);
+            }
+        }
+    }
+    let out = run_capture(&mut cmd).context("running `cargo about generate`")?;
     fs::write(dest, out).with_context(|| format!("writing {}", dest.display()))?;
     println!("dist: wrote {}", dest.display());
     Ok(())
