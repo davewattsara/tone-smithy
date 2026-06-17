@@ -424,7 +424,7 @@ installers; user has tested on at least Windows and signed off.
 
 ---
 
-## M21 — UX polish (1–2 weeks) — v1.2
+## M21 — UX polish (1–2 weeks) — v1.2 — **complete (2026-06-17, tag `m21`)**
 
 > Implementation plan: [`m21-plan.md`](m21-plan.md)
 
