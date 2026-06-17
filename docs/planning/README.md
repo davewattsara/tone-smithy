@@ -6,8 +6,8 @@ The plan is organised as a set of small, focused markdown documents. It is inten
 
 ## Status
 
-- **Stage:** Initial draft. Several decisions are intentionally deferred (see `01-vision/open-questions.md`).
-- **Last updated:** 2026-05-17
+- **Stage:** v1.1.1 shipped (2026-06-17). All v1 and v1.1 milestones complete (M0–M20). See `06-implementation/milestones.md` for the full history.
+- **Last updated:** 2026-06-17
 
 ## Index
 
@@ -59,4 +59,3 @@ The plan is organised as a set of small, focused markdown documents. It is inten
 
 - [`/CLAUDE.md`](../../CLAUDE.md) — agent-facing instructions, auto-loaded by Claude Code.
 - [`../working-conventions.md`](../working-conventions.md) — git workflow, conversation logging, commit cadence, and reading order for new contributors.
-- [`../conversations/README.md`](../conversations/README.md) — conversation log format.

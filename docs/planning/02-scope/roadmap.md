@@ -6,7 +6,7 @@ Indicative versions. The list is intentionally short — large additions should 
 
 Everything in [`features-v1.md`](features-v1.md). Windows-only standalone. Free download.
 
-## v1.1 — Engine completion + cross-platform
+## v1.1 — Engine completion + cross-platform — **shipped (v1.1.0 / v1.1.1, 2026-06-17)**
 
 Restores the engine features deferred from v1 to ship faster (Path B scope trim), plus quick UX
 improvements and platform expansion:

@@ -19,18 +19,17 @@ The free/open synth landscape is dominated by single-paradigm instruments (Surge
 
 The project is also a vehicle for high-quality, hand-rolled DSP — the goal is for the synth to have its own audible character, not to be a wrapper around generic building blocks.
 
-## Shape of the v1 product
+## Shape of the v1/v1.1 product
 
-- **Platform:** Windows 10/11 (64-bit) only.
+- **Platform:** Windows 10/11, Linux, and macOS (Apple Silicon). All three platforms added by v1.1.
 - **Distribution:** Free download. Freemium model is permitted (e.g. paid expansion preset packs) but no paywall on the core instrument.
 - **Format:** Standalone executable. Not a plugin in v1 (CLAP/VST3 are roadmap items).
-- **Engine:** Hybrid subtractive + FM, 32-voice polyphonic.
+- **Engine:** Hybrid subtractive + FM, 32-voice polyphonic. Second filter, 24 dB/oct option, Env3, 16-slot matrix, and step sequencer added in v1.1.
 - **Workflow:** Single window, modern flat UI, preset browser, modulation matrix, arpeggiator/sequencer, built-in effects chain.
 - **Input:** External MIDI hardware, on-screen virtual keyboard, computer keyboard.
 
 ## Non-goals (v1)
 
-- Cross-platform (macOS, Linux) — deferred to v2.
 - Plugin formats — deferred to v2.
 - Sample/wavetable/granular synthesis — these are different products.
 - Cloud / accounts / telemetry — none.

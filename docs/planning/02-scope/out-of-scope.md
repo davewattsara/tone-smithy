@@ -4,7 +4,7 @@ Explicit non-features. Each is listed with a short rationale so we do not revisi
 
 ## Platforms
 
-- **macOS / Linux builds** — Rust cross-compilation is feasible, but each platform multiplies QA effort, audio-driver edge cases, and installer work. Single-platform focus lets v1 ship.
+- **macOS / Linux builds** — Out of scope for v1.0 only; delivered in v1.1 (M19). Linux tarball and macOS DMG ship alongside the Windows installer from v1.1.0.
 - **Plugin formats (VST3, CLAP, AU, AAX)** — Standalone gets the engine to users fastest. CLAP is the planned first plugin target in v2.
 
 ## Synthesis engines

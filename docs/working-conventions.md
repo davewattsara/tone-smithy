@@ -144,7 +144,7 @@ If a critical bug is found in a milestone-tagged `main`:
 Every exchange between the user and Claude must be appended to today's conversation log file.
 
 - **Where:** `docs/conversations/YYYY-MM-DD.md`, one file per local-date day.
-- **Format spec:** [`conversations/README.md`](conversations/README.md). Read this before writing entries — the format is specific (visual distinction for the user, heading-level shifts for Claude's content, commit-hash cross-references).
+- **Format:** H2 for user turns, H3 for Claude turns; include commit hashes when referencing work done in the same session. Keep entries concise.
 - **When:** after each Claude response, before reporting completion.
 - **Commit cadence:** the log update is a **separate commit** from work commits, and comes **after** them so the log can reference the work commit hashes. Subject style: `Log conversation: <short description>`.
 
@@ -215,6 +215,5 @@ Don't add screenshots, badges, or marketing copy until v1.0 is actually shippabl
 2. [`planning/01-vision/overview.md`](planning/01-vision/overview.md) — what we're building.
 3. [`planning/README.md`](planning/README.md) — the plan index.
 4. This file (`working-conventions.md`) — how we work.
-5. [`conversations/README.md`](conversations/README.md) — how to log exchanges.
 
 After that, dip into specific planning docs as the task requires.
