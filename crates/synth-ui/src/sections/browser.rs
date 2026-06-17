@@ -139,7 +139,6 @@ impl ToneSmithyApp {
                 cols[1].add(
                     egui::Label::new(
                         egui::RichText::new(&self.current_preset_description)
-                            .italics()
                             .color(theme::FG2)
                             .font(theme::font_small()),
                     )
