@@ -6,6 +6,23 @@ All notable changes to Tone Smithy are documented here. The format is based on
 
 ## [Unreleased]
 
+## [1.1.1] — 2026-06-17
+
+Packaging-only patch. No changes to the synth itself.
+
+### Fixed
+
+- **macOS third-party licences** — the macOS `.dmg` now ships the full
+  `THIRD-PARTY-LICENSES.txt` instead of a placeholder. `xtask` resolves
+  `cargo-about` via Cargo's bin directory when it isn't on `PATH` (as happened
+  on the macOS CI runner).
+
+### Changed
+
+- **Release workflow** — publishing is now resilient to a single platform's
+  build failing; the platforms that succeeded are still released, instead of the
+  whole release being skipped.
+
 ## [1.1.0] — 2026-06-16
 
 The second release. Expands the engine, adds a step sequencer, ships on Linux and
