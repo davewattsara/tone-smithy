@@ -75,6 +75,7 @@ impl ToneSmithyApp {
             if ui
                 .add(
                     Knob::new(&mut self.filter_resonance, 0.0..=1.0, "Res")
+                        .full_name("Resonance")
                         .default_value(0.0)
                         .mod_offset(md.resonance)
                         .param_key("filter_resonance")
@@ -184,6 +185,7 @@ impl ToneSmithyApp {
                 if ui
                     .add(
                         Knob::new(&mut self.filter2_resonance, 0.0..=1.0, "Res")
+                            .full_name("Resonance")
                             .default_value(0.0)
                             .mod_offset(md.filter2_resonance)
                             .param_key("filter2_resonance")

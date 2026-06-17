@@ -91,6 +91,7 @@ impl ToneSmithyApp {
                     if ui
                         .add(
                             Knob::new(&mut self.mod_slot_amount[i], -range..=range, "")
+                                .full_name("Amount")
                                 .default_value(0.0)
                                 .param_key(&mod_amount_key)
                                 .format(move |v| {
