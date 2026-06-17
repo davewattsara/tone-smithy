@@ -30,12 +30,6 @@ This is the Tone Smithy repo: a hybrid (subtractive + FM) standalone software sy
 - Flag any branch switch to the user explicitly — branch state is shared.
 - **Don't switch branches with uncommitted changes.** Commit on the current branch first.
 
-### After every Claude response
-- Append the exchange to today's log: `docs/conversations/YYYY-MM-DD.md`.
-- The Claude turn heading must identify the model: `### [HH:MM:SS] Claude (Sonnet 4.6)` — use your current model name so the log shows which agent wrote each response.
-- Format spec: [`docs/conversations/README.md`](docs/conversations/README.md).
-- Commit the log update as a **separate commit** after work commits, with subject `Log conversation: ...`.
-
 ### When writing Rust code (M0 onward)
 - Follow [`docs/planning/04-tech-stack/code-style.md`](docs/planning/04-tech-stack/code-style.md): doc comments on every public item, audio-domain unit suffixes (`_hz`, `_cents`, etc.), prescribed file structure.
 - **`mod.rs` files must only declare submodules and re-export — no implementation code.** Put functions and types in named `.rs` files.
