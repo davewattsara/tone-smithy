@@ -46,12 +46,13 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.amp_attack_secs, ENV_MIN_SECS..=ENV_ATTACK_MAX_SECS, "A")
                         .default_value(0.010)
+                        .full_name("Attack")
                         .param_key("amp_attack_secs")
                         .format(secs_format),
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::AmpAttackSecs,
                     value: self.amp_attack_secs,
                 });
@@ -60,12 +61,13 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.amp_decay_secs, ENV_MIN_SECS..=ENV_DECAY_MAX_SECS, "D")
                         .default_value(0.200)
+                        .full_name("Decay")
                         .param_key("amp_decay_secs")
                         .format(secs_format),
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::AmpDecaySecs,
                     value: self.amp_decay_secs,
                 });
@@ -74,12 +76,13 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.amp_sustain_level, 0.0..=1.0, "S")
                         .default_value(0.8)
+                        .full_name("Sustain")
                         .param_key("amp_sustain_level")
                         .format(|v| format!("{:.2}", v)),
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::AmpSustainLevel,
                     value: self.amp_sustain_level,
                 });
@@ -88,12 +91,13 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.amp_release_secs, ENV_MIN_SECS..=ENV_RELEASE_MAX_SECS, "R")
                         .default_value(0.200)
+                        .full_name("Release")
                         .param_key("amp_release_secs")
                         .format(secs_format),
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::AmpReleaseSecs,
                     value: self.amp_release_secs,
                 });
@@ -107,12 +111,13 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.env2_attack_secs, ENV_MIN_SECS..=ENV_ATTACK_MAX_SECS, "A")
                         .default_value(0.010)
+                        .full_name("Attack")
                         .param_key("env2_attack_secs")
                         .format(secs_format),
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::Env2AttackSecs,
                     value: self.env2_attack_secs,
                 });
@@ -121,12 +126,13 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.env2_decay_secs, ENV_MIN_SECS..=ENV_DECAY_MAX_SECS, "D")
                         .default_value(0.200)
+                        .full_name("Decay")
                         .param_key("env2_decay_secs")
                         .format(secs_format),
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::Env2DecaySecs,
                     value: self.env2_decay_secs,
                 });
@@ -135,12 +141,13 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.env2_sustain_level, 0.0..=1.0, "S")
                         .default_value(0.8)
+                        .full_name("Sustain")
                         .param_key("env2_sustain_level")
                         .format(|v| format!("{:.2}", v)),
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::Env2SustainLevel,
                     value: self.env2_sustain_level,
                 });
@@ -149,12 +156,13 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.env2_release_secs, ENV_MIN_SECS..=ENV_RELEASE_MAX_SECS, "R")
                         .default_value(0.200)
+                        .full_name("Release")
                         .param_key("env2_release_secs")
                         .format(secs_format),
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::Env2ReleaseSecs,
                     value: self.env2_release_secs,
                 });
@@ -168,12 +176,13 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.env2_attack_curve, -ENV2_CURVE_RANGE..=ENV2_CURVE_RANGE, "A")
                         .default_value(0.0)
+                        .full_name("Attack Curve")
                         .param_key("env2_attack_curve")
                         .format(|v| format!("{:+.2}", v)),
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::Env2AttackCurve,
                     value: self.env2_attack_curve,
                 });
@@ -182,12 +191,13 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.env2_decay_curve, -ENV2_CURVE_RANGE..=ENV2_CURVE_RANGE, "D")
                         .default_value(0.0)
+                        .full_name("Decay Curve")
                         .param_key("env2_decay_curve")
                         .format(|v| format!("{:+.2}", v)),
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::Env2DecayCurve,
                     value: self.env2_decay_curve,
                 });
@@ -196,12 +206,13 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.env2_release_curve, -ENV2_CURVE_RANGE..=ENV2_CURVE_RANGE, "R")
                         .default_value(0.0)
+                        .full_name("Release Curve")
                         .param_key("env2_release_curve")
                         .format(|v| format!("{:+.2}", v)),
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::Env2ReleaseCurve,
                     value: self.env2_release_curve,
                 });
@@ -218,12 +229,13 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.env3_attack_secs, ENV_MIN_SECS..=ENV_ATTACK_MAX_SECS, "A")
                         .default_value(0.010)
+                        .full_name("Attack")
                         .param_key("env3_attack_secs")
                         .format(secs_format),
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::Env3AttackSecs,
                     value: self.env3_attack_secs,
                 });
@@ -232,12 +244,13 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.env3_decay_secs, ENV_MIN_SECS..=ENV_DECAY_MAX_SECS, "D")
                         .default_value(0.200)
+                        .full_name("Decay")
                         .param_key("env3_decay_secs")
                         .format(secs_format),
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::Env3DecaySecs,
                     value: self.env3_decay_secs,
                 });
@@ -246,12 +259,13 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.env3_sustain_level, 0.0..=1.0, "S")
                         .default_value(0.8)
+                        .full_name("Sustain")
                         .param_key("env3_sustain_level")
                         .format(|v| format!("{:.2}", v)),
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::Env3SustainLevel,
                     value: self.env3_sustain_level,
                 });
@@ -260,12 +274,13 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.env3_release_secs, ENV_MIN_SECS..=ENV_RELEASE_MAX_SECS, "R")
                         .default_value(0.200)
+                        .full_name("Release")
                         .param_key("env3_release_secs")
                         .format(secs_format),
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::Env3ReleaseSecs,
                     value: self.env3_release_secs,
                 });
@@ -279,12 +294,13 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.env3_attack_curve, -ENV2_CURVE_RANGE..=ENV2_CURVE_RANGE, "A")
                         .default_value(0.0)
+                        .full_name("Attack Curve")
                         .param_key("env3_attack_curve")
                         .format(|v| format!("{:+.2}", v)),
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::Env3AttackCurve,
                     value: self.env3_attack_curve,
                 });
@@ -293,12 +309,13 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.env3_decay_curve, -ENV2_CURVE_RANGE..=ENV2_CURVE_RANGE, "D")
                         .default_value(0.0)
+                        .full_name("Decay Curve")
                         .param_key("env3_decay_curve")
                         .format(|v| format!("{:+.2}", v)),
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::Env3DecayCurve,
                     value: self.env3_decay_curve,
                 });
@@ -307,12 +324,13 @@ impl ToneSmithyApp {
                 .add(
                     Knob::new(&mut self.env3_release_curve, -ENV2_CURVE_RANGE..=ENV2_CURVE_RANGE, "R")
                         .default_value(0.0)
+                        .full_name("Release Curve")
                         .param_key("env3_release_curve")
                         .format(|v| format!("{:+.2}", v)),
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::Env3ReleaseCurve,
                     value: self.env3_release_curve,
                 });
@@ -379,6 +397,7 @@ impl ToneSmithyApp {
             snapshot.lfo2_out
         };
         let events = self.events.clone();
+        let mut lfo_dirty = false;
 
         const SHAPE_LABELS: [&str; 7] = ["Sin", "Tri", "Saw+", "Saw-", "Sq", "S&H", "Rnd"];
         ui.label(egui::RichText::new("Shape").color(theme::FG1).font(theme::font_small()));
@@ -390,6 +409,7 @@ impl ToneSmithyApp {
                         id: shape_id,
                         value: i as f32,
                     });
+                    lfo_dirty = true;
                 }
             }
         });
@@ -412,15 +432,21 @@ impl ToneSmithyApp {
                     id: rate_id,
                     value: rate_hz,
                 });
+                lfo_dirty = true;
             }
             // Reset has no meaning in global mode (no per-note phase to reset).
             ui.add_enabled_ui(!global, |ui| {
-                if ui.selectable_label(reset_on_note_on, "Reset").clicked() {
+                if ui
+                    .selectable_label(reset_on_note_on, "Reset")
+                    .on_hover_text("Restart LFO phase on every note-on.")
+                    .clicked()
+                {
                     reset_on_note_on = !reset_on_note_on;
                     events.send(EngineEvent::ParameterChange {
                         id: reset_id,
                         value: if reset_on_note_on { 1.0 } else { 0.0 },
                     });
+                    lfo_dirty = true;
                 }
             });
             if ui
@@ -433,17 +459,23 @@ impl ToneSmithyApp {
                     id: global_id,
                     value: if global { 1.0 } else { 0.0 },
                 });
+                lfo_dirty = true;
             }
         });
 
         ui.add_space(4.0);
         ui.horizontal(|ui| {
-            if ui.selectable_label(sync_enabled, "Sync").clicked() {
+            if ui
+                .selectable_label(sync_enabled, "Sync")
+                .on_hover_text("Lock LFO rate to the Master BPM grid instead of running free.")
+                .clicked()
+            {
                 sync_enabled = !sync_enabled;
                 events.send(EngineEvent::ParameterChange {
                     id: sync_id,
                     value: if sync_enabled { 1.0 } else { 0.0 },
                 });
+                lfo_dirty = true;
             }
             if sync_enabled {
                 const DIV_LABELS: [&str; 8] = ["1/32", "1/16", "1/8", "1/4", "1/2", "1", "2", "4"];
@@ -454,10 +486,14 @@ impl ToneSmithyApp {
                             id: div_id,
                             value: i as f32,
                         });
+                        lfo_dirty = true;
                     }
                 }
             }
         });
+        if lfo_dirty {
+            self.is_dirty = true;
+        }
 
         ui.add_space(4.0);
         ui.label(egui::RichText::new(format!("Out: {:.3}", live_out)).color(theme::FG2));

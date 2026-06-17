@@ -14,8 +14,16 @@ impl ToneSmithyApp {
         for slot_idx in 0..2usize {
             let mode_tag = if slot_idx == 0 { "Sub" } else { "FM" };
             let slot_label = format!("Slot {} ({})", slot_idx + 1, mode_tag);
+            // On the frame immediately after a preset load, force the open
+            // state based on slot level so zero-level slots start collapsed.
+            let forced_open = if self.just_loaded_preset {
+                Some(self.slot_foldout_open[slot_idx])
+            } else {
+                None
+            };
             egui::CollapsingHeader::new(slot_label)
                 .id_salt(format!("fm_slot_{slot_idx}"))
+                .open(forced_open)
                 .show(ui, |ui| {
                     let slot_level_key = ["slot_level_0", "slot_level_1"][slot_idx];
                     let slot_pan_key = ["slot_pan_0", "slot_pan_1"][slot_idx];
@@ -29,7 +37,7 @@ impl ToneSmithyApp {
                             )
                             .changed()
                         {
-                            self.events.send(EngineEvent::ParameterChange {
+                            self.emit_change(EngineEvent::ParameterChange {
                                 id: ParamId::SlotLevel(slot_idx as u8),
                                 value: self.slot_level[slot_idx],
                             });
@@ -51,7 +59,7 @@ impl ToneSmithyApp {
                             )
                             .changed()
                         {
-                            self.events.send(EngineEvent::ParameterChange {
+                            self.emit_change(EngineEvent::ParameterChange {
                                 id: ParamId::SlotPan(slot_idx as u8),
                                 value: self.slot_pan[slot_idx],
                             });
@@ -83,7 +91,7 @@ impl ToneSmithyApp {
                                             .selectable_value(&mut self.fm_algorithm[slot_idx], idx as u8, label)
                                             .changed()
                                         {
-                                            self.events.send(EngineEvent::ParameterChange {
+                                            self.emit_change(EngineEvent::ParameterChange {
                                                 id: ParamId::FmAlgorithm(slot_idx as u8),
                                                 value: idx as f32,
                                             });
@@ -229,7 +237,7 @@ impl ToneSmithyApp {
                                                 ui.add(egui::DragValue::new(&mut ratio_int).range(1..=15).speed(0.1));
                                             if resp_int.changed() {
                                                 self.fm_op_ratio_integer[slot_idx][op] = ratio_int as u8;
-                                                self.events.send(EngineEvent::ParameterChange {
+                                                self.emit_change(EngineEvent::ParameterChange {
                                                     id: ParamId::FmOpRatioInteger(packed),
                                                     value: ratio_int as f32,
                                                 });
@@ -249,7 +257,7 @@ impl ToneSmithyApp {
                                                     .suffix(" ct"),
                                             );
                                             if resp_fine.changed() {
-                                                self.events.send(EngineEvent::ParameterChange {
+                                                self.emit_change(EngineEvent::ParameterChange {
                                                     id: ParamId::FmOpRatioFine(packed),
                                                     value: self.fm_op_ratio_fine[slot_idx][op],
                                                 });
@@ -271,7 +279,7 @@ impl ToneSmithyApp {
                                                 )
                                                 .changed()
                                             {
-                                                self.events.send(EngineEvent::ParameterChange {
+                                                self.emit_change(EngineEvent::ParameterChange {
                                                     id: ParamId::FmOpLevel(packed),
                                                     value: self.fm_op_level[slot_idx][op],
                                                 });
@@ -290,7 +298,7 @@ impl ToneSmithyApp {
                                                 )
                                                 .changed()
                                             {
-                                                self.events.send(EngineEvent::ParameterChange {
+                                                self.emit_change(EngineEvent::ParameterChange {
                                                     id: ParamId::FmOpAttackSecs(packed),
                                                     value: self.fm_op_attack_secs[slot_idx][op],
                                                 });
@@ -308,7 +316,7 @@ impl ToneSmithyApp {
                                                 )
                                                 .changed()
                                             {
-                                                self.events.send(EngineEvent::ParameterChange {
+                                                self.emit_change(EngineEvent::ParameterChange {
                                                     id: ParamId::FmOpDecaySecs(packed),
                                                     value: self.fm_op_decay_secs[slot_idx][op],
                                                 });
@@ -326,7 +334,7 @@ impl ToneSmithyApp {
                                                 )
                                                 .changed()
                                             {
-                                                self.events.send(EngineEvent::ParameterChange {
+                                                self.emit_change(EngineEvent::ParameterChange {
                                                     id: ParamId::FmOpSustainLevel(packed),
                                                     value: self.fm_op_sustain_level[slot_idx][op],
                                                 });
@@ -344,7 +352,7 @@ impl ToneSmithyApp {
                                                 )
                                                 .changed()
                                             {
-                                                self.events.send(EngineEvent::ParameterChange {
+                                                self.emit_change(EngineEvent::ParameterChange {
                                                     id: ParamId::FmOpReleaseSecs(packed),
                                                     value: self.fm_op_release_secs[slot_idx][op],
                                                 });
@@ -364,7 +372,7 @@ impl ToneSmithyApp {
                                                     )
                                                     .changed()
                                                 {
-                                                    self.events.send(EngineEvent::ParameterChange {
+                                                    self.emit_change(EngineEvent::ParameterChange {
                                                         id: ParamId::FmOpFeedback(packed),
                                                         value: self.fm_op_feedback[slot_idx][op],
                                                     });

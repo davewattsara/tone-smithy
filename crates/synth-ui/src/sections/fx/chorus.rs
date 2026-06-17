@@ -11,7 +11,7 @@ impl ToneSmithyApp {
             .add(Toggle::new(&mut self.fx_chorus_enabled, "Chorus").param_key("fx_chorus_enabled"))
             .changed()
         {
-            self.events.send(EngineEvent::ParameterChange {
+            self.emit_change(EngineEvent::ParameterChange {
                 id: ParamId::FxChorusEnabled,
                 value: if self.fx_chorus_enabled { 1.0 } else { 0.0 },
             });
@@ -26,7 +26,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::FxChorusRateHz,
                     value: self.fx_chorus_rate_hz,
                 });
@@ -40,7 +40,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::FxChorusDepthMs,
                     value: self.fx_chorus_depth_ms,
                 });
@@ -54,7 +54,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::FxChorusMix,
                     value: self.fx_chorus_mix,
                 });
@@ -68,7 +68,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::FxChorusSpread,
                     value: self.fx_chorus_spread,
                 });

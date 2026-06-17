@@ -12,7 +12,7 @@ impl ToneSmithyApp {
             .add(Toggle::new(&mut self.fx_eq_enabled, "EQ").param_key("fx_eq_enabled"))
             .changed()
         {
-            self.events.send(EngineEvent::ParameterChange {
+            self.emit_change(EngineEvent::ParameterChange {
                 id: ParamId::FxEqEnabled,
                 value: if self.fx_eq_enabled { 1.0 } else { 0.0 },
             });
@@ -28,7 +28,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::FxEqLowGainDb,
                     value: self.fx_eq_low_gain_db,
                 });
@@ -42,7 +42,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::FxEqLowFreqHz,
                     value: self.fx_eq_low_freq_hz,
                 });
@@ -57,7 +57,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::FxEqMidGainDb,
                     value: self.fx_eq_mid_gain_db,
                 });
@@ -71,7 +71,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::FxEqMidFreqHz,
                     value: self.fx_eq_mid_freq_hz,
                 });
@@ -85,7 +85,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::FxEqMidQ,
                     value: self.fx_eq_mid_q,
                 });
@@ -100,7 +100,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::FxEqHighGainDb,
                     value: self.fx_eq_high_gain_db,
                 });
@@ -114,7 +114,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::FxEqHighFreqHz,
                     value: self.fx_eq_high_freq_hz,
                 });

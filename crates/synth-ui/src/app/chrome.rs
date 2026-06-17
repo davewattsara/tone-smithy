@@ -3,6 +3,11 @@ use std::sync::atomic::Ordering;
 use eframe::egui;
 use synth_engine::{EngineEvent, ParamSnapshot};
 
+/// Opens the user manual in the system default browser.
+fn open_manual() {
+    open::that("https://github.com/davewattsara/tone-smithy/blob/main/docs/user-manual.md").ok();
+}
+
 use crate::theme;
 
 use super::state::Tab;
@@ -46,6 +51,16 @@ impl ToneSmithyApp {
                     .color(theme::FG2)
                     .font(theme::font_micro()),
             );
+
+            // Help menu — right-aligned
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.menu_button("Help", |ui| {
+                    if ui.button("User manual").clicked() {
+                        open_manual();
+                        ui.close_menu();
+                    }
+                });
+            });
         });
     }
 

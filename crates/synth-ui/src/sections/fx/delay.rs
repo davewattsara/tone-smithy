@@ -11,7 +11,7 @@ impl ToneSmithyApp {
             .add(Toggle::new(&mut self.fx_delay_enabled, "Delay").param_key("fx_delay_enabled"))
             .changed()
         {
-            self.events.send(EngineEvent::ParameterChange {
+            self.emit_change(EngineEvent::ParameterChange {
                 id: ParamId::FxDelayEnabled,
                 value: if self.fx_delay_enabled { 1.0 } else { 0.0 },
             });
@@ -26,7 +26,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::FxDelayTimeSecs,
                     value: self.fx_delay_time_secs,
                 });
@@ -40,7 +40,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::FxDelayFeedback,
                     value: self.fx_delay_feedback,
                 });
@@ -54,7 +54,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::FxDelayMix,
                     value: self.fx_delay_mix,
                 });
@@ -68,7 +68,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::FxDelayLowcutHz,
                     value: self.fx_delay_lowcut_hz,
                 });
@@ -77,7 +77,7 @@ impl ToneSmithyApp {
                 .add(Toggle::new(&mut self.fx_delay_ping_pong, "Ping-pong").param_key("fx_delay_ping_pong"))
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::FxDelayPingPong,
                     value: if self.fx_delay_ping_pong { 1.0 } else { 0.0 },
                 });

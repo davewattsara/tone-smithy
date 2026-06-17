@@ -11,7 +11,7 @@ impl ToneSmithyApp {
             .add(Toggle::new(&mut self.fx_reverb_enabled, "Reverb").param_key("fx_reverb_enabled"))
             .changed()
         {
-            self.events.send(EngineEvent::ParameterChange {
+            self.emit_change(EngineEvent::ParameterChange {
                 id: ParamId::FxReverbEnabled,
                 value: if self.fx_reverb_enabled { 1.0 } else { 0.0 },
             });
@@ -26,7 +26,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::FxReverbPredelayMs,
                     value: self.fx_reverb_predelay_ms,
                 });
@@ -40,7 +40,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::FxReverbDecaySecs,
                     value: self.fx_reverb_decay_secs,
                 });
@@ -54,7 +54,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::FxReverbSize,
                     value: self.fx_reverb_size,
                 });
@@ -68,7 +68,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::FxReverbDamping,
                     value: self.fx_reverb_damping,
                 });
@@ -82,7 +82,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::FxReverbMix,
                     value: self.fx_reverb_mix,
                 });

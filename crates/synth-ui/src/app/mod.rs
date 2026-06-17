@@ -21,8 +21,9 @@ pub(crate) use utils::secs_format;
 pub(crate) use state::{
     BPM_MAX, BPM_MIN, CUTOFF_MAX_HZ, CUTOFF_MIN_HZ, ENV_ATTACK_MAX_SECS, ENV_DECAY_MAX_SECS, ENV_MIN_SECS,
     ENV_RELEASE_MAX_SECS, ENV2_CURVE_RANGE, FM_OP_ENV_MAX_SECS, FM_OP_ENV_MIN_SECS, FM_RATIO_FINE_MAX, LFO_RATE_MAX_HZ,
-    LFO_RATE_MIN_HZ, MOD_AMOUNT_RANGES, MOD_DEST_LABELS, MOD_SOURCE_LABELS, MOD_SOURCE_ORDER, OSC_DETUNE_MAX_CENTS,
-    OSC_LEVEL_MAX, PITCH_OFFSET_RANGE, UNISON_DETUNE_MAX_CENTS, UNISON_VOICES_MAX,
+    LFO_RATE_MIN_HZ, MOD_AMOUNT_RANGES, MOD_DEST_LABELS, MOD_DEST_TOOLTIPS, MOD_SOURCE_LABELS, MOD_SOURCE_ORDER,
+    MOD_SOURCE_TOOLTIPS, OSC_DETUNE_MAX_CENTS, OSC_LEVEL_MAX, PITCH_OFFSET_RANGE, UNISON_DETUNE_MAX_CENTS,
+    UNISON_VOICES_MAX,
 };
 
 use eframe::egui;
@@ -41,6 +42,12 @@ impl eframe::App for ToneSmithyApp {
             while self.file_watch_rx.try_recv().is_ok() {}
         }
         let snapshot = load_snapshot(&self.snapshot_slot);
+
+        // ── Quit intercept ───────────────────────────────────────────────────
+        if ctx.input(|i| i.viewport().close_requested()) && self.is_dirty {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            self.pending_quit = true;
+        }
 
         // Footer — must be added before the central panel
         egui::TopBottomPanel::bottom("footer")
@@ -62,6 +69,26 @@ impl eframe::App for ToneSmithyApp {
             .show(ctx, |ui| {
                 self.header_bar(ui);
             });
+
+        // Description bar — shown only when the active preset has a description
+        if !self.current_preset_description.is_empty() {
+            egui::TopBottomPanel::top("description_bar").show(ctx, |ui| {
+                ui.add_space(2.0);
+                ui.horizontal(|ui| {
+                    ui.add_space(theme::PANEL_PADDING);
+                    ui.add(
+                        egui::Label::new(
+                            egui::RichText::new(self.current_preset_description.clone())
+                                .italics()
+                                .color(theme::FG2)
+                                .font(theme::font_small()),
+                        )
+                        .wrap(),
+                    );
+                });
+                ui.add_space(2.0);
+            });
+        }
 
         // Error bar — only present when a preset error is active
         if self.preset_error.is_some() {
@@ -111,6 +138,94 @@ impl eframe::App for ToneSmithyApp {
             });
         });
 
+        // ── Unsaved-changes modals ───────────────────────────────────────────
+        self.show_unsaved_modals(ctx);
+
+        // One-frame foldout override is done; let CollapsingHeader take over.
+        self.just_loaded_preset = false;
+
         ctx.request_repaint_after(std::time::Duration::from_millis(33));
+    }
+}
+
+impl ToneSmithyApp {
+    fn show_unsaved_modals(&mut self, ctx: &egui::Context) {
+        // Pending load: user clicked a preset while the patch was dirty.
+        if self.pending_load.is_some() {
+            let mut do_save = false;
+            let mut do_discard = false;
+            let mut do_cancel = false;
+            egui::Window::new("Unsaved changes")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(ctx, |ui| {
+                    ui.label("You have unsaved changes. What would you like to do?");
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        if ui.button("Save").clicked() {
+                            do_save = true;
+                        }
+                        if ui.button("Discard").clicked() {
+                            do_discard = true;
+                        }
+                        if ui.button("Cancel").clicked() {
+                            do_cancel = true;
+                        }
+                    });
+                });
+            if do_save {
+                self.save_preset();
+                let pending = self.pending_load.take();
+                self.execute_pending_load(pending);
+            } else if do_discard {
+                let pending = self.pending_load.take();
+                self.execute_pending_load(pending);
+            } else if do_cancel {
+                self.pending_load = None;
+            }
+        }
+
+        // Pending quit: user clicked the window close button while dirty.
+        if self.pending_quit {
+            let mut do_save = false;
+            let mut do_discard = false;
+            let mut do_cancel = false;
+            egui::Window::new("Unsaved changes")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(ctx, |ui| {
+                    ui.label("You have unsaved changes. Quit anyway?");
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        if ui.button("Save and quit").clicked() {
+                            do_save = true;
+                        }
+                        if ui.button("Discard and quit").clicked() {
+                            do_discard = true;
+                        }
+                        if ui.button("Cancel").clicked() {
+                            do_cancel = true;
+                        }
+                    });
+                });
+            if do_save {
+                self.save_preset();
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            } else if do_discard {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            } else if do_cancel {
+                self.pending_quit = false;
+            }
+        }
+    }
+
+    fn execute_pending_load(&mut self, pending: Option<state::PendingLoad>) {
+        match pending {
+            Some(state::PendingLoad::Factory(name)) => self.load_factory_preset(&name),
+            Some(state::PendingLoad::File(path)) => self.load_file_preset(&path),
+            None => {}
+        }
     }
 }

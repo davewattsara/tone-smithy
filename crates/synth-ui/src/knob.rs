@@ -43,6 +43,8 @@ pub struct Knob<'a> {
     value: &'a mut f32,
     range: RangeInclusive<f32>,
     label: &'a str,
+    /// Longer name shown in the hover tooltip instead of `label` (e.g. `"Attack"` for `"A"`).
+    full_name: Option<&'a str>,
     /// Value restored on double-click or context-menu Reset.
     default_value: Option<f32>,
     /// Custom format function for tooltip and value readout.
@@ -62,6 +64,7 @@ impl<'a> Knob<'a> {
             value,
             range,
             label,
+            full_name: None,
             default_value: None,
             format: None,
             mod_offset: None,
@@ -88,6 +91,14 @@ impl<'a> Knob<'a> {
     #[must_use]
     pub fn format(mut self, f: impl Fn(f32) -> String + 'a) -> Self {
         self.format = Some(Box::new(f));
+        self
+    }
+
+    /// Overrides the tooltip label with a longer name (e.g. `"Attack"` for a knob
+    /// labelled `"A"`). The formatted value is always appended.
+    #[must_use]
+    pub fn full_name(mut self, name: &'a str) -> Self {
+        self.full_name = Some(name);
         self
     }
 
@@ -194,12 +205,14 @@ impl egui::Widget for Knob<'_> {
             }
         }
 
-        // Tooltip: label + formatted value, shown while hovered or dragging.
+        // Tooltip: name + formatted value, shown while hovered or dragging.
+        // full_name overrides the (possibly abbreviated) label in the tooltip.
         if response.hovered() || response.dragged() {
-            let tooltip = if self.label.is_empty() {
+            let name = self.full_name.unwrap_or(self.label);
+            let tooltip = if name.is_empty() {
                 value_text.clone()
             } else {
-                format!("{}: {}", self.label, value_text)
+                format!("{}: {}", name, value_text)
             };
             response = response.on_hover_text(tooltip);
         }

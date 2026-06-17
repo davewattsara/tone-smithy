@@ -78,6 +78,35 @@ pub(crate) const MOD_AMOUNT_RANGES: &[f32] = &[
     1.0,      // Osc3Pan
 ];
 
+pub(crate) const MOD_SOURCE_TOOLTIPS: &[&str] = &[
+    "No modulation.",
+    "LFO 1 output (-1 to +1).",
+    "LFO 2 output (-1 to +1).",
+    "Mod envelope 2 output (0 to 1).",
+    "Amplitude envelope output (0 to 1). Follows the note's volume shape.",
+    "MIDI note velocity (0 to 1). Higher velocity = louder note-on.",
+    "Key tracking — 0 at C-1, +1 at G9. Useful for filter opening with pitch.",
+    "MIDI mod wheel / CC 1 (0 to 1).",
+    "MIDI channel aftertouch (0 to 1).",
+    "MIDI pitch bend (-1 to +1).",
+    "Mod envelope 3 output (0 to 1).",
+    "Step sequencer mod lane 1 — current step CV (-1 to +1).",
+];
+pub(crate) const MOD_DEST_TOOLTIPS: &[&str] = &[
+    "Filter 1 cutoff frequency (Hz).",
+    "Filter 1 resonance (0 to 1).",
+    "Global pitch offset (semitones).",
+    "Master output level (0 to 1).",
+    "OSC 1 detune (cents).",
+    "OSC 1 stereo pan (-1 = left, +1 = right).",
+    "Filter 2 cutoff frequency (Hz).",
+    "Filter 2 resonance (0 to 1).",
+    "OSC 2 detune (cents).",
+    "OSC 3 detune (cents).",
+    "OSC 2 stereo pan (-1 = left, +1 = right).",
+    "OSC 3 stereo pan (-1 = left, +1 = right).",
+];
+
 // ── Tab enum ──────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -108,6 +137,15 @@ impl Tab {
         (Tab::Presets, "Presets"),
         (Tab::Settings, "Settings"),
     ];
+}
+
+// ── Pending load ─────────────────────────────────────────────────────────────
+
+/// A preset load that was deferred because the patch was dirty.
+#[derive(Debug, Clone)]
+pub(crate) enum PendingLoad {
+    Factory(String),
+    File(std::path::PathBuf),
 }
 
 // ── Application struct ────────────────────────────────────────────────────────
@@ -294,6 +332,24 @@ pub struct ToneSmithyApp {
     /// Deferred actions from browser row rendering (load/delete/save-as).
     pub(crate) load_actions: Vec<LoadAction>,
 
+    // ── Dirty flag + unsaved-changes dialog (M21) ────────────────────────────
+    /// True whenever any parameter has changed since the last preset load or save.
+    pub(crate) is_dirty: bool,
+    /// Set when the user clicks close while dirty; cleared by Save/Discard/Cancel.
+    pub(crate) pending_quit: bool,
+    /// Preset load deferred because `is_dirty` was true at the time of the click.
+    pub(crate) pending_load: Option<PendingLoad>,
+
+    // ── Slot foldout (M21) ───────────────────────────────────────────────────
+    /// Desired open state for each slot foldout; applied for one frame after load.
+    pub(crate) slot_foldout_open: [bool; 2],
+    /// True on the frame immediately after a preset loads; cleared in `update()`.
+    pub(crate) just_loaded_preset: bool,
+
+    // ── Preset description (M21) ─────────────────────────────────────────────
+    /// Description of the currently loaded preset; empty when none.
+    pub(crate) current_preset_description: String,
+
     // ── Settings + MIDI Learn (M13) ──────────────────────────────────────────
     /// Persisted app settings (audio device, MIDI port, etc.).
     pub(crate) settings: AppSettings,
@@ -449,6 +505,12 @@ impl ToneSmithyApp {
             mod_wheel: snap.mod_wheel,
             sustain_held: false,
             cpu_load,
+            is_dirty: false,
+            pending_quit: false,
+            pending_load: None,
+            slot_foldout_open: [true, false],
+            just_loaded_preset: false,
+            current_preset_description: String::new(),
             patch_name: "Untitled".into(),
             preset_error: None,
             preset_entries: Vec::new(),
@@ -555,6 +617,14 @@ impl ToneSmithyApp {
                 .then_with(|| a.metadata.name.to_lowercase().cmp(&b.metadata.name.to_lowercase()))
         });
         self.preset_entries = entries;
+    }
+
+    /// Sends an engine event that represents a user-driven patch change and marks
+    /// the patch dirty. Use for all parameter and mode changes triggered by UI
+    /// interaction. Do NOT use for note events, pitch bend, or preset loads.
+    pub(crate) fn emit_change(&mut self, event: synth_engine::EngineEvent) {
+        self.is_dirty = true;
+        self.events.send(event);
     }
 
     /// Copies all saveable fields from `snap` into the UI's local mirror state.
@@ -675,22 +745,26 @@ impl ToneSmithyApp {
 
 #[cfg(test)]
 mod tests {
-    use super::{MOD_AMOUNT_RANGES, MOD_DEST_LABELS, MOD_SOURCE_LABELS, MOD_SOURCE_ORDER};
+    use super::{
+        MOD_AMOUNT_RANGES, MOD_DEST_LABELS, MOD_DEST_TOOLTIPS, MOD_SOURCE_LABELS, MOD_SOURCE_ORDER, MOD_SOURCE_TOOLTIPS,
+    };
     use synth_engine::{ModDest, ModSource};
 
-    /// The destination label and amount-range slices must stay aligned with the
-    /// `ModDest` enum: a length/order mismatch silently misranges a destination
-    /// (it broke F2 Cut during M17 testing).
+    /// The destination label, amount-range, and tooltip slices must stay aligned
+    /// with the `ModDest` enum: a length/order mismatch silently misranges a
+    /// destination (it broke F2 Cut during M17 testing).
     #[test]
     fn mod_dest_tables_match_enum() {
         assert_eq!(MOD_DEST_LABELS.len(), ModDest::COUNT as usize);
         assert_eq!(MOD_AMOUNT_RANGES.len(), ModDest::COUNT as usize);
+        assert_eq!(MOD_DEST_TOOLTIPS.len(), ModDest::COUNT as usize);
     }
 
-    /// The source label and display-order tables must cover every `ModSource`.
+    /// The source label, display-order, and tooltip tables must cover every `ModSource`.
     #[test]
     fn mod_source_tables_match_enum() {
         assert_eq!(MOD_SOURCE_LABELS.len(), ModSource::COUNT as usize);
         assert_eq!(MOD_SOURCE_ORDER.len(), ModSource::COUNT as usize);
+        assert_eq!(MOD_SOURCE_TOOLTIPS.len(), ModSource::COUNT as usize);
     }
 }

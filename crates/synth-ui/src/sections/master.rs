@@ -35,7 +35,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::MasterVolume,
                     value: self.master_volume,
                 });
@@ -54,7 +54,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::PitchOffsetSemis,
                     value: self.pitch_offset_semis,
                 });
@@ -68,7 +68,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::Bpm,
                     value: self.bpm,
                 });

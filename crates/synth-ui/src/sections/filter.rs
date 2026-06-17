@@ -5,13 +5,28 @@ use crate::app::{CUTOFF_MAX_HZ, CUTOFF_MIN_HZ, ModDisplay, ToneSmithyApp};
 use crate::knob::Knob;
 use crate::theme;
 
-/// The four filter modes and their short button labels, shared by both
-/// filter mode selectors.
-const FILTER_MODES: [(FilterMode, &str); 4] = [
-    (FilterMode::LowPass, "LP"),
-    (FilterMode::HighPass, "HP"),
-    (FilterMode::BandPass, "BP"),
-    (FilterMode::Notch, "Notch"),
+/// The four filter modes: short label and tooltip, shared by both mode selectors.
+const FILTER_MODES: [(FilterMode, &str, &str); 4] = [
+    (
+        FilterMode::LowPass,
+        "LP",
+        "Low-pass: attenuates frequencies above the cutoff.",
+    ),
+    (
+        FilterMode::HighPass,
+        "HP",
+        "High-pass: attenuates frequencies below the cutoff.",
+    ),
+    (
+        FilterMode::BandPass,
+        "BP",
+        "Band-pass: passes a band around the cutoff; attenuates above and below.",
+    ),
+    (
+        FilterMode::Notch,
+        "Notch",
+        "Notch: cuts a narrow band at the cutoff, passes the rest.",
+    ),
 ];
 
 impl ToneSmithyApp {
@@ -25,13 +40,17 @@ impl ToneSmithyApp {
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             let mut changed = false;
-            for (m, label) in FILTER_MODES {
-                if ui.selectable_value(&mut self.filter_mode, m, label).clicked() {
+            for (m, label, tip) in FILTER_MODES {
+                if ui
+                    .selectable_value(&mut self.filter_mode, m, label)
+                    .on_hover_text(tip)
+                    .clicked()
+                {
                     changed = true;
                 }
             }
             if changed {
-                self.events.send(EngineEvent::SetFilterMode { mode: self.filter_mode });
+                self.emit_change(EngineEvent::SetFilterMode { mode: self.filter_mode });
             }
         });
 
@@ -48,7 +67,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::FilterCutoffHz,
                     value: self.filter_cutoff_hz,
                 });
@@ -63,7 +82,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::FilterResonance,
                     value: self.filter_resonance,
                 });
@@ -85,17 +104,33 @@ impl ToneSmithyApp {
         ui.horizontal(|ui| {
             let mut changed = false;
             // Off first: it is the default, and selecting it bypasses filter 2.
-            for (r, label) in [
-                (FilterRouting::Off, "Off"),
-                (FilterRouting::Serial, "Series"),
-                (FilterRouting::Parallel, "Parallel"),
+            for (r, label, tip) in [
+                (
+                    FilterRouting::Off,
+                    "Off",
+                    "Filter 2 is bypassed — only Filter 1 is active.",
+                ),
+                (
+                    FilterRouting::Serial,
+                    "Series",
+                    "Signal passes through Filter 1 then Filter 2.",
+                ),
+                (
+                    FilterRouting::Parallel,
+                    "Parallel",
+                    "Both filters run independently; their outputs are summed.",
+                ),
             ] {
-                if ui.selectable_value(&mut self.filter_routing, r, label).clicked() {
+                if ui
+                    .selectable_value(&mut self.filter_routing, r, label)
+                    .on_hover_text(tip)
+                    .clicked()
+                {
                     changed = true;
                 }
             }
             if changed {
-                self.events.send(EngineEvent::SetFilterRouting {
+                self.emit_change(EngineEvent::SetFilterRouting {
                     routing: self.filter_routing,
                 });
             }
@@ -112,13 +147,17 @@ impl ToneSmithyApp {
             ui.add_space(4.0);
             ui.horizontal(|ui| {
                 let mut changed = false;
-                for (m, label) in FILTER_MODES {
-                    if ui.selectable_value(&mut self.filter2_mode, m, label).clicked() {
+                for (m, label, tip) in FILTER_MODES {
+                    if ui
+                        .selectable_value(&mut self.filter2_mode, m, label)
+                        .on_hover_text(tip)
+                        .clicked()
+                    {
                         changed = true;
                     }
                 }
                 if changed {
-                    self.events.send(EngineEvent::SetFilter2Mode {
+                    self.emit_change(EngineEvent::SetFilter2Mode {
                         mode: self.filter2_mode,
                     });
                 }
@@ -137,7 +176,7 @@ impl ToneSmithyApp {
                     )
                     .changed()
                 {
-                    self.events.send(EngineEvent::ParameterChange {
+                    self.emit_change(EngineEvent::ParameterChange {
                         id: ParamId::Filter2CutoffHz,
                         value: self.filter2_cutoff_hz,
                     });
@@ -152,7 +191,7 @@ impl ToneSmithyApp {
                     )
                     .changed()
                 {
-                    self.events.send(EngineEvent::ParameterChange {
+                    self.emit_change(EngineEvent::ParameterChange {
                         id: ParamId::Filter2Resonance,
                         value: self.filter2_resonance,
                     });
@@ -171,18 +210,25 @@ impl ToneSmithyApp {
         let mut changed = false;
         ui.horizontal(|ui| {
             ui.label(egui::RichText::new("Slope").color(theme::FG1).font(theme::font_small()));
-            for slope in [FilterSlope::TwelveDbOct, FilterSlope::TwentyFourDbOct] {
-                let label = match slope {
-                    FilterSlope::TwelveDbOct => "12 dB",
-                    FilterSlope::TwentyFourDbOct => "24 dB",
-                };
-                if ui.selectable_value(current, slope, label).clicked() {
+            for (slope, label, tip) in [
+                (
+                    FilterSlope::TwelveDbOct,
+                    "12 dB",
+                    "12 dB/oct rolloff — gentler, more musical.",
+                ),
+                (
+                    FilterSlope::TwentyFourDbOct,
+                    "24 dB",
+                    "24 dB/oct rolloff — steeper, classic Moog-style character.",
+                ),
+            ] {
+                if ui.selectable_value(current, slope, label).on_hover_text(tip).clicked() {
                     changed = true;
                 }
             }
         });
         if changed {
-            self.events.send(EngineEvent::SetFilterSlope {
+            self.emit_change(EngineEvent::SetFilterSlope {
                 filter_idx: filter_idx as u8,
                 slope: self.filter_slope[filter_idx],
             });
