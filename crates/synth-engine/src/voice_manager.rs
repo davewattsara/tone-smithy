@@ -601,6 +601,20 @@ impl VoiceManager {
         }
     }
 
+    /// Sets one FM custom-routing connection on slot `slot` of every voice.
+    pub fn set_fm_custom_connection(&mut self, slot: usize, conn: usize, enabled: bool) {
+        for voice in &mut self.voices {
+            voice.set_fm_custom_connection(slot, conn, enabled);
+        }
+    }
+
+    /// Sets one FM custom-routing carrier flag on slot `slot` of every voice.
+    pub fn set_fm_custom_carrier(&mut self, slot: usize, op: usize, enabled: bool) {
+        for voice in &mut self.voices {
+            voice.set_fm_custom_carrier(slot, op, enabled);
+        }
+    }
+
     /// Advances LFO1, LFO2, and Env2 on every active voice by one block,
     /// then evaluates the mod matrix for each voice and stores the resulting
     /// [`DestOffsets`] on the voice for use in the per-sample loop.

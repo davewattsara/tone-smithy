@@ -240,6 +240,8 @@ pub struct ToneSmithyApp {
     pub(crate) slot_level: [f32; 2],
     pub(crate) slot_pan: [f32; 2],
     pub(crate) fm_algorithm: [u8; 2],
+    pub(crate) fm_custom_conn: [[bool; 6]; 2],
+    pub(crate) fm_custom_carrier: [[bool; 4]; 2],
     pub(crate) fm_op_ratio_integer: [[u8; 4]; 2],
     pub(crate) fm_op_ratio_fine: [[f32; 4]; 2],
     pub(crate) fm_op_level: [[f32; 4]; 2],
@@ -445,6 +447,8 @@ impl ToneSmithyApp {
             slot_level: snap.slot_level,
             slot_pan: snap.slot_pan,
             fm_algorithm: snap.fm_algorithm,
+            fm_custom_conn: snap.fm_custom_conn,
+            fm_custom_carrier: snap.fm_custom_carrier,
             fm_op_ratio_integer: snap.fm_op_ratio_integer,
             fm_op_ratio_fine: snap.fm_op_ratio_fine_cents,
             fm_op_level: snap.fm_op_level,
@@ -687,6 +691,8 @@ impl ToneSmithyApp {
         self.slot_level = snap.slot_level;
         self.slot_pan = snap.slot_pan;
         self.fm_algorithm = snap.fm_algorithm;
+        self.fm_custom_conn = snap.fm_custom_conn;
+        self.fm_custom_carrier = snap.fm_custom_carrier;
         self.fm_op_ratio_integer = snap.fm_op_ratio_integer;
         self.fm_op_ratio_fine = snap.fm_op_ratio_fine_cents;
         self.fm_op_level = snap.fm_op_level;

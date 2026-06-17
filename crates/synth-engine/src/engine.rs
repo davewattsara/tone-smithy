@@ -358,6 +358,16 @@ impl Engine {
                 let op = (packed & 0x0F) as usize;
                 self.voices.set_fm_op_feedback(slot, op, value);
             }
+            ParamId::FmCustomConn(packed) => {
+                let slot = (packed / 6) as usize;
+                let conn = (packed % 6) as usize;
+                self.voices.set_fm_custom_connection(slot, conn, value >= 0.5);
+            }
+            ParamId::FmCustomCarrier(packed) => {
+                let slot = (packed / 4) as usize;
+                let op = (packed % 4) as usize;
+                self.voices.set_fm_custom_carrier(slot, op, value >= 0.5);
+            }
 
             // ── FX chain — push to FxChain directly; ParameterTree ──────────
             // stores the value for snapshot mirroring.

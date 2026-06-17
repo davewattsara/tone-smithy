@@ -228,6 +228,12 @@ pub struct ParamSnapshot {
     pub fm_op_release_secs: [[f32; OPERATOR_COUNT]; 2],
     /// FM operator self-feedback amount per `[slot][op]`, -1..=1.
     pub fm_op_feedback: [[f32; OPERATOR_COUNT]; 2],
+    /// FM custom-routing connection toggles per `[slot][conn_idx]` (0..=5 into
+    /// `FM_CUSTOM_CONN_TABLE`). Only used when the slot's algorithm is Custom.
+    pub fm_custom_conn: [[bool; 6]; 2],
+    /// FM custom-routing carrier toggles per `[slot][op]`. Only used when the
+    /// slot's algorithm is Custom.
+    pub fm_custom_carrier: [[bool; OPERATOR_COUNT]; 2],
 
     // ── FX chain mirrors (M8) ──────────────────────────────────────────────
     pub fx_eq_enabled: bool,
@@ -375,6 +381,8 @@ impl Default for ParamSnapshot {
             fm_op_sustain_level: [[DEFAULT_AMP_SUSTAIN_LEVEL; OPERATOR_COUNT]; 2],
             fm_op_release_secs: [[DEFAULT_AMP_RELEASE_SECS; OPERATOR_COUNT]; 2],
             fm_op_feedback: [[0.0; OPERATOR_COUNT]; 2],
+            fm_custom_conn: [[false; 6]; 2],
+            fm_custom_carrier: [[false; OPERATOR_COUNT]; 2],
             fx_eq_enabled: false,
             fx_eq_low_gain_db: 0.0,
             fx_eq_low_freq_hz: 200.0,

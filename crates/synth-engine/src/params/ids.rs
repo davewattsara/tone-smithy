@@ -197,7 +197,8 @@ pub enum ParamId {
     SlotLevel(u8),
     /// Per-slot mix pan, -1..=1. Slot index 0..=1.
     SlotPan(u8),
-    /// FM algorithm for a slot. Slot index 0..=1; value 0.0..=7.0.
+    /// FM algorithm for a slot. Slot index 0..=1; value 0.0..=8.0 (8 = the
+    /// editable Custom routing, `CUSTOM_ALGORITHM_INDEX`).
     FmAlgorithm(u8),
     /// FM operator integer ratio. Packed `(slot << 4) | op`. Value 0.0..=15.0.
     FmOpRatioInteger(u8),
@@ -216,6 +217,14 @@ pub enum ParamId {
     /// FM operator self-feedback, -1..=1. Packed `(slot << 4) | op`.
     /// Only meaningful for op 3 in the 8 starter algorithms.
     FmOpFeedback(u8),
+    /// FM custom-routing connection toggle (≥0.5 = on). Packed
+    /// `slot * 6 + conn_idx`, where `conn_idx` is 0..=5 into the
+    /// `FM_CUSTOM_CONN_TABLE`. Range 0..=11. Only used when the slot's
+    /// algorithm is the Custom index.
+    FmCustomConn(u8),
+    /// FM custom-routing carrier toggle (≥0.5 = on). Packed `slot * 4 + op`,
+    /// `op` 0..=3. Range 0..=7. Only used when the slot's algorithm is Custom.
+    FmCustomCarrier(u8),
 
     // ── FX chain (M8) ─────────────────────────────────────────────────────
     /// EQ stage enabled; 0.0 = off, 1.0 = on.

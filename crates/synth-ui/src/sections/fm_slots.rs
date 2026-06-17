@@ -1,5 +1,5 @@
 use eframe::egui;
-use synth_engine::{EngineEvent, ParamId};
+use synth_engine::{ALGORITHMS, CUSTOM_ALGORITHM_INDEX, EngineEvent, FM_CUSTOM_CONN_TABLE, ParamId};
 
 use crate::app::{FM_OP_ENV_MAX_SECS, FM_OP_ENV_MIN_SECS, FM_RATIO_FINE_MAX, ModDisplay, ToneSmithyApp, secs_format};
 use crate::knob::Knob;
@@ -71,7 +71,7 @@ impl ToneSmithyApp {
                         self.osc_sub_controls_inline(ui, md);
                     } else {
                         ui.add_space(4.0);
-                        const ALG_LABELS: [&str; 8] = [
+                        const ALG_LABELS: [&str; 9] = [
                             "1 Stack",
                             "2 Stack+FB",
                             "3 Two stacks",
@@ -80,9 +80,11 @@ impl ToneSmithyApp {
                             "6 Mixed",
                             "7 Additive",
                             "8 Paired",
+                            "9 Custom",
                         ];
                         ui.horizontal(|ui| {
                             ui.label(egui::RichText::new("Alg").color(theme::FG1).font(theme::font_small()));
+                            let prev_alg = self.fm_algorithm[slot_idx];
                             egui::ComboBox::from_id_salt(format!("fm_alg_{slot_idx}"))
                                 .selected_text(ALG_LABELS[self.fm_algorithm[slot_idx] as usize])
                                 .show_ui(ui, |ui| {
@@ -91,6 +93,13 @@ impl ToneSmithyApp {
                                             .selectable_value(&mut self.fm_algorithm[slot_idx], idx as u8, label)
                                             .changed()
                                         {
+                                            // Switching into Custom from a factory algorithm seeds the
+                                            // editable routing from that algorithm so the sound is
+                                            // continuous; the user then edits from there.
+                                            if idx as u8 == CUSTOM_ALGORITHM_INDEX && prev_alg < CUSTOM_ALGORITHM_INDEX
+                                            {
+                                                self.seed_fm_custom_from_factory(slot_idx, prev_alg);
+                                            }
                                             self.emit_change(EngineEvent::ParameterChange {
                                                 id: ParamId::FmAlgorithm(slot_idx as u8),
                                                 value: idx as f32,
@@ -99,6 +108,11 @@ impl ToneSmithyApp {
                                     }
                                 });
                         });
+
+                        if self.fm_algorithm[slot_idx] == CUSTOM_ALGORITHM_INDEX {
+                            ui.add_space(4.0);
+                            self.fm_custom_routing_grid(ui, slot_idx);
+                        }
 
                         ui.add_space(4.0);
                         // Operator grid — full width is available here since this section
@@ -391,5 +405,94 @@ impl ToneSmithyApp {
 
         // Flag has served its purpose now that the section has rendered.
         self.just_loaded_preset = false;
+    }
+
+    /// Seeds slot `slot`'s editable Custom routing from factory algorithm
+    /// `factory_idx` (0..8), updating the UI mirror and pushing one event per
+    /// connection / carrier so the engine and a saved preset match what is
+    /// shown. Called when the user switches the algorithm selector to Custom.
+    fn seed_fm_custom_from_factory(&mut self, slot: usize, factory_idx: u8) {
+        let alg = ALGORITHMS[factory_idx as usize];
+        for (conn_idx, &(src, dest)) in FM_CUSTOM_CONN_TABLE.iter().enumerate() {
+            let on = alg.mod_sources[dest] & (1 << src) != 0;
+            self.fm_custom_conn[slot][conn_idx] = on;
+            self.emit_change(EngineEvent::ParameterChange {
+                id: ParamId::FmCustomConn(slot as u8 * 6 + conn_idx as u8),
+                value: if on { 1.0 } else { 0.0 },
+            });
+        }
+        for (op, &carrier) in alg.is_carrier.iter().enumerate() {
+            self.fm_custom_carrier[slot][op] = carrier;
+            self.emit_change(EngineEvent::ParameterChange {
+                id: ParamId::FmCustomCarrier(slot as u8 * 4 + op as u8),
+                value: if carrier { 1.0 } else { 0.0 },
+            });
+        }
+    }
+
+    /// Editable routing grid shown when a slot's algorithm is Custom: one row
+    /// per operator with a carrier toggle and a checkbox for each legal
+    /// higher-index modulator (op 3's self-modulation is the Feedback knob).
+    fn fm_custom_routing_grid(&mut self, ui: &mut egui::Ui, slot: usize) {
+        ui.label(
+            egui::RichText::new("Custom routing — carrier + modulators per operator")
+                .color(theme::FG2)
+                .font(theme::font_small()),
+        );
+        egui::Grid::new(format!("fm_custom_grid_{slot}"))
+            .spacing([6.0, 4.0])
+            .show(ui, |ui| {
+                for dest in 0..4usize {
+                    // Carrier toggle.
+                    let mut carrier = self.fm_custom_carrier[slot][dest];
+                    if ui
+                        .checkbox(&mut carrier, "Carrier")
+                        .on_hover_text("Operator output is summed into the slot's audio")
+                        .changed()
+                    {
+                        self.fm_custom_carrier[slot][dest] = carrier;
+                        self.emit_change(EngineEvent::ParameterChange {
+                            id: ParamId::FmCustomCarrier(slot as u8 * 4 + dest as u8),
+                            value: if carrier { 1.0 } else { 0.0 },
+                        });
+                    }
+
+                    ui.label(
+                        egui::RichText::new(format!("Op {}", dest + 1))
+                            .color(theme::FG1)
+                            .font(theme::font_small()),
+                    );
+
+                    if dest == 3 {
+                        ui.label(
+                            egui::RichText::new("(feedback via FB knob)")
+                                .color(theme::FG2)
+                                .font(theme::font_small()),
+                        );
+                    } else {
+                        ui.label(
+                            egui::RichText::new("mod by")
+                                .color(theme::FG2)
+                                .font(theme::font_small()),
+                        );
+                        ui.horizontal(|ui| {
+                            for (conn_idx, &(src, conn_dest)) in FM_CUSTOM_CONN_TABLE.iter().enumerate() {
+                                if conn_dest != dest {
+                                    continue;
+                                }
+                                let mut on = self.fm_custom_conn[slot][conn_idx];
+                                if ui.checkbox(&mut on, format!("Op{}", src + 1)).changed() {
+                                    self.fm_custom_conn[slot][conn_idx] = on;
+                                    self.emit_change(EngineEvent::ParameterChange {
+                                        id: ParamId::FmCustomConn(slot as u8 * 6 + conn_idx as u8),
+                                        value: if on { 1.0 } else { 0.0 },
+                                    });
+                                }
+                            }
+                        });
+                    }
+                    ui.end_row();
+                }
+            });
     }
 }
