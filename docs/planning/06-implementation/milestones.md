@@ -424,6 +424,91 @@ installers; user has tested on at least Windows and signed off.
 
 ---
 
+## M21 — UX polish (1–2 weeks) — v1.2 — **complete (2026-06-17, tag `m21`)**
+
+> Implementation plan: [`m21-plan.md`](m21-plan.md)
+
+Five self-contained UX improvements, all UI-only (no engine changes).
+
+- **Tooltips** — LFO `Sync` and `Reset` toggles; mod matrix source and destination dropdown items
+  (one-line description per option); filter tab controls (mode, slope, routing, cutoff, resonance);
+  knob tooltips show the full parameter name rather than the abbreviated label (e.g. "Attack" not "A").
+- **In-app help** — Help menu item that opens the user manual in the system browser via the `open`
+  crate. One call; no UI to build.
+- **Unsaved-changes warning** — a dirty flag in `AppState` that is set on any user-driven parameter
+  change and cleared on preset load/save. When a preset load is triggered while dirty, show a
+  modal Save / Discard / Cancel dialog.
+- **Slot foldout behaviour** — Slot 1 expanded by default on fresh launch. On every preset load,
+  auto-expand slots whose level is non-zero and collapse slots whose level is zero.
+- **Preset description in main view** — show the active preset's description field below the patch
+  name in the header bar; hidden when the description is empty.
+
+**Done when:** All five features work end-to-end; dirty flag is cleared correctly on save and load;
+slot foldouts respond correctly across a range of presets with mixed slot usage.
+
+---
+
+## M22 — Engine additions (2–3 weeks) — v1.2
+
+> Implementation plan: [`m22-plan.md`](m22-plan.md)
+
+Two independent additions that both touch the engine parameter system and UI.
+
+- **Second sequencer mod lane (`Seq2`)** — a second per-step CV value on `SeqStep`, exposed as a
+  new `Seq2` mod source in the matrix (mirrors how `LFO1`/`LFO2` are separate sources). Adds one
+  new mod-lane row per step in the grid and a second global seq mod value on `VoiceManager`.
+- **Editable FM operator routing** — a ninth "Custom" algorithm option where the user defines the
+  routing directly via a per-operator grid. Constraint maintained: only higher-index operators can
+  modulate lower-index ones (3→{0,1,2}, 2→{0,1}, 1→{0}), avoiding cycles without runtime
+  detection. Factory algorithms 1–8 remain unchanged and read-only; switching to Custom initialises
+  from the current factory algorithm.
+
+**Done when:** `Seq2` drives a distinct destination independently of `Seq`; custom FM routing
+produces audibly different results from any factory algorithm; both survive preset round-trips.
+
+---
+
+## M23 — Oscillator phase consistency (2–3 weeks) — v1.2
+
+> Implementation plan: [`m23-plan.md`](m23-plan.md)
+
+Two coupled changes to oscillator phase behaviour; the default change requires a factory preset
+migration.
+
+- **Per-oscillator phase mode** — a `Free` / `Retrig` toggle per oscillator (OSC1, OSC2, OSC3).
+  `Free` = current behaviour (random phase on note-on). `Retrig` = phase resets to 0 on every
+  note-on, producing a tight repeatable attack. Same param-plumbing shape as LFO `Reset`.
+  Backward-compatible default: `Free`.
+- **Default OSC2 / OSC3 level → 0.0** — changes the init patch to a single-oscillator voice
+  (the universal convention) instead of three coherent oscillators. Requires auditing all 120
+  factory presets: any sub-mode slot that omits `osc2_level` / `osc3_level` keys must have them
+  written in explicitly at `1.0` before the default is changed. An `xtask migrate-osc-defaults`
+  subcommand performs the audit and rewrite.
+
+**Done when:** `Retrig` mode produces a consistent, click-free attack on every note; `Free` mode is
+unchanged; the factory migration audit finds and fixes every affected preset; a fresh init patch
+plays with one oscillator; all 120 factory presets sound identical before and after the migration.
+
+---
+
+## M24 — Auto-update check + v1.2 release (1 week) — v1.2
+
+> Implementation plan: [`m24-plan.md`](m24-plan.md)
+
+- **Auto-update check** — on app start, a background thread queries the GitHub Releases API for
+  the latest tag and compares it to `CARGO_PKG_VERSION`. If a newer version is available, shows a
+  non-blocking dismissible notice (banner or status-bar item). No auto-download; no telemetry.
+  The notice is suppressed if the user has already dismissed this version's prompt (persisted in
+  settings).
+- Version bump to `1.2.0`, `CHANGELOG.md` update, tag `v1.2.0`, GitHub Release on all three
+  platforms.
+
+**Done when:** The update notice appears when a mock newer version is returned; does not appear
+when already on the latest version; dismissal persists across restarts; GitHub Release publishes
+three-platform installers.
+
+---
+
 ## Critical-path dependencies
 
 - **M-1 → M0 → M1 → M2 → M3** are strictly sequential. Each builds on the last.
@@ -447,6 +532,14 @@ installers; user has tested on at least Windows and signed off.
 - **M20** needs M17 + M18 + M19 complete so new presets can use all new features. In particular,
   M19's "make filter 2 optional" pre-req must be done **before** M20's preset authoring so the bank
   is built against filter 2 off-by-default.
+
+**v1.2 dependencies:**
+
+- **M21** has no hard predecessors — all UI-only changes.
+- **M22** is independent of M21; can overlap.
+- **M23** is independent of M21/M22 but the preset migration must complete before M24's factory
+  bank QA pass. Run the `xtask migrate-osc-defaults` audit before starting M24.
+- **M24** needs M21 + M22 + M23 complete.
 
 ## What's out of scope
 

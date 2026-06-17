@@ -11,7 +11,7 @@ impl ToneSmithyApp {
             .add(Toggle::new(&mut self.fx_drive_enabled, "Drive").param_key("fx_drive_enabled"))
             .changed()
         {
-            self.events.send(EngineEvent::ParameterChange {
+            self.emit_change(EngineEvent::ParameterChange {
                 id: ParamId::FxDriveEnabled,
                 value: if self.fx_drive_enabled { 1.0 } else { 0.0 },
             });
@@ -26,7 +26,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::FxDriveDrive,
                     value: self.fx_drive_drive,
                 });
@@ -40,7 +40,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::FxDriveAsymmetry,
                     value: self.fx_drive_asymmetry,
                 });

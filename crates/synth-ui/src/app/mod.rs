@@ -21,8 +21,9 @@ pub(crate) use utils::secs_format;
 pub(crate) use state::{
     BPM_MAX, BPM_MIN, CUTOFF_MAX_HZ, CUTOFF_MIN_HZ, ENV_ATTACK_MAX_SECS, ENV_DECAY_MAX_SECS, ENV_MIN_SECS,
     ENV_RELEASE_MAX_SECS, ENV2_CURVE_RANGE, FM_OP_ENV_MAX_SECS, FM_OP_ENV_MIN_SECS, FM_RATIO_FINE_MAX, LFO_RATE_MAX_HZ,
-    LFO_RATE_MIN_HZ, MOD_AMOUNT_RANGES, MOD_DEST_LABELS, MOD_SOURCE_LABELS, MOD_SOURCE_ORDER, OSC_DETUNE_MAX_CENTS,
-    OSC_LEVEL_MAX, PITCH_OFFSET_RANGE, UNISON_DETUNE_MAX_CENTS, UNISON_VOICES_MAX,
+    LFO_RATE_MIN_HZ, MOD_AMOUNT_RANGES, MOD_DEST_LABELS, MOD_DEST_TOOLTIPS, MOD_SOURCE_LABELS, MOD_SOURCE_ORDER,
+    MOD_SOURCE_TOOLTIPS, OSC_DETUNE_MAX_CENTS, OSC_LEVEL_MAX, PITCH_OFFSET_RANGE, UNISON_DETUNE_MAX_CENTS,
+    UNISON_VOICES_MAX,
 };
 
 use eframe::egui;
@@ -41,6 +42,12 @@ impl eframe::App for ToneSmithyApp {
             while self.file_watch_rx.try_recv().is_ok() {}
         }
         let snapshot = load_snapshot(&self.snapshot_slot);
+
+        // ── Quit intercept ───────────────────────────────────────────────────
+        if ctx.input(|i| i.viewport().close_requested()) && self.is_dirty {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            self.pending_quit = true;
+        }
 
         // Footer — must be added before the central panel
         egui::TopBottomPanel::bottom("footer")
@@ -111,6 +118,111 @@ impl eframe::App for ToneSmithyApp {
             });
         });
 
+        // ── Unsaved-changes modals ───────────────────────────────────────────
+        self.show_unsaved_modals(ctx);
+
         ctx.request_repaint_after(std::time::Duration::from_millis(33));
+    }
+}
+
+impl ToneSmithyApp {
+    fn show_unsaved_modals(&mut self, ctx: &egui::Context) {
+        let needs_modal = self.pending_load.is_some() || self.pending_quit;
+        if !needs_modal {
+            return;
+        }
+
+        // Dark scrim over the whole window. Painted at Middle order (same as
+        // panels) but added later in the frame, so it layers above them.
+        // The Window itself uses Foreground order, which is above Middle.
+        ctx.layer_painter(egui::LayerId::new(egui::Order::Middle, egui::Id::new("modal_scrim")))
+            .rect_filled(ctx.screen_rect(), 0.0, egui::Color32::from_black_alpha(160));
+
+        // Pending load: user clicked a preset while the patch was dirty.
+        if self.pending_load.is_some() {
+            let mut do_save = false;
+            let mut do_discard = false;
+            let mut do_cancel = false;
+            egui::Window::new("Unsaved changes")
+                .id(egui::Id::new("unsaved_load_modal"))
+                .order(egui::Order::Foreground)
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(ctx, |ui| {
+                    ui.label("You have unsaved changes. What would you like to do?");
+                    ui.add_space(12.0);
+                    ui.horizontal(|ui| {
+                        if ui.button("Save").clicked() {
+                            do_save = true;
+                        }
+                        if ui.button("Discard").clicked() {
+                            do_discard = true;
+                        }
+                        if ui.button("Cancel").clicked() {
+                            do_cancel = true;
+                        }
+                    });
+                });
+            if do_save {
+                self.save_preset();
+                let pending = self.pending_load.take();
+                self.execute_pending_load(pending);
+            } else if do_discard {
+                let pending = self.pending_load.take();
+                self.execute_pending_load(pending);
+            } else if do_cancel {
+                self.pending_load = None;
+            }
+        }
+
+        // Pending quit: user clicked the window close button while dirty.
+        if self.pending_quit {
+            let mut do_save = false;
+            let mut do_discard = false;
+            let mut do_cancel = false;
+            egui::Window::new("Unsaved changes")
+                .id(egui::Id::new("unsaved_quit_modal"))
+                .order(egui::Order::Foreground)
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(ctx, |ui| {
+                    ui.label("You have unsaved changes. Quit anyway?");
+                    ui.add_space(12.0);
+                    ui.horizontal(|ui| {
+                        if ui.button("Save and quit").clicked() {
+                            do_save = true;
+                        }
+                        if ui.button("Discard and quit").clicked() {
+                            do_discard = true;
+                        }
+                        if ui.button("Cancel").clicked() {
+                            do_cancel = true;
+                        }
+                    });
+                });
+            if do_save {
+                self.save_preset();
+                // Clear dirty so the close-requested intercept doesn't re-trigger.
+                self.is_dirty = false;
+                self.pending_quit = false;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            } else if do_discard {
+                self.is_dirty = false;
+                self.pending_quit = false;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            } else if do_cancel {
+                self.pending_quit = false;
+            }
+        }
+    }
+
+    fn execute_pending_load(&mut self, pending: Option<state::PendingLoad>) {
+        match pending {
+            Some(state::PendingLoad::Factory(name)) => self.load_factory_preset(&name),
+            Some(state::PendingLoad::File(path)) => self.load_file_preset(&path),
+            None => {}
+        }
     }
 }

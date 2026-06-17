@@ -4,7 +4,7 @@ A v1 release is "ready" when these objective criteria are met. They are intentio
 
 ## Sound
 
-- The factory bank contains at least **60 presets** spanning Bass, Lead, Pad, Pluck, Keys, and FX categories. (Original ~120-preset target deferred to v1.1.)
+- The factory bank contains at least **120 presets** spanning Bass, Lead, Pad, Pluck, Keys, and FX categories. (60+ shipped with v1.0; expanded to 120 in v1.1.)
 - A blind listening session with at least three musicians can identify which presets are subtractive, which are FM, and which are hybrid — i.e. each engine has its own audible voice.
 - No oscillator aliases audibly across the MIDI playable range (C-2 to G8) at 48 kHz with default settings.
 - FM operators sound clean at extreme modulation indices (no zipper noise, no obvious quantisation artefacts).
@@ -31,8 +31,8 @@ A v1 release is "ready" when these objective criteria are met. They are intentio
 
 ## Distribution
 
-- Single Windows installer (Inno Setup or MSI), under **100 MB**.
-- Installer adds Start Menu entry, file association for the preset format, and clean uninstall.
+- Windows installer (Inno Setup), Linux tarball, and macOS DMG — all under **100 MB** each.
+- Windows installer adds Start Menu entry, file association for the preset format, and clean uninstall.
 - A first-run wizard offers to pick an audio device and MIDI input.
 
 ## Definition of "v1.0"

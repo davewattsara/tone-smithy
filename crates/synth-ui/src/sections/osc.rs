@@ -34,7 +34,7 @@ impl ToneSmithyApp {
                 }
             }
             if changed {
-                self.events.send(EngineEvent::SetOscillatorWaveform {
+                self.emit_change(EngineEvent::SetOscillatorWaveform {
                     waveform: self.waveform,
                 });
             }
@@ -117,7 +117,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: level_id,
                     value: self.osc_level[idx],
                 });
@@ -136,7 +136,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: detune_id,
                     value: self.osc_detune_cents[idx],
                 });
@@ -159,7 +159,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: pan_id,
                     value: self.osc_pan[idx],
                 });
@@ -178,7 +178,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: uv_id,
                     value: self.osc_unison_voices[idx],
                 });
@@ -196,7 +196,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ud_id,
                     value: self.osc_unison_detune_cents[idx],
                 });
@@ -210,7 +210,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: us_id,
                     value: self.osc_unison_spread[idx],
                 });
@@ -230,7 +230,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::SubLevel,
                     value: self.sub_level,
                 });
@@ -251,7 +251,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::SubPan,
                     value: self.sub_pan,
                 });

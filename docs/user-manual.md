@@ -1,9 +1,9 @@
-# Tone Smithy v1.0 — User Manual
+# Tone Smithy v1.1.1 — User Manual
 
-Tone Smithy is a standalone software synthesizer for Windows combining
-analog-style subtractive synthesis with 4-operator FM. Both synthesis modes are
-available simultaneously within a single voice, so you can layer warm oscillator
-textures with FM timbres in one patch.
+Tone Smithy is a standalone software synthesizer for Windows, Linux, and macOS
+combining analog-style subtractive synthesis with 4-operator FM. Both synthesis
+modes are available simultaneously within a single voice, so you can layer warm
+oscillator textures with FM timbres in one patch.
 
 ---
 
@@ -17,12 +17,13 @@ textures with FM timbres in one patch.
 6. [Envelopes and LFOs tab](#6-envelopes-and-lfos-tab)
 7. [Modulation tab](#7-modulation-tab)
 8. [Arpeggiator tab](#8-arpeggiator-tab)
-9. [FX tab](#9-fx-tab)
-10. [Preset browser](#10-preset-browser)
-11. [Settings](#11-settings)
-12. [MIDI Learn](#12-midi-learn)
-13. [Computer keyboard](#13-computer-keyboard)
-14. [Troubleshooting](#14-troubleshooting)
+9. [Step sequencer tab](#9-step-sequencer-tab)
+10. [FX tab](#10-fx-tab)
+11. [Preset browser](#11-preset-browser)
+12. [Settings](#12-settings)
+13. [MIDI Learn](#13-midi-learn)
+14. [Computer keyboard](#14-computer-keyboard)
+15. [Troubleshooting](#15-troubleshooting)
 
 ---
 
@@ -80,7 +81,7 @@ Global patch controls and live status readout.
 |---|---|---|
 | Volume | 0–100% | Master output level. Can be modulated via the mod matrix. |
 | Pitch | -24 to +24 st | Global pitch offset in semitones. Useful for transposing a patch. |
-| BPM | 20–300 | Tempo used by BPM-synced LFOs. The arpeggiator has its own separate BPM knob in the Arp tab. |
+| BPM | 20–300 | Transport tempo — shared by BPM-synced LFOs, the arpeggiator, and the step sequencer. |
 
 ### Status section
 
@@ -88,7 +89,7 @@ Shows live values updated in real time:
 
 - **Voices** — number of currently active voice slots.
 - **LFO 1 / LFO 2** — current output value (-1 to +1).
-- **Env 2** — current output value (0 to 1).
+- **Env 2 / Env 3** — current output value (0 to 1).
 - **VU meter** — left/right peak level of the output signal.
 
 ---
@@ -168,9 +169,21 @@ Each of the four operators (OP 1–4) has:
 
 ## 5. Filter tab
 
-A state-variable filter applied globally to the voice output.
+Two independent state-variable filters (Filter 1 and Filter 2) applied to the voice output.
 
-### Mode
+### Routing
+
+Selects how Filter 2 is connected to Filter 1:
+
+| Routing | Description |
+|---|---|
+| Off | Filter 2 is bypassed — signal goes through Filter 1 only. **Default.** |
+| Serial | Signal passes through Filter 1, then Filter 2. |
+| Parallel | Signal passes through both filters in parallel; outputs are averaged. |
+
+Old presets load with Filter 2 Off, preserving their original v1.0 sound.
+
+### Mode (per filter)
 
 | Mode | Description |
 |---|---|
@@ -179,12 +192,19 @@ A state-variable filter applied globally to the voice output.
 | BP | Band-pass — passes a band around the cutoff. |
 | Notch | Notch filter — cuts a narrow band around the cutoff. |
 
-### Controls
+### Slope (per filter)
+
+- **12 dB** — 2-pole TPT state-variable filter. Default.
+- **24 dB** — cascaded 2-pole (steeper rolloff; higher-resonance 24 dB patches may need slightly lower Res to avoid over-peaking).
+
+### Controls (per filter)
 
 | Control | Range | Description |
 |---|---|---|
 | Cutoff | 20 Hz–20 kHz | Filter cutoff frequency. Modulatable via the mod matrix. |
 | Res | 0–1 | Resonance. Higher values add a peak at the cutoff. Approaching 1 nears self-oscillation. |
+
+Filter 2 controls are greyed out when Routing is set to Off.
 
 Typical use: assign Env 2 to Cutoff in the mod matrix for a classic filter sweep.
 
@@ -192,7 +212,7 @@ Typical use: assign Env 2 to Cutoff in the mod matrix for a classic filter sweep
 
 ## 6. Envelopes and LFOs tab
 
-Four generators: the Amp envelope, Env 2, and two LFOs.
+Five generators: the Amp envelope, Env 2, Env 3, and two LFOs.
 
 ### Amp Env
 
@@ -205,10 +225,10 @@ Controls the amplitude shape of every note.
 | S (Sustain) | 0–1 | Level held while the note is held. |
 | R (Release) | 0–10 s | Time to fall to silence after the note is released. |
 
-### Env 2
+### Env 2 and Env 3
 
-A second ADSR envelope available as a modulation source in the mod matrix.
-In addition to the standard ADSR knobs, Env 2 has **Curve** controls:
+Two independent ADSR envelopes available as modulation sources in the mod matrix.
+In addition to the standard ADSR knobs, each has **Curve** controls:
 
 | Control | Range | Description |
 |---|---|---|
@@ -216,7 +236,7 @@ In addition to the standard ADSR knobs, Env 2 has **Curve** controls:
 | D curve | -1 to +1 | Shape of the decay stage. |
 | R curve | -1 to +1 | Shape of the release stage. |
 
-The current Env 2 output value is shown in real time below the knobs.
+The current output value of each envelope is shown in real time below the knobs.
 
 ### LFO 1 and LFO 2
 
@@ -236,10 +256,12 @@ Two identical low-frequency oscillators available as mod matrix sources.
 
 **Rate** — 0.01–20 Hz (only active when Sync is off).
 
-**Reset** — when enabled, the LFO phase resets to zero on every new note-on.
+**Reset** — when enabled, the LFO phase resets to zero on every new note-on. Greyed out when Global is on.
 
 **Sync** — locks the LFO to the BPM set in the Master tab, using one of the
 following divisions: 1/32, 1/16, 1/8, 1/4, 1/2, 1, 2, or 4 bars.
+
+**Global** — when enabled, the LFO runs as a single shared instance across all held voices (chords stay phase-locked). When off (default), each voice gets its own independent LFO instance.
 
 The current LFO output value is shown in real time below the controls.
 
@@ -247,7 +269,7 @@ The current LFO output value is shown in real time below the controls.
 
 ## 7. Modulation tab
 
-An 8-slot modulation matrix: each slot routes one source to one destination,
+A 16-slot modulation matrix: each slot routes one source to one destination,
 scaled by an amount, with an optional via source.
 
 ### Columns
@@ -274,17 +296,25 @@ scaled by an amount, with an optional via source.
 | ModWhl | MIDI mod wheel / CC 1 (0 to 1). |
 | AfterT | MIDI channel aftertouch (0 to 1). |
 | Bend | MIDI pitch bend (-1 to +1). |
+| Env3 | Env 3 output (0 to 1). |
+| Seq | Step sequencer mod lane — current step's CV value (-1 to +1). |
 
 ### Destinations
 
 | Label | Destination | Amount range |
 |---|---|---|
-| Cutoff | Filter cutoff frequency | +/-10,000 Hz |
-| Reso | Filter resonance | +/-1 |
+| Cutoff | Filter 1 cutoff frequency | +/-10,000 Hz |
+| Reso | Filter 1 resonance | +/-1 |
 | Pitch | Global pitch offset | +/-24 semitones |
 | Vol | Master volume | +/-1 |
 | Osc1Det | OSC 1 detune | +/-2,400 cents |
 | Osc1Pan | OSC 1 pan | +/-1 |
+| F2Cut | Filter 2 cutoff frequency | +/-10,000 Hz |
+| F2Res | Filter 2 resonance | +/-1 |
+| Osc2Det | OSC 2 detune | +/-2,400 cents |
+| Osc3Det | OSC 3 detune | +/-2,400 cents |
+| Osc2Pan | OSC 2 pan | +/-1 |
+| Osc3Pan | OSC 3 pan | +/-1 |
 
 ### Example: mod wheel controls vibrato depth
 
@@ -301,15 +331,15 @@ the LFO pitch modulation.
 
 ## 8. Arpeggiator tab
 
-Automatically sequences held notes at a rhythmic rate.
+Automatically sequences held notes at a rhythmic rate. The arpeggiator and step
+sequencer are mutually exclusive — enabling one disables the other.
 
 | Control | Options | Description |
 |---|---|---|
 | Enabled | On/Off | Engage or bypass the arpeggiator. |
 | Mode | Up, Down, Up/Dn, Rand, Played | Order in which held notes are played. |
 | Octaves | 1–4 oct | How many octaves the pattern spans. |
-| Rate | 1/32, 1/16, 1/8, 1/4, 1/2 | Note duration, relative to the BPM knob below. |
-| BPM | 20–300 | Arpeggiator tempo. Independent from the Master tab BPM (which drives LFO sync). |
+| Rate | 1/32, 1/16, 1/8, 1/4, 1/2 | Note duration, relative to the Master tab BPM. |
 | Gate | 1–100% | How much of each step the note is held before releasing. Lower values give a more staccato feel. |
 | Swing | 0–100% | Delays every other step, creating a shuffle feel. 0% = straight. |
 
@@ -318,7 +348,41 @@ the arp pattern.
 
 ---
 
-## 9. FX tab
+## 9. Step sequencer tab
+
+A 16-step melodic sequencer that plays one note per step, transposed to the
+lowest held note. The sequencer and arpeggiator are mutually exclusive.
+
+### Transport controls
+
+| Control | Options | Description |
+|---|---|---|
+| Enabled | On/Off | Engage or bypass the sequencer. Enabling it disables the arp. |
+| Length | 1–16 | Number of active steps. |
+| Mode | Fwd, Rev, Ping, Rand | Playback order: forward, reverse, ping-pong, or random. |
+| Rate | 1/32, 1/16, 1/8, 1/4, 1/2 | Step duration, relative to the Master tab BPM. |
+| Swing | 0–100% | Delays every other step. |
+
+### Step grid
+
+Each of the 16 step columns shows:
+
+| Control | Range | Description |
+|---|---|---|
+| Note | -24 to +24 st | Pitch offset from the held root note. |
+| Vel | 0–127 | Velocity for this step's note. |
+| Gate | 0–100% | How much of the step the note sounds. |
+| R (Rest) | toggle | Mutes this step — no note is played. |
+| T (Tie) | toggle | Extends this step's note forward into the following step(s). Gate is scaled across the tied span. Consumed steps are greyed out but their mod-lane value and tie toggle remain active. |
+| Mod | -1 to +1 | Mod-lane CV value for this step. Route the **Seq** source in the mod matrix to any destination. |
+
+A moving playhead highlights the currently active step while the sequencer is running.
+
+Hold a note to transpose the entire sequence — the step offsets are always relative to the lowest held note. With no held notes the sequencer plays nothing.
+
+---
+
+## 10. FX tab
 
 A five-stage effects chain: EQ -> Drive -> Chorus -> Delay -> Reverb.
 Each stage has an enable toggle; disabled stages consume no CPU and are
@@ -384,13 +448,13 @@ FDN-8 algorithmic reverb.
 
 ---
 
-## 10. Preset browser
+## 11. Preset browser
 
 ### Loading a preset
 
 Open the **Presets** tab. The browser shows two sections:
 
-- **FACTORY** — 61 built-in presets across six categories.
+- **FACTORY** — 120 built-in presets across six categories.
 - **USER** — presets you have saved to your user folder.
 
 Use the **category chips** (Bass, Lead, Pad, Pluck, Keys, FX) to filter the
@@ -413,7 +477,7 @@ If you enabled the file association during installation, double-clicking a
 
 ---
 
-## 11. Settings
+## 12. Settings
 
 Access via the **Settings** tab.
 
@@ -434,7 +498,7 @@ launch.
 
 ---
 
-## 12. MIDI Learn
+## 13. MIDI Learn
 
 Any knob can be mapped to a MIDI CC controller:
 
@@ -448,7 +512,7 @@ and choose **Clear MIDI Learn**.
 
 ---
 
-## 13. Computer keyboard
+## 14. Computer keyboard
 
 Tone Smithy is playable from your computer keyboard when no MIDI device is
 available.
@@ -471,7 +535,7 @@ The default starting octave is C3 (MIDI note 48). The range is C-1 to G#7.
 
 ---
 
-## 14. Troubleshooting
+## 15. Troubleshooting
 
 **No sound**
 - Check that the correct audio output is selected in Settings.
@@ -505,5 +569,5 @@ The default starting octave is C3 (MIDI note 48). The range is C-1 to G#7.
 
 ---
 
-*Tone Smithy v1.0 — dual-licensed MIT OR Apache-2.0.*
+*Tone Smithy v1.1.1 — dual-licensed MIT OR Apache-2.0.*
 *Source code and issue tracker: https://github.com/davewattsara/tone-smithy*

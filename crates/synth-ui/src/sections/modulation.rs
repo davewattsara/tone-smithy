@@ -1,7 +1,10 @@
 use eframe::egui;
 use synth_engine::{EngineEvent, MOD_MATRIX_SLOTS, ParamId};
 
-use crate::app::{MOD_AMOUNT_RANGES, MOD_DEST_LABELS, MOD_SOURCE_LABELS, MOD_SOURCE_ORDER, ToneSmithyApp};
+use crate::app::{
+    MOD_AMOUNT_RANGES, MOD_DEST_LABELS, MOD_DEST_TOOLTIPS, MOD_SOURCE_LABELS, MOD_SOURCE_ORDER, MOD_SOURCE_TOOLTIPS,
+    ToneSmithyApp,
+};
 use crate::knob::Knob;
 use crate::theme;
 use crate::toggle::Toggle;
@@ -33,7 +36,7 @@ impl ToneSmithyApp {
                         .add(Toggle::new(&mut self.mod_slot_enabled[i], &slot_label).param_key(&enabled_key))
                         .changed()
                     {
-                        self.events.send(EngineEvent::ParameterChange {
+                        self.emit_change(EngineEvent::ParameterChange {
                             id: ParamId::ModSlotEnabled(i as u8),
                             value: if self.mod_slot_enabled[i] { 1.0 } else { 0.0 },
                         });
@@ -45,8 +48,13 @@ impl ToneSmithyApp {
                         .show_ui(ui, |ui| {
                             for &idx in MOD_SOURCE_ORDER {
                                 let label = MOD_SOURCE_LABELS.get(idx).copied().unwrap_or("?");
-                                if ui.selectable_value(&mut self.mod_slot_source[i], idx, label).changed() {
-                                    self.events.send(EngineEvent::ParameterChange {
+                                let tip = MOD_SOURCE_TOOLTIPS.get(idx).copied().unwrap_or("");
+                                if ui
+                                    .selectable_value(&mut self.mod_slot_source[i], idx, label)
+                                    .on_hover_text(tip)
+                                    .changed()
+                                {
+                                    self.emit_change(EngineEvent::ParameterChange {
                                         id: ParamId::ModSlotSource(i as u8),
                                         value: idx as f32,
                                     });
@@ -59,13 +67,18 @@ impl ToneSmithyApp {
                         .selected_text(dest_label)
                         .show_ui(ui, |ui| {
                             for (idx, &label) in MOD_DEST_LABELS.iter().enumerate() {
-                                if ui.selectable_value(&mut self.mod_slot_dest[i], idx, label).changed() {
-                                    self.events.send(EngineEvent::ParameterChange {
+                                let tip = MOD_DEST_TOOLTIPS.get(idx).copied().unwrap_or("");
+                                if ui
+                                    .selectable_value(&mut self.mod_slot_dest[i], idx, label)
+                                    .on_hover_text(tip)
+                                    .changed()
+                                {
+                                    self.emit_change(EngineEvent::ParameterChange {
                                         id: ParamId::ModSlotDest(i as u8),
                                         value: idx as f32,
                                     });
                                     self.mod_slot_amount[i] = 0.0;
-                                    self.events.send(EngineEvent::ParameterChange {
+                                    self.emit_change(EngineEvent::ParameterChange {
                                         id: ParamId::ModSlotAmount(i as u8),
                                         value: 0.0,
                                     });
@@ -78,6 +91,7 @@ impl ToneSmithyApp {
                     if ui
                         .add(
                             Knob::new(&mut self.mod_slot_amount[i], -range..=range, "")
+                                .full_name("Amount")
                                 .default_value(0.0)
                                 .param_key(&mod_amount_key)
                                 .format(move |v| {
@@ -90,7 +104,7 @@ impl ToneSmithyApp {
                         )
                         .changed()
                     {
-                        self.events.send(EngineEvent::ParameterChange {
+                        self.emit_change(EngineEvent::ParameterChange {
                             id: ParamId::ModSlotAmount(i as u8),
                             value: self.mod_slot_amount[i],
                         });
@@ -103,7 +117,7 @@ impl ToneSmithyApp {
                             for &idx in MOD_SOURCE_ORDER {
                                 let label = MOD_SOURCE_LABELS.get(idx).copied().unwrap_or("?");
                                 if ui.selectable_value(&mut self.mod_slot_via[i], idx, label).changed() {
-                                    self.events.send(EngineEvent::ParameterChange {
+                                    self.emit_change(EngineEvent::ParameterChange {
                                         id: ParamId::ModSlotVia(i as u8),
                                         value: idx as f32,
                                     });

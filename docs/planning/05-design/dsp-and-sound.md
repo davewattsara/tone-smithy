@@ -22,7 +22,7 @@ The instrument should:
 
 ## Operator design (FM slot)
 
-- **4 operators**, pure sine sources, with arbitrary routing through one of **8 factory algorithms** (DX-family). User-editable routings deferred to v1.1.
+- **4 operators**, pure sine sources, with arbitrary routing through one of **8 factory algorithms** (DX-family). User-editable routings deferred to v1.2.
 - Each operator has its own envelope, ratio (integer + fine), and level — this is the part that defines FM character.
 - **Feedback** on op 4 only in the factory algorithms (keeps things bright; full feedback matrix is v1.1).
 - **2× internal oversampling** kicks in when an operator's instantaneous modulation index crosses a threshold, then downsamples through a steep low-pass to keep the audible band clean.
@@ -45,7 +45,7 @@ Patches we want to be easy:
 - **Self-oscillation** at high resonance — the filter should sing.
 - **Per-filter drive** pre-stage with soft tanh saturation — adds harmonics into the filter input, which is where a lot of "analog character" comes from.
 
-One filter per voice in v1. The second filter (with serial `F1 → F2` and parallel `F1 ∥ F2 summed` routing) and the 24 dB/oct option (4-pole ZDF ladder or cascaded SVF, chosen by listening tests) are both deferred to v1.1.
+Two filters per voice from v1.1. The second filter (with serial `F1 → F2` and parallel `F1 ∥ F2 summed` routing) defaults to Off, restoring v1.0 signal flow for old presets. The 24 dB/oct option uses a cascaded 2-pole SVF. Both delivered in v1.1 (M17).
 
 ## Envelopes
 
@@ -62,17 +62,17 @@ One filter per voice in v1. The second filter (with serial `F1 → F2` and paral
 
 ## Modulation matrix
 
-- **8 slots in v1** — a focused starting set, raised to 16 in v1.1 once we see how patches actually use it.
+- **16 slots** (raised from 8 in v1.0 to 16 in v1.1).
 - **Bipolar amount** (sources can subtract as well as add).
 - **Via attenuator** — a second source scales each slot's depth. Critical for "mod wheel adds vibrato" patches, and a feature missing from many free synths.
-- Sources include MIDI velocity, aftertouch, mod wheel, key tracking, pitch bend, the amp env, Env2, and the two LFOs. Env3 added as a source in v1.1.
+- Sources include MIDI velocity, aftertouch, mod wheel, key tracking, pitch bend, the amp env, Env2, Env3 (v1.1), the two LFOs, and the step sequencer mod lane (Seq, v1.1).
 
 ## Arpeggiator
 
 - The everyday tool — modes (up, down, up/down, random, played order), octave range, rate, gate length, swing.
 - Syncs to host BPM (free-running) or to external MIDI clock when enabled.
 
-The 16-step sequencer (with note offset, velocity, gate, and one assignable mod lane) is deferred to v1.1.
+The 16-step sequencer (with note offset, velocity, gate, tie, rest, and one assignable mod lane) was delivered in v1.1 (M18).
 
 ## Effects
 
@@ -90,12 +90,12 @@ Each effect has bypass and is mod-matrix-addressable on its key parameters (mix 
 
 ## Factory bank design
 
-- Target **~60–80 presets** at v1.0. (Expansion to ~120 deferred to v1.1.)
-- Categories: Bass (~15), Lead (~15), Pad (~12), Pluck (~8), Keys (~6), FX (~4).
+- **~120 presets** total (61 shipped with v1.0 in M14; expanded to 120 in v1.1 M20).
+- Categories: Bass, Lead, Pad, Pluck, Keys, FX.
 - Each preset has a clear identity — never two patches that are minor variations of each other.
 - Each category should include at least three "demo" presets that showcase the synth's best behaviour for that role.
 - Naming convention: `<Category> - <Descriptive Name>` (e.g. "Bass - Wool Stack", "Lead - Glass Bell").
-- Authoring approach decided at M14 — solo, recruit a sound designer, or run an open call.
+- Authoring: solo (developer + Claude), resolved at M14 and continued through M20.
 
 ## Testing for sound quality
 

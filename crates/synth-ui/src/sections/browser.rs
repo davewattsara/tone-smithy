@@ -1,7 +1,7 @@
 //! Preset browser tab — search, filter by category, click to load.
 
 use eframe::egui;
-use synth_presets::{CATEGORIES, PresetEntry, load, load_factory_preset, save, snapshot_to_map, user_presets_dir};
+use synth_presets::{CATEGORIES, PresetEntry, user_presets_dir};
 
 use crate::app::ToneSmithyApp;
 use crate::theme;
@@ -134,6 +134,17 @@ impl ToneSmithyApp {
                     .color(theme::FG1)
                     .font(theme::font_body()),
             );
+            if !self.current_preset_description.is_empty() {
+                cols[1].add_space(4.0);
+                cols[1].add(
+                    egui::Label::new(
+                        egui::RichText::new(&self.current_preset_description)
+                            .color(theme::FG2)
+                            .font(theme::font_small()),
+                    )
+                    .wrap(),
+                );
+            }
             cols[1].add_space(theme::GROUP_GAP);
             if let Some(dir) = user_presets_dir() {
                 cols[1].label(
@@ -148,70 +159,17 @@ impl ToneSmithyApp {
         let actions: Vec<_> = self.load_actions.drain(..).collect();
         for action in actions {
             match action {
-                LoadAction::LoadFactory(name) => self.load_factory_preset(&name),
-                LoadAction::LoadFile(path) => self.load_file_preset(&path),
-                LoadAction::DeleteFile(path) => self.delete_user_preset(&path),
+                LoadAction::LoadFactory(name) => self.load_factory_preset_checked(name),
+                LoadAction::LoadFile(path) => self.load_file_preset_checked(path),
+                LoadAction::DeleteFile(path) => {
+                    if let Err(e) = std::fs::remove_file(&path) {
+                        self.preset_error = Some(format!("Delete failed: {e}"));
+                    } else {
+                        self.refresh_preset_list();
+                    }
+                }
                 LoadAction::SaveCurrentAs(path) => self.save_current_as(&path),
             }
-        }
-    }
-
-    fn load_factory_preset(&mut self, name: &str) {
-        let Some(preset) = load_factory_preset(name) else {
-            return;
-        };
-        self.apply_preset_params(&preset.parameters);
-        self.patch_name = preset.metadata.name.clone();
-        self.midi_learn_mappings = preset.midi_learn.clone();
-        self.preset_error = None;
-    }
-
-    /// Load a preset from a `.tsmith` file on disk.
-    ///
-    /// Public entry point for the standalone app's `.tsmith` file association /
-    /// command-line argument: launching `tonesmithy path/to/patch.tsmith` opens
-    /// that preset on startup.
-    pub fn open_preset_file(&mut self, path: &std::path::Path) {
-        self.load_file_preset(path);
-    }
-
-    fn load_file_preset(&mut self, path: &std::path::Path) {
-        match load(path) {
-            Ok(preset) => {
-                self.apply_preset_params(&preset.parameters);
-                self.patch_name = preset.metadata.name.clone();
-                self.midi_learn_mappings = preset.midi_learn.clone();
-                self.preset_error = None;
-            }
-            Err(e) => {
-                self.preset_error = Some(format!("Load failed: {e}"));
-            }
-        }
-    }
-
-    fn delete_user_preset(&mut self, path: &std::path::Path) {
-        if let Err(e) = std::fs::remove_file(path) {
-            self.preset_error = Some(format!("Delete failed: {e}"));
-        } else {
-            self.refresh_preset_list();
-        }
-    }
-
-    fn save_current_as(&mut self, path: &std::path::Path) {
-        use synth_engine::param_bus::load_snapshot;
-        let snapshot = load_snapshot(&self.snapshot_slot);
-        let name = path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("Untitled")
-            .to_string();
-        let mut preset = synth_presets::Preset::new(name.clone());
-        preset.parameters = snapshot_to_map(&snapshot);
-        if let Err(e) = save(path, &preset) {
-            self.preset_error = Some(format!("Save failed: {e}"));
-        } else {
-            self.patch_name = name;
-            self.refresh_preset_list();
         }
     }
 }

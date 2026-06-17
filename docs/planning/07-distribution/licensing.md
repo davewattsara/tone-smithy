@@ -107,6 +107,6 @@ Kept here for completeness — they were ruled out by the analysis above.
 - [x] Licence chosen: **MIT OR Apache-2.0** (dual)
 - [x] `LICENSE-MIT` and `LICENSE-APACHE` added at repo root
 - [x] Copyright holder set: "The Tone Smithy Contributors" (year 2026). Swap to a personal name if preferred before public release.
-- [ ] `cargo deny` config to be added at M0 scaffold (allow MIT/Apache-2.0/BSD/ISC/Zlib/Unicode/MPL-2.0; deny GPL family).
-- [ ] To be mentioned in top-level README, About dialog, and installer EULA screen as those artefacts are created.
+- [x] `cargo deny` config added at M0 scaffold (allow MIT/Apache-2.0/BSD/ISC/Zlib/Unicode/MPL-2.0; deny GPL family).
+- [x] Mentioned in top-level README, About dialog, and installer README.txt. `THIRD-PARTY-LICENSES.txt` generated via `cargo about` and shipped with installer.
 - [x] `01-vision/open-questions.md` updated to reflect the resolution.

@@ -11,11 +11,11 @@ The full v1 feature set. Anything not listed here is out of scope — see [`out-
 - Slot levels are mixed before the filter section. Each slot has independent level and pan.
 
 ### Filter section
-- **One** multi-mode filter per voice (LP / HP / BP / Notch, 12 dB/oct).
+- **Two** multi-mode filters per voice (LP / HP / BP / Notch, 12 or 24 dB/oct). Routing: Off / Serial (F1 → F2) / Parallel (F1 ∥ F2 averaged). Filter 2 defaults to Off.
 - Cutoff, resonance, drive.
-- Cutoff and resonance are first-class modulation destinations.
+- Cutoff and resonance are first-class modulation destinations on both filters.
 
-> **Deferred to v1.1:** second filter with serial/parallel routing; 24 dB/oct filter option.
+> **v1.0 shipped:** one filter (12 dB/oct). Second filter with serial/parallel routing and 24 dB/oct option delivered in v1.1 (M17).
 
 ### Amplifier
 - Per-voice amp stage with ADSR envelope, master level, velocity sensitivity.
@@ -24,9 +24,9 @@ The full v1 feature set. Anything not listed here is out of scope — see [`out-
 
 ### Envelopes
 - **Amp envelope** (always wired to amplitude).
-- **1 additional envelope** (Env2) — ADSR with adjustable curves (lin / exp / log), freely assignable through the mod matrix.
+- **2 additional envelopes** (Env2, Env3) — ADSR with adjustable curves (lin / exp / log), freely assignable through the mod matrix.
 
-> **Deferred to v1.1:** second mod envelope (Env3).
+> **v1.0 shipped:** Env2 only. Env3 delivered in v1.1 (M17).
 
 ### LFOs
 - **2 LFOs** per voice.
@@ -34,18 +34,24 @@ The full v1 feature set. Anything not listed here is out of scope — see [`out-
 - Free or tempo-synced; phase reset on note-on optional; per-voice or global mode.
 
 ### Modulation matrix
-- **Any source to any destination**, with **8 slots in v1**.
-- **Sources:** Amp env, Env2, LFO1, LFO2, MIDI velocity, key tracking, mod wheel, channel aftertouch, pitch bend, MIDI CC (assignable).
-- **Destinations:** any continuous parameter (oscillator pitch/level/detune, filter cutoff/resonance, FM operator levels/ratios, FX parameters, LFO/env rates, etc.).
+- **Any source to any destination**, with **16 slots**.
+- **Sources:** Amp env, Env2, Env3, LFO1, LFO2, MIDI velocity, key tracking, mod wheel, channel aftertouch, pitch bend, MIDI CC (assignable), step sequencer mod lane (Seq).
+- **Destinations:** any continuous parameter (oscillator pitch/level/detune per OSC, filter cutoff/resonance for both filters, FM operator levels/ratios, FX parameters, LFO/env rates, etc.).
 - Per-slot bipolar amount; per-slot via attenuator (a second source can scale the modulation depth).
 
-> **Deferred to v1.1:** matrix expanded to 16 slots; Env3 added as a source.
+> **v1.0 shipped:** 8 slots, Env3 and Seq sources absent. Expanded to 16 slots, Env3 and Seq added in v1.1 (M17/M18).
 
 ## Arpeggiator
 
 - Modes: up, down, up/down, random, played order. Octave range 1–4. Rate sync to BPM or free. Gate length. Swing.
 
-> **Deferred to v1.1:** 16-step sequencer with notes, velocities, gates, ties, rests, and one assignable mod lane.
+## Step sequencer
+
+- 16 steps with per-step: note offset (±24 st), velocity, gate, rest, tie, and one assignable mod lane.
+- Playback modes: forward, reverse, ping-pong, random. BPM shared with the Master-tab transport.
+- Sequencer and arpeggiator are mutually exclusive (one note engine active at a time).
+
+> **v1.0 shipped:** arpeggiator only. Step sequencer delivered in v1.1 (M18).
 
 ## Effects (post-mix, fixed insert chain)
 
@@ -81,7 +87,7 @@ Each FX has a bypass toggle and is fully mod-matrix-addressable for its key para
 - Computer-keyboard keys are highlighted on the virtual keyboard while held, and the virtual keyboard scrolls to match the computer keyboard's current octave.
 
 ### Computer keyboard
-- Standard layout: A W S E D F T G Y H U J for one octave plus accidentals. Z / X shift octave. C / V shift velocity preset.
+- Standard layout: A W S E D F T G Y H U J K for one octave plus accidentals (K = C one octave above A). Z / X shift octave. C / V shift velocity preset.
 
 ### MIDI Learn
 - Right-click any parameter → "MIDI Learn" → move a hardware control → mapping persisted in the patch.

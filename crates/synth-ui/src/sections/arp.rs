@@ -22,7 +22,7 @@ impl ToneSmithyApp {
             if self.arp_enabled {
                 self.seq_enabled = false;
             }
-            self.events.send(EngineEvent::ParameterChange {
+            self.emit_change(EngineEvent::ParameterChange {
                 id: ParamId::ArpEnabled,
                 value: if self.arp_enabled { 1.0 } else { 0.0 },
             });
@@ -39,7 +39,7 @@ impl ToneSmithyApp {
                     .show_ui(ui, |ui| {
                         for (i, label) in mode_labels.iter().enumerate() {
                             if ui.selectable_value(&mut self.arp_mode, i as u8, *label).changed() {
-                                self.events.send(EngineEvent::ParameterChange {
+                                self.emit_change(EngineEvent::ParameterChange {
                                     id: ParamId::ArpMode,
                                     value: self.arp_mode as f32,
                                 });
@@ -63,7 +63,7 @@ impl ToneSmithyApp {
                         for (i, label) in oct_labels.iter().enumerate() {
                             let v = (i + 1) as u8;
                             if ui.selectable_value(&mut self.arp_octaves, v, *label).changed() {
-                                self.events.send(EngineEvent::ParameterChange {
+                                self.emit_change(EngineEvent::ParameterChange {
                                     id: ParamId::ArpOctaves,
                                     value: self.arp_octaves as f32,
                                 });
@@ -82,7 +82,7 @@ impl ToneSmithyApp {
                     .show_ui(ui, |ui| {
                         for (i, label) in rate_labels.iter().enumerate() {
                             if ui.selectable_value(&mut self.arp_rate, i as u8, *label).changed() {
-                                self.events.send(EngineEvent::ParameterChange {
+                                self.emit_change(EngineEvent::ParameterChange {
                                     id: ParamId::ArpRate,
                                     value: self.arp_rate as f32,
                                 });
@@ -105,7 +105,7 @@ impl ToneSmithyApp {
                     )
                     .changed()
                 {
-                    self.events.send(EngineEvent::ParameterChange {
+                    self.emit_change(EngineEvent::ParameterChange {
                         id: ParamId::ArpGate,
                         value: self.arp_gate,
                     });
@@ -119,7 +119,7 @@ impl ToneSmithyApp {
                     )
                     .changed()
                 {
-                    self.events.send(EngineEvent::ParameterChange {
+                    self.emit_change(EngineEvent::ParameterChange {
                         id: ParamId::ArpSwing,
                         value: self.arp_swing,
                     });

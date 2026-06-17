@@ -74,7 +74,7 @@ Most work stays directly on `development`. Create a short-lived branch off `deve
 
 ### Don't branch for
 
-Doc updates, conversation log entries, single-commit fixes, routine planning iterations, anything you'd be comfortable landing on `development` as-is. Just commit.
+Doc updates, single-commit fixes, routine planning iterations, anything you'd be comfortable landing on `development` as-is. Just commit.
 
 ### Branch naming
 
@@ -115,19 +115,6 @@ Doc updates, conversation log entries, single-commit fixes, routine planning ite
 - **Milestone tags** — `m00`, `m01`, …, `m15`. Lightweight markers, one per milestone completion.
 - **Release tags** — SemVer (`v1.0.0`, `v1.1.0`, …). First applied at M15.
 
-### Hot-fix flow (rare, post-milestone)
-
-If a critical bug is found in a milestone-tagged `main`:
-
-1. Branch from `main`: `git checkout main && git checkout -b fix/<short>`.
-2. Make the fix and commit.
-3. Merge to `main` (regular merge); tag if it's a release-worthy patch.
-4. Merge `main` back into `development` so the two branches don't drift:
-   ```bash
-   git checkout development
-   git merge main
-   ```
-
 ### Claude-specific
 
 - **Always check the current branch** before committing (`git status` shows it on the first line).
@@ -136,17 +123,6 @@ If a critical bug is found in a milestone-tagged `main`:
 - **Don't switch branches with uncommitted changes.** Commit (on the current branch) or stash first.
 - **Before committing any `.rs` or `Cargo.toml` change**, run `cargo fmt --all --check` and fix any diff, then run `cargo clippy --workspace --all-targets -- -D warnings` and resolve all warnings. CI enforces both; skipping either will fail the lint job.
 - **Never rewrite git history.** `git filter-branch`, `git rebase -i`, `git commit --amend` on a non-HEAD commit, `git reset --hard` to discard commits — all forbidden. Messy history is better than rewritten history. Only the user may authorise rewrites.
-
----
-
-## Conversation logging
-
-Every exchange between the user and Claude must be appended to today's conversation log file.
-
-- **Where:** `docs/conversations/YYYY-MM-DD.md`, one file per local-date day.
-- **Format spec:** [`conversations/README.md`](conversations/README.md). Read this before writing entries — the format is specific (visual distinction for the user, heading-level shifts for Claude's content, commit-hash cross-references).
-- **When:** after each Claude response, before reporting completion.
-- **Commit cadence:** the log update is a **separate commit** from work commits, and comes **after** them so the log can reference the work commit hashes. Subject style: `Log conversation: <short description>`.
 
 ---
 
@@ -181,7 +157,6 @@ The top-level [`README.md`](../README.md) is the public face of the project — 
 
 - Internal refactors that don't change behaviour or public commands.
 - Doc-only changes inside `docs/planning/` that don't shift v1 scope.
-- New conversation log entries.
 - Routine commits that don't surface in the public-facing summary.
 
 ### How
@@ -215,6 +190,5 @@ Don't add screenshots, badges, or marketing copy until v1.0 is actually shippabl
 2. [`planning/01-vision/overview.md`](planning/01-vision/overview.md) — what we're building.
 3. [`planning/README.md`](planning/README.md) — the plan index.
 4. This file (`working-conventions.md`) — how we work.
-5. [`conversations/README.md`](conversations/README.md) — how to log exchanges.
 
 After that, dip into specific planning docs as the task requires.

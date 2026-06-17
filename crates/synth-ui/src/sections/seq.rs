@@ -22,7 +22,7 @@ impl ToneSmithyApp {
             if self.seq_enabled {
                 self.arp_enabled = false;
             }
-            self.events.send(EngineEvent::ParameterChange {
+            self.emit_change(EngineEvent::ParameterChange {
                 id: ParamId::SeqEnabled,
                 value: if self.seq_enabled { 1.0 } else { 0.0 },
             });
@@ -59,7 +59,7 @@ impl ToneSmithyApp {
                 .changed()
             {
                 self.seq_length = len;
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::SeqLength,
                     value: f32::from(self.seq_length),
                 });
@@ -74,7 +74,7 @@ impl ToneSmithyApp {
                 .show_ui(ui, |ui| {
                     for (i, label) in rate_labels.iter().enumerate() {
                         if ui.selectable_value(&mut self.seq_rate, i as u8, *label).changed() {
-                            self.events.send(EngineEvent::ParameterChange {
+                            self.emit_change(EngineEvent::ParameterChange {
                                 id: ParamId::SeqRate,
                                 value: self.seq_rate as f32,
                             });
@@ -91,7 +91,7 @@ impl ToneSmithyApp {
                 .show_ui(ui, |ui| {
                     for (i, label) in mode_labels.iter().enumerate() {
                         if ui.selectable_value(&mut self.seq_mode, i as u8, *label).changed() {
-                            self.events.send(EngineEvent::ParameterChange {
+                            self.emit_change(EngineEvent::ParameterChange {
                                 id: ParamId::SeqMode,
                                 value: self.seq_mode as f32,
                             });
@@ -110,7 +110,7 @@ impl ToneSmithyApp {
                 )
                 .changed()
             {
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::SeqSwing,
                     value: self.seq_swing,
                 });
@@ -209,7 +209,7 @@ impl ToneSmithyApp {
                 .changed()
             {
                 self.seq_step_note[i] = note;
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::SeqStepNote(i as u8),
                     value: f32::from(note),
                 });
@@ -227,7 +227,7 @@ impl ToneSmithyApp {
                 .changed()
             {
                 self.seq_step_velocity[i] = vel;
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::SeqStepVelocity(i as u8),
                     value: f32::from(vel),
                 });
@@ -245,7 +245,7 @@ impl ToneSmithyApp {
                 .changed()
             {
                 self.seq_step_gate[i] = gate;
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::SeqStepGate(i as u8),
                     value: gate,
                 });
@@ -263,7 +263,7 @@ impl ToneSmithyApp {
             .changed()
         {
             self.seq_step_mod[i] = modv;
-            self.events.send(EngineEvent::ParameterChange {
+            self.emit_change(EngineEvent::ParameterChange {
                 id: ParamId::SeqStepMod(i as u8),
                 value: modv,
             });
@@ -283,7 +283,7 @@ impl ToneSmithyApp {
                 .clicked()
             {
                 self.seq_step_rest[i] = !rest;
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::SeqStepRest(i as u8),
                     value: if self.seq_step_rest[i] { 1.0 } else { 0.0 },
                 });
@@ -301,7 +301,7 @@ impl ToneSmithyApp {
                 .clicked()
             {
                 self.seq_step_tie[i] = !tie;
-                self.events.send(EngineEvent::ParameterChange {
+                self.emit_change(EngineEvent::ParameterChange {
                     id: ParamId::SeqStepTie(i as u8),
                     value: if self.seq_step_tie[i] { 1.0 } else { 0.0 },
                 });
