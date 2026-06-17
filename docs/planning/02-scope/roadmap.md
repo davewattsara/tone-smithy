@@ -49,9 +49,17 @@ improvements and platform expansion:
 ## v1.2 — Polish & quality of life
 
 - Auto-update check (GitHub Releases).
-- Drag-and-drop modulation assignment (drag a source onto a knob).
 - Editable FM operator routing (user algorithms in addition to the 8 factory algorithms).
 - An additional mod lane in the step sequencer.
+- **Tooltips** — fill in missing tooltip text across the UI:
+  - LFO `Sync` and `Reset` toggles.
+  - Mod matrix source and destination dropdown items (each option gets a one-line description).
+  - Filter tab controls (mode, slope, routing, cutoff, resonance for both filters).
+  - Knob tooltips show the full parameter name rather than the abbreviated label (e.g. "Attack" instead of "A").
+- **In-app help** — a Help menu item that opens the user manual in the system browser (via the `open` crate). Zero UI work; the manual already exists on GitHub.
+- **Unsaved-changes warning** — when loading a new preset while the current patch has been modified since last save, show a Save / Discard / Cancel dialog. "Modified" means any parameter change, MIDI Learn assignment, or slot-level edit since the patch was loaded or last saved.
+- **Slot foldout behaviour** — Slot 1 expanded by default on a fresh launch. On any patch load, automatically expand slots whose level is non-zero and collapse slots whose level is zero, so the visible controls match what the patch actually uses.
+- **Preset description in main view** — show the active preset's description field below the patch name in the header bar (or a dedicated area near it). Hidden when the description is empty.
 - **Oscillator phase consistency** (deferred — two coupled parts):
   - **Single-oscillator init patch.** The current default runs OSC1/2/3 + sub all at unity, 0 detune;
     three coherent oscillators with per-note random phase make the same note sound different each
@@ -67,7 +75,6 @@ improvements and platform expansion:
     OSC2/OSC3 levels wherever they ride the default, distinguishing subtractive patches (where it
     changes the sound) from FM-mode slots (where the subtractive levels are moot). Fold the
     migration into a factory-bank pass if this lands in a v1.1 milestone instead.
-- Bug-fix backlog from v1.1 reports.
 
 ## v1.3 — Expression & tuning
 
