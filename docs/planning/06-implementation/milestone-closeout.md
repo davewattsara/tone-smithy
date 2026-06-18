@@ -129,3 +129,6 @@ three-platform installers. Confirm the release artefacts actually published.
 - **Every milestone:** sign-off line in `milestones.md` → doc-sync sweep → merge + `mXX` tag.
 - **Version milestone:** all of the above, **plus** user manual updated *first*, then
   CHANGELOG, version bump, `v*` tag + release.
+- **Before the next milestone starts:** confirm this one is actually closed out (signed
+  off, merged, tagged). If a request to start a new milestone arrives while the previous
+  one is still open, ask the user — they have usually just forgotten to close it out.

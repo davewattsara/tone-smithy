@@ -6,6 +6,7 @@ This is the Tone Smithy repo: a hybrid (subtractive + FM) standalone software sy
 
 ### Starting a milestone
 - **Never begin milestone implementation work without explicit user instruction.** Finishing a previous milestone, reading a plan, or reaching the end of a session does not constitute permission to start the next one. Wait for the user to say "start M16" (or equivalent) before writing any code.
+- **Before starting a new milestone, check the previous one is closed out.** If the most recent milestone in `docs/planning/06-implementation/milestones.md` lacks its `— **complete (YYYY-MM-DD, tag \`mXX\`)**` sign-off (or there are unmerged/untagged changes from it), stop and ask the user whether they really want to start a new milestone first — they have usually just forgotten to close out the previous one. Only proceed once they confirm, or once the previous milestone is closed out per the [close-out runbook](docs/planning/06-implementation/milestone-closeout.md).
 
 ### Closing out a milestone
 - **Follow the close-out runbook: [`docs/planning/06-implementation/milestone-closeout.md`](docs/planning/06-implementation/milestone-closeout.md).** It is the canonical procedure — user sign-off gate, the doc-sync sweep (so docs don't fall behind), and the git merge/tag mechanics.
