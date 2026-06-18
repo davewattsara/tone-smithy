@@ -93,6 +93,8 @@ Doc updates, single-commit fixes, routine planning iterations, anything you'd be
 
 ### Milestone completion → merge `development` to `main`
 
+> **Full close-out runbook:** [`planning/06-implementation/milestone-closeout.md`](planning/06-implementation/milestone-closeout.md) is the canonical checklist (sign-off gate, doc-sync sweep, and — for release milestones — the user-manual/CHANGELOG/version-bump steps). The git mechanics below are the merge portion of it.
+
 > **AGENTS: do not perform steps 2–5 until the user confirms the build passes their own test.** The done-when criteria for playable milestones are experiential and cannot be verified by a test suite or a clean build alone. Present the completed work, ask the user to run `cargo run --bin tonesmithy` and test it, and wait for explicit sign-off before proceeding with any close-out steps.
 
 1. Verify the milestone's success criteria are met (per [`planning/06-implementation/milestones.md`](planning/06-implementation/milestones.md)).

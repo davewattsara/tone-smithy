@@ -8,8 +8,9 @@ This is the Tone Smithy repo: a hybrid (subtractive + FM) standalone software sy
 - **Never begin milestone implementation work without explicit user instruction.** Finishing a previous milestone, reading a plan, or reaching the end of a session does not constitute permission to start the next one. Wait for the user to say "start M16" (or equivalent) before writing any code.
 
 ### Closing out a milestone
-- When marking a milestone complete in `docs/planning/06-implementation/milestones.md`, always include the date: `— **complete (YYYY-MM-DD, tag \`mXX\`)**`. Use the current date from the `currentDate` context or ask the user if unsure.
-- The sign-off goes on the `## MXX — Title` heading line itself, matching the format used for M0 and M1.
+- **Follow the close-out runbook: [`docs/planning/06-implementation/milestone-closeout.md`](docs/planning/06-implementation/milestone-closeout.md).** It is the canonical procedure — user sign-off gate, the doc-sync sweep (so docs don't fall behind), and the git merge/tag mechanics.
+- Don't skip the doc-sync sweep. Bringing `README.md`, this file's "Project state at a glance", `open-questions.md`, and the rest up to date is part of closing the milestone, not a follow-up task.
+- **Version (release) milestones** run extra steps on top — most importantly, **update the user manual (`docs/user-manual.md`) BEFORE finalizing the version**, then CHANGELOG, version bump, and the `v*` tag. See the runbook.
 
 ### After making file changes
 - **Commit immediately.** Don't wait to be asked.
@@ -67,6 +68,7 @@ Don't update it for internal refactors or doc-only planning changes. Full trigge
 | What we're building (more detail) | [`docs/planning/01-vision/overview.md`](docs/planning/01-vision/overview.md) |
 | The full plan index | [`docs/planning/README.md`](docs/planning/README.md) |
 | How we work in this repo | [`docs/working-conventions.md`](docs/working-conventions.md) |
+| How to close out a milestone | [`docs/planning/06-implementation/milestone-closeout.md`](docs/planning/06-implementation/milestone-closeout.md) |
 | When to update README.md | [`docs/working-conventions.md#keeping-the-readme-up-to-date`](docs/working-conventions.md#keeping-the-readme-up-to-date) |
 | What's still undecided | [`docs/planning/01-vision/open-questions.md`](docs/planning/01-vision/open-questions.md) |
 
