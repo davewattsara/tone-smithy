@@ -10,9 +10,11 @@ Tick each box as you verify it.
 
 ## Orientation
 
-- UI operator labels are **1-based**: grid "Op 1 / 2 / 3 / 4" map to engine ops **0 / 1 / 2 / 3**.
-- Routing rule: **higher-numbered ops modulate lower-numbered ops.** Op 4 is a pure modulator
-  (top of the chain), Op 1 only receives. Op 4's self-feedback is the **FB knob**, not a grid
+- Everything below uses the operator numbers **as shown in the app** — the grid rows labelled
+  **Op 1 / Op 2 / Op 3 / Op 4**. (No hidden indices to translate.)
+- Routing rule: **higher-numbered ops modulate lower-numbered ops.** So Op 1's "mod by" row
+  offers **Op 2 / Op 3 / Op 4**, Op 2's offers **Op 3 / Op 4**, Op 3's offers **Op 4**, and Op 4
+  has none — it is a pure modulator whose only self-modulation is the **FB knob**, not a grid
   checkbox.
 - All FM lives in the **FM slot** — the slot showing the operator grid and the `Alg` dropdown.
 - Suggested starting patch: **Keys -> "DX Piano"** — FM-only, on factory algorithm **8 Paired**,
