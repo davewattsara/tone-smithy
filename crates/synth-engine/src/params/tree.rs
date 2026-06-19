@@ -131,6 +131,10 @@ pub struct ParameterTree {
     /// glide through 3.4 voices.
     pub(super) osc_main_unison_voices: [f32; MAIN_OSCILLATOR_COUNT],
 
+    /// Per-main-oscillator phase mode: `false` = Free, `true` = Retrig.
+    /// Stepped — read once on note-on by the voice, never per-sample.
+    pub(super) osc_main_phase_modes: [bool; MAIN_OSCILLATOR_COUNT],
+
     /// Stepped (not smoothed): sampled by the voice at the next
     /// envelope phase transition, not per-sample.
     pub(super) amp_attack_secs: f32,
@@ -305,6 +309,7 @@ impl ParameterTree {
                 .osc_main_unison_spreads
                 .map(|v| SmoothedParam::new(v, sample_rate_hz)),
             osc_main_unison_voices: defaults.osc_main_unison_voices,
+            osc_main_phase_modes: defaults.osc_main_phase_modes,
             amp_attack_secs: defaults.amp_attack_secs,
             amp_decay_secs: defaults.amp_decay_secs,
             amp_sustain_level: defaults.amp_sustain_level,
@@ -457,6 +462,9 @@ impl ParameterTree {
             ParamId::Osc1UnisonSpread => self.osc_main_unison_spreads[0].set_target(value),
             ParamId::Osc2UnisonSpread => self.osc_main_unison_spreads[1].set_target(value),
             ParamId::Osc3UnisonSpread => self.osc_main_unison_spreads[2].set_target(value),
+            ParamId::Osc1PhaseMode => self.osc_main_phase_modes[0] = value >= 0.5,
+            ParamId::Osc2PhaseMode => self.osc_main_phase_modes[1] = value >= 0.5,
+            ParamId::Osc3PhaseMode => self.osc_main_phase_modes[2] = value >= 0.5,
             ParamId::PitchBendSemis => self.pitch_bend_semis.set_target(value),
             ParamId::ModWheel => self.mod_wheel = value,
             ParamId::ChannelAftertouch => self.channel_aftertouch = value,
@@ -833,6 +841,13 @@ impl ParameterTree {
         self.lfo1_global
     }
 
+    /// Returns the per-main-oscillator phase modes (`false` = Free,
+    /// `true` = Retrig).
+    #[must_use]
+    pub fn osc_main_phase_modes(&self) -> [bool; MAIN_OSCILLATOR_COUNT] {
+        self.osc_main_phase_modes
+    }
+
     /// Returns LFO2 shape index.
     #[must_use]
     pub fn lfo2_shape_index(&self) -> usize {
@@ -1049,6 +1064,7 @@ impl ParameterTree {
                 self.osc_main_unison_spreads[1].current(),
                 self.osc_main_unison_spreads[2].current(),
             ],
+            osc_main_phase_modes: self.osc_main_phase_modes,
             active_voice_count: self.active_voice_count,
             pitch_bend_semis: self.pitch_bend_semis.current(),
             mod_wheel: self.mod_wheel,

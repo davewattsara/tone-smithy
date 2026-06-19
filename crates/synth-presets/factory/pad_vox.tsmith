@@ -20,6 +20,7 @@
         "osc1_unison_voices": 2.0,
         "osc1_unison_detune_cents": 9.0,
         "osc2_level": 0.6,
+        "osc3_level": 1.0,
         "osc2_detune_cents": 4.0,
         "lfo1_rate_hz": 0.3,
         "mod_slot_enabled_0": 1.0,

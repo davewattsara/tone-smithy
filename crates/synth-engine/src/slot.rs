@@ -40,8 +40,8 @@ pub struct SubtractiveBank {
 
 impl SubtractiveBank {
     /// Creates a fresh bank at the given sample rate. Oscillator
-    /// phases start at zero; call [`SubtractiveBank::reset_phases`]
-    /// at the first note-on from idle.
+    /// phases start at zero; [`SubtractiveBank::note_on`] applies the
+    /// per-oscillator phase behaviour at the first note-on from idle.
     #[must_use]
     pub fn new(sample_rate_hz: f32) -> Self {
         Self {
@@ -50,14 +50,27 @@ impl SubtractiveBank {
         }
     }
 
-    /// Pseudo-randomises every main bank's voice phases and resets the
-    /// sub oscillator's phase to zero. Call on the idle-to-attack
-    /// transition so a fresh note never comb-filters against itself.
-    pub fn reset_phases(&mut self) {
-        for bank in &mut self.main_oscillators {
-            bank.randomize_phases();
+    /// Applies each main oscillator's phase behaviour on note-on.
+    ///
+    /// For a `Free` oscillator (`phase_modes[i] == false`) the phases are
+    /// pseudo-randomised only on the idle-to-attack transition
+    /// (`is_first_note`), matching the v1.1 behaviour so a fresh note
+    /// never comb-filters against itself and retriggers stay continuous.
+    /// For a `Retrig` oscillator (`phase_modes[i] == true`) the phases
+    /// are reset to zero on *every* note-on, giving a deterministic
+    /// attack. The sub oscillator (excluded from phase mode) resets to
+    /// zero on the idle-to-attack transition as before.
+    pub fn note_on(&mut self, is_first_note: bool, phase_modes: [bool; MAIN_OSCILLATOR_COUNT]) {
+        for (i, bank) in self.main_oscillators.iter_mut().enumerate() {
+            if phase_modes[i] {
+                bank.reset_phases();
+            } else if is_first_note {
+                bank.randomize_phases();
+            }
         }
-        self.sub_oscillator.reset_phase();
+        if is_first_note {
+            self.sub_oscillator.reset_phase();
+        }
     }
 
     /// Sets the waveform on every voice of all three main oscillator
@@ -156,16 +169,15 @@ impl Slot {
     }
 
     /// Called by the voice on every note-on. `is_first_note` is `true`
-    /// when the voice's amp envelope was idle (the slot resets its
-    /// subtractive phases in that case); the FM bank retriggers its
-    /// operator envelopes on every note-on regardless, per DX7
-    /// convention.
-    pub fn note_on(&mut self, is_first_note: bool) {
+    /// when the voice's amp envelope was idle; the subtractive bank uses
+    /// it together with `phase_modes` to decide whether to randomise or
+    /// zero each oscillator's phase (see [`SubtractiveBank::note_on`]).
+    /// The FM bank retriggers its operator envelopes on every note-on
+    /// regardless, per DX7 convention.
+    pub fn note_on(&mut self, is_first_note: bool, phase_modes: [bool; MAIN_OSCILLATOR_COUNT]) {
         match self.mode {
             SlotMode::Subtractive => {
-                if is_first_note {
-                    self.subtractive.reset_phases();
-                }
+                self.subtractive.note_on(is_first_note, phase_modes);
             }
             SlotMode::Fm => {
                 self.fm.note_on();
@@ -275,7 +287,7 @@ mod tests {
     #[test]
     fn subtractive_slot_with_unit_level_produces_audio() {
         let mut slot = Slot::new(48_000.0, 1.0, SlotMode::Subtractive);
-        slot.note_on(true);
+        slot.note_on(true, [false; MAIN_OSCILLATOR_COUNT]);
         let params = default_params();
         let mut peak = 0.0_f32;
         for _ in 0..2048 {
@@ -298,7 +310,7 @@ mod tests {
             op.set_decay_secs(0.001);
             op.set_sustain_level(1.0);
         }
-        slot.note_on(true);
+        slot.note_on(true, [false; MAIN_OSCILLATOR_COUNT]);
         let params = default_params();
         let mut peak = 0.0_f32;
         for _ in 0..2048 {
@@ -313,7 +325,7 @@ mod tests {
     fn slot_pan_at_minus_one_silences_right_channel() {
         let mut slot = Slot::new(48_000.0, 1.0, SlotMode::Subtractive);
         slot.pan = -1.0;
-        slot.note_on(true);
+        slot.note_on(true, [false; MAIN_OSCILLATOR_COUNT]);
         let params = default_params();
         let mut peak_r = 0.0_f32;
         for _ in 0..1024 {
@@ -336,7 +348,7 @@ mod tests {
             op.set_sustain_level(1.0);
             op.set_release_secs(0.500);
         }
-        slot.note_on(true);
+        slot.note_on(true, [false; MAIN_OSCILLATOR_COUNT]);
         let params = default_params();
         for _ in 0..256 {
             slot.next_sample(&params, Some(60));
@@ -350,6 +362,54 @@ mod tests {
         assert!(
             peak > 0.001,
             "FM slot should keep producing audio during release, peak={peak}"
+        );
+    }
+
+    /// In Retrig mode the oscillator phase resets to zero on *every*
+    /// note-on (not just the idle-to-attack transition), so two
+    /// successive retriggers of the same note produce a bit-identical
+    /// attack block — the deterministic, repeatable attack the feature
+    /// promises.
+    #[test]
+    fn retrig_mode_produces_identical_attack_on_every_note_on() {
+        let mut slot = Slot::new(48_000.0, 1.0, SlotMode::Subtractive);
+        // Silence the sub oscillator: it is excluded from phase mode and
+        // resets only on the idle-to-attack transition, so it would
+        // legitimately differ between a fresh note and a retrigger.
+        let mut params = default_params();
+        params.sub_level = 0.0;
+        let retrig = [true; MAIN_OSCILLATOR_COUNT];
+
+        slot.note_on(true, retrig);
+        let first: Vec<(f32, f32)> = (0..256).map(|_| slot.next_sample(&params, Some(60))).collect();
+
+        // A retrigger while still sounding (is_first_note = false) must
+        // still zero the phase in Retrig mode.
+        slot.note_on(false, retrig);
+        let second: Vec<(f32, f32)> = (0..256).map(|_| slot.next_sample(&params, Some(60))).collect();
+
+        assert_eq!(first, second, "Retrig attack should be identical on every note-on");
+    }
+
+    /// In Free mode a retrigger while the voice is still sounding does
+    /// *not* reset the phase (the v1.1 behaviour), so the block after a
+    /// retrigger continues from the running phase and differs from the
+    /// fresh attack block.
+    #[test]
+    fn free_mode_retrigger_continues_phase() {
+        let mut slot = Slot::new(48_000.0, 1.0, SlotMode::Subtractive);
+        let params = default_params();
+        let free = [false; MAIN_OSCILLATOR_COUNT];
+
+        slot.note_on(true, free);
+        let first: Vec<(f32, f32)> = (0..256).map(|_| slot.next_sample(&params, Some(60))).collect();
+
+        slot.note_on(false, free);
+        let second: Vec<(f32, f32)> = (0..256).map(|_| slot.next_sample(&params, Some(60))).collect();
+
+        assert_ne!(
+            first, second,
+            "Free retrigger should continue the running phase, not reset it"
         );
     }
 }

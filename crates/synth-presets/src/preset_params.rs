@@ -58,6 +58,7 @@ pub fn snapshot_to_map(snap: &ParamSnapshot) -> BTreeMap<String, f32> {
             snap.osc_main_unison_detune_cents[i],
         );
         m.insert(format!("osc{n}_unison_spread"), snap.osc_main_unison_spreads[i]);
+        m.insert(format!("osc{n}_phase_mode"), f32::from(snap.osc_main_phase_modes[i]));
     }
     m.insert("sub_level".into(), snap.sub_level);
     m.insert("sub_pan".into(), snap.sub_pan);
@@ -310,6 +311,14 @@ pub fn map_to_events(m: &BTreeMap<String, f32>) -> Vec<EngineEvent> {
                 _ => ParamId::Osc3UnisonSpread,
             }
         );
+        pc!(
+            &format!("osc{n}_phase_mode"),
+            match i {
+                0 => ParamId::Osc1PhaseMode,
+                1 => ParamId::Osc2PhaseMode,
+                _ => ParamId::Osc3PhaseMode,
+            }
+        );
     }
     pc!("sub_level", ParamId::SubLevel);
     pc!("sub_pan", ParamId::SubPan);
@@ -540,6 +549,7 @@ pub fn map_to_snapshot(m: &BTreeMap<String, f32>) -> ParamSnapshot {
             s.osc_main_unison_detune_cents[i]
         );
         get!(&format!("osc{n}_unison_spread"), s.osc_main_unison_spreads[i]);
+        get_bool!(&format!("osc{n}_phase_mode"), s.osc_main_phase_modes[i]);
     }
     get!("sub_level", s.sub_level);
     get!("sub_pan", s.sub_pan);
@@ -736,6 +746,7 @@ mod tests {
             orig.osc_main_unison_voices[i] = (i + 1) as f32;
             orig.osc_main_unison_detune_cents[i] = 10.0 + i as f32;
             orig.osc_main_unison_spreads[i] = 0.5;
+            orig.osc_main_phase_modes[i] = i % 2 == 0;
         }
         orig.sub_level = 0.2;
         orig.sub_pan = 0.1;
@@ -864,6 +875,7 @@ mod tests {
         assert_eq!(orig.osc_main_unison_voices, got.osc_main_unison_voices);
         assert_eq!(orig.osc_main_unison_detune_cents, got.osc_main_unison_detune_cents);
         assert_eq!(orig.osc_main_unison_spreads, got.osc_main_unison_spreads);
+        assert_eq!(orig.osc_main_phase_modes, got.osc_main_phase_modes);
         assert_eq!(orig.sub_level, got.sub_level);
         assert_eq!(orig.sub_pan, got.sub_pan);
         assert_eq!(orig.lfo1_rate_hz, got.lfo1_rate_hz);
