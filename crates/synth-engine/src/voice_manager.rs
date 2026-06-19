@@ -15,13 +15,13 @@
 //!
 //! [`Voice`]: crate::voice::Voice
 
-use crate::POLYPHONY;
 use crate::filter::{FilterMode, FilterRouting, FilterSlope};
 use crate::lfo::{Lfo, LfoShape};
 use crate::mod_matrix::{ModDest, ModMatrix, ModSource, ModSources};
 use crate::oscillator::Waveform;
 use crate::params::SampleParams;
 use crate::voice::Voice;
+use crate::{MAIN_OSCILLATOR_COUNT, POLYPHONY};
 
 /// Fixed-size pool of [`Voice`]s with note allocation and stealing.
 ///
@@ -108,6 +108,9 @@ pub struct VoiceManager {
     /// Most recent shared-LFO outputs, refreshed once per block.
     shared_lfo1_out: f32,
     shared_lfo2_out: f32,
+    /// Per-main-oscillator phase mode (`false` = Free, `true` = Retrig),
+    /// read at every note-on and forwarded to the triggered voice.
+    osc_main_phase_modes: [bool; MAIN_OSCILLATOR_COUNT],
 }
 
 impl VoiceManager {
@@ -134,6 +137,7 @@ impl VoiceManager {
             lfo2_global: false,
             shared_lfo1_out: 0.0,
             shared_lfo2_out: 0.0,
+            osc_main_phase_modes: [false; MAIN_OSCILLATOR_COUNT],
         }
     }
 
@@ -151,7 +155,7 @@ impl VoiceManager {
         // release.
         self.deferred_note_offs[note_midi as usize] = false;
         let index = self.allocate_voice();
-        self.voices[index].note_on(note_midi, velocity);
+        self.voices[index].note_on(note_midi, velocity, self.osc_main_phase_modes);
         self.note_on_tick[index] = Some(self.next_tick);
         self.note_off_tick[index] = None;
         self.next_tick += 1;
@@ -322,6 +326,14 @@ impl VoiceManager {
     /// Selects per-voice or global (mono) mode for LFO1.
     pub fn set_lfo1_global(&mut self, global: bool) {
         self.lfo1_global = global;
+    }
+
+    /// Sets the phase mode (`false` = Free, `true` = Retrig) for the
+    /// main oscillator at `index` (0..3). Applied to the next note-on.
+    pub fn set_osc_phase_mode(&mut self, index: usize, retrig: bool) {
+        if index < MAIN_OSCILLATOR_COUNT {
+            self.osc_main_phase_modes[index] = retrig;
+        }
     }
 
     /// Sets LFO1 phase-reset-on-note-on on every voice.

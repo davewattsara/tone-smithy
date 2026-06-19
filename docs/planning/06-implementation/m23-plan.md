@@ -235,6 +235,17 @@ Add to the v1.2 CHANGELOG entry:
 
 ## Progress
 
-- [ ] Phase 1 — Per-oscillator phase mode
-- [ ] Phase 2 — Migration audit (`xtask migrate-osc-defaults`)
-- [ ] Phase 3 — Default OSC2/3 level 1.0 → 0.0 (run only after Phase 2 verified)
+- [x] Phase 1 — Per-oscillator phase mode
+- [x] Phase 2 — Migration audit (`xtask migrate-osc-defaults`)
+  - 8 presets migrated (fewer than the 20-40 estimate). The estimate
+    predated the current slot-mix model: the main osc levels feed slot 0
+    (subtractive) only, and 26 of the omitting presets are pure-FM
+    (`slot_level_0 == 0`), so the osc2/osc3 default change is inaudible
+    for them and they are correctly left untouched. `init.tsmith` (empty
+    param map) is skipped so Phase 3 can turn it single-oscillator.
+- [x] Phase 3 — Default OSC2/3 level 1.0 → 0.0 (run only after Phase 2 verified)
+  - Sub oscillator default intentionally left at 1.0 (user decision): the
+    init patch is one *main* oscillator (OSC 1) + the sub, not a literal
+    single oscillator. Zeroing the sub default would have silently muted
+    ~54 sub-audible factory presets that omit `sub_level`, which is out of
+    this milestone's scope.

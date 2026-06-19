@@ -21,6 +21,7 @@
         "osc1_unison_detune_cents": 14.0,
         "osc1_unison_spread": 0.7,
         "osc2_level": 0.7,
+        "osc3_level": 1.0,
         "osc2_detune_cents": 6.0,
         "osc2_unison_voices": 3.0,
         "osc2_unison_detune_cents": 12.0,

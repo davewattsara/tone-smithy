@@ -20,6 +20,8 @@ use anyhow::{Context, Result, bail};
 use cargo_metadata::MetadataCommand;
 use sha2::{Digest, Sha256};
 
+mod migrate;
+
 fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let sub = args.first().map(String::as_str).unwrap_or("help");
@@ -31,6 +33,7 @@ fn main() -> Result<()> {
         }
         "check-deps" => check_deps(),
         "dist" => dist(),
+        "migrate-osc-defaults" => migrate::migrate_osc_defaults(args.iter().any(|a| a == "--dry-run")),
         other => bail!("unknown xtask subcommand: {other}\n\n{}", help_text()),
     }
 }
@@ -62,7 +65,13 @@ SUBCOMMANDS:
                   signtool on Windows. Set APPLE_SIGNING_IDENTITY to codesign
                   the macOS bundle, and APPLE_NOTARY_APPLE_ID /
                   APPLE_NOTARY_PASSWORD / APPLE_NOTARY_TEAM_ID to notarize the
-                  dmg."
+                  dmg.
+    migrate-osc-defaults [--dry-run]
+                  One-shot M23 migration: write osc2_level / osc3_level = 1.0
+                  explicitly into factory presets that omit them but whose
+                  subtractive slot is audible, so the bank survives the
+                  osc2/osc3 default changing from 1.0 to 0.0. --dry-run reports
+                  what would change without writing."
 }
 
 /// Layering rule: a workspace crate that may not depend on any of the named

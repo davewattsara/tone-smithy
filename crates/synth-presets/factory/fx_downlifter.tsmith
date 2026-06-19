@@ -20,6 +20,7 @@
         "osc1_unison_voices": 2.0,
         "osc1_unison_detune_cents": 12.0,
         "osc2_level": 0.5,
+        "osc3_level": 1.0,
         "osc2_detune_cents": 6.0,
         "env3_attack_secs": 0.005,
         "env3_decay_secs": 5.0,

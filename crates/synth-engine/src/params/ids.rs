@@ -323,4 +323,13 @@ pub enum ParamId {
     SeqStepMod(u8),
     /// Per-step second mod-lane CV value, -1.0..=1.0 (the `Seq2` source).
     SeqStepMod2(u8),
+
+    // ── Oscillator phase mode ──────────────────────────────────────────────
+    /// Main oscillator 1 phase mode; 0.0 = Free (random phase on note-on),
+    /// 1.0 = Retrig (phase reset to 0 on note-on). Stepped.
+    Osc1PhaseMode,
+    /// Main oscillator 2 phase mode; same encoding as `Osc1PhaseMode`.
+    Osc2PhaseMode,
+    /// Main oscillator 3 phase mode; same encoding as `Osc1PhaseMode`.
+    Osc3PhaseMode,
 }

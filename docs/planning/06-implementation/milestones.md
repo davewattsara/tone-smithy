@@ -468,7 +468,7 @@ produces audibly different results from any factory algorithm; both survive pres
 
 ---
 
-## M23 — Oscillator phase consistency (2–3 weeks) — v1.2
+## M23 — Oscillator phase consistency (2–3 weeks) — v1.2 — **complete (2026-06-19, tag `m23`)**
 
 > Implementation plan: [`m23-plan.md`](m23-plan.md)
 

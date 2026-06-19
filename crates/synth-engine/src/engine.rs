@@ -86,6 +86,9 @@ impl Engine {
         voices.set_lfo2_rate_hz(params.lfo2_effective_rate_hz());
         voices.set_lfo2_shape(LfoShape::from_index(params.lfo2_shape_index()));
         voices.set_lfo2_reset_on_note_on(params.lfo2_reset_on_note_on());
+        for (i, retrig) in params.osc_main_phase_modes().into_iter().enumerate() {
+            voices.set_osc_phase_mode(i, retrig);
+        }
         voices.set_env2_attack_secs(params.env2_attack_secs());
         voices.set_env2_decay_secs(params.env2_decay_secs());
         voices.set_env2_sustain_level(params.env2_sustain_level());
@@ -504,6 +507,11 @@ impl Engine {
             ParamId::SeqStepMod2(i) if (i as usize) < crate::seq::SEQ_MAX_STEPS => {
                 self.seq.steps[i as usize].mod2_value = value.clamp(-1.0, 1.0);
             }
+
+            // ── Oscillator phase mode ───────────────────────────────────────
+            ParamId::Osc1PhaseMode => self.voices.set_osc_phase_mode(0, value >= 0.5),
+            ParamId::Osc2PhaseMode => self.voices.set_osc_phase_mode(1, value >= 0.5),
+            ParamId::Osc3PhaseMode => self.voices.set_osc_phase_mode(2, value >= 0.5),
 
             _ => {}
         }
@@ -1007,6 +1015,16 @@ mod tests {
             engine.handle(EngineEvent::ParameterChange {
                 id: ParamId::Env2AttackSecs,
                 value: 0.001,
+            });
+            // Silence the sub oscillator so the measurement is purely OSC 1
+            // through the filter. The sub is a sine an octave below the note,
+            // close to the 80 Hz cutoff, so it passes in both branches and
+            // dilutes the modulation ratio. (Since M23, OSC 2/3 default to
+            // silent, leaving OSC 1 + sub; we want only the harmonically rich
+            // saw here.)
+            engine.handle(EngineEvent::ParameterChange {
+                id: ParamId::SubLevel,
+                value: 0.0,
             });
             engine.handle(EngineEvent::ParameterChange {
                 id: ParamId::ModSlotEnabled(0),

@@ -26,6 +26,7 @@
 //! [`SampleParams`]: crate::params::SampleParams
 //! [`Slot`]: crate::slot::Slot
 
+use crate::MAIN_OSCILLATOR_COUNT;
 use crate::envelope::Adsr;
 use crate::filter::{FilterMode, FilterRouting, FilterSlope, StateVariableFilter};
 use crate::lfo::{Lfo, LfoShape};
@@ -134,23 +135,24 @@ impl Voice {
         }
     }
 
-    /// Triggers a note. The oscillator phases are only reset when the
-    /// envelope was idle (first note from silence); on retrigger the
-    /// phases continue uninterrupted so there is no discontinuity in
-    /// the waveform output while the envelope level is non-zero. The
-    /// unison banks have their internal phases pseudo-randomised on
-    /// the same idle condition so multiple held notes (M3) don't
-    /// comb-filter at attack. Both channel filter states reset on the
-    /// same idle condition so a fresh note never inherits a ringing
-    /// tail. The caller (the engine) is responsible for snapping any
-    /// per-voice smoothed parameters before calling this so the first
-    /// sample plays exactly at the target value.
-    pub fn note_on(&mut self, note_midi: u8, velocity: u8) {
+    /// Triggers a note. `osc_phase_modes` selects each main oscillator's
+    /// phase behaviour: a `Free` oscillator (`false`) has its unison
+    /// phases pseudo-randomised only when the envelope was idle (first
+    /// note from silence), so retriggers continue uninterrupted with no
+    /// waveform discontinuity while the envelope level is non-zero and
+    /// chords don't comb-filter at attack; a `Retrig` oscillator (`true`)
+    /// resets its phases to zero on every note-on for a deterministic
+    /// attack. Both channel filter states reset on the idle-to-attack
+    /// transition so a fresh note never inherits a ringing tail. The
+    /// caller (the engine) is responsible for snapping any per-voice
+    /// smoothed parameters before calling this so the first sample plays
+    /// exactly at the target value.
+    pub fn note_on(&mut self, note_midi: u8, velocity: u8, osc_phase_modes: [bool; MAIN_OSCILLATOR_COUNT]) {
         self.held_note_midi = Some(note_midi);
         self.velocity_scale = f32::from(velocity) / 127.0;
         let is_first_note = self.amp_envelope.is_idle();
         for slot in &mut self.slots {
-            slot.note_on(is_first_note);
+            slot.note_on(is_first_note, osc_phase_modes);
         }
         if is_first_note {
             self.filter_l.reset();
@@ -660,7 +662,7 @@ mod tests {
     #[test]
     fn note_off_for_unrelated_note_is_ignored() {
         let mut voice = Voice::new(48_000.0);
-        voice.note_on(60, 100);
+        voice.note_on(60, 100, [false; MAIN_OSCILLATOR_COUNT]);
         voice.note_off(72);
         assert!(!voice.is_idle(), "voice should still be running");
     }
@@ -671,7 +673,7 @@ mod tests {
         let mut voice = Voice::new(sample_rate);
         let params = default_sample_params();
 
-        voice.note_on(60, 100);
+        voice.note_on(60, 100, [false; MAIN_OSCILLATOR_COUNT]);
         for _ in 0..4_800 {
             voice.next_sample(&params);
         }
@@ -682,7 +684,7 @@ mod tests {
             last = voice.next_sample(&params);
         }
 
-        voice.note_on(62, 100);
+        voice.note_on(62, 100, [false; MAIN_OSCILLATOR_COUNT]);
         let first = voice.next_sample(&params);
 
         let jump_l = (first.0 - last.0).abs();
@@ -697,7 +699,7 @@ mod tests {
         // sine; with center pans and unit levels the per-channel peak
         // sits around 0.707 thanks to the equal-power center pan.
         let mut voice = Voice::new(48_000.0);
-        voice.note_on(69, 100);
+        voice.note_on(69, 100, [false; MAIN_OSCILLATOR_COUNT]);
         let params = default_sample_params();
         let mut peak_l = 0.0_f32;
         let mut peak_r = 0.0_f32;
@@ -713,7 +715,7 @@ mod tests {
     #[test]
     fn hard_pan_routes_signal_to_one_channel() {
         let mut voice = Voice::new(48_000.0);
-        voice.note_on(69, 100);
+        voice.note_on(69, 100, [false; MAIN_OSCILLATOR_COUNT]);
         let mut params = default_sample_params();
         params.osc_main_levels = [1.0, 0.0, 0.0];
         params.sub_level = 0.0;
@@ -738,7 +740,7 @@ mod tests {
     fn mutes_all_silence_the_voice() {
         let mut voice = Voice::new(48_000.0);
         voice.set_main_waveform(Waveform::Saw);
-        voice.note_on(60, 100);
+        voice.note_on(60, 100, [false; MAIN_OSCILLATOR_COUNT]);
         let mut params = default_sample_params();
         params.osc_main_levels = [0.0; MAIN_OSCILLATOR_COUNT];
         params.sub_level = 0.0;
@@ -753,7 +755,7 @@ mod tests {
     #[test]
     fn detune_shifts_oscillator_pitch() {
         let mut voice = Voice::new(48_000.0);
-        voice.note_on(69, 100);
+        voice.note_on(69, 100, [false; MAIN_OSCILLATOR_COUNT]);
         let mut params = default_sample_params();
         params.osc_main_levels = [1.0, 0.0, 0.0];
         params.sub_level = 0.0;
@@ -784,7 +786,7 @@ mod tests {
         let mut voice = Voice::new(48_000.0);
         voice.set_main_waveform(Waveform::Saw);
         voice.set_filter_mode(FilterMode::LowPass);
-        voice.note_on(69, 100);
+        voice.note_on(69, 100, [false; MAIN_OSCILLATOR_COUNT]);
         let mut params = default_sample_params();
         params.filter_cutoff_hz = 30.0;
         for _ in 0..4_800 {
@@ -805,7 +807,7 @@ mod tests {
         // difference (= wider stereo) than the 1-voice case.
         fn measure_stereo_diff(voice_count: f32) -> f32 {
             let mut voice = Voice::new(48_000.0);
-            voice.note_on(69, 100);
+            voice.note_on(69, 100, [false; MAIN_OSCILLATOR_COUNT]);
             let mut params = default_sample_params();
             params.osc_main_levels = [1.0, 0.0, 0.0];
             params.sub_level = 0.0;
@@ -835,7 +837,7 @@ mod tests {
         // Passing a wildly out-of-range voice count should not crash
         // or produce non-finite output.
         let mut voice = Voice::new(48_000.0);
-        voice.note_on(69, 100);
+        voice.note_on(69, 100, [false; MAIN_OSCILLATOR_COUNT]);
         let mut params = default_sample_params();
         params.osc_main_unison_voices = [-3.0, 99.0, 3.6];
 
@@ -866,7 +868,7 @@ mod tests {
         voice.set_attack_secs(0.001);
         voice.set_decay_secs(0.001);
         voice.set_sustain_level(1.0);
-        voice.note_on(60, 100);
+        voice.note_on(60, 100, [false; MAIN_OSCILLATOR_COUNT]);
 
         let params = default_sample_params();
         // Settle envelopes.
@@ -889,7 +891,7 @@ mod tests {
         let render = |routing: FilterRouting, f2_cutoff_hz: f32| -> f32 {
             let mut voice = Voice::new(sr);
             voice.set_filter_routing(routing);
-            voice.note_on(69, 100); // A4 = 440 Hz
+            voice.note_on(69, 100, [false; MAIN_OSCILLATOR_COUNT]); // A4 = 440 Hz
             let mut params = default_sample_params();
             params.filter2_cutoff_hz = f2_cutoff_hz;
             let mut peak = 0.0_f32;

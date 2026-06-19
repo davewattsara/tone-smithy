@@ -284,6 +284,15 @@ impl UnisonOscillator {
         }
     }
 
+    /// Resets every voice's phase to zero. Called by the voice on
+    /// note-on for an oscillator in Retrig phase mode, giving a
+    /// deterministic, repeatable attack transient on every note.
+    pub fn reset_phases(&mut self) {
+        for v in &mut self.voices {
+            v.set_phase_normalised(0.0);
+        }
+    }
+
     /// Recomputes per-voice frequencies from a base pitch and a total
     /// unison detune amount (in cents). Voices are spread linearly
     /// across `[-detune_cents, +detune_cents]`; with odd counts the
