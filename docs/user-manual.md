@@ -1,4 +1,4 @@
-# Tone Smithy v1.1.1 — User Manual
+# Tone Smithy v1.2.0 — User Manual
 
 Tone Smithy is a standalone software synthesizer for Windows, Linux, and macOS
 combining analog-style subtractive synthesis with 4-operator FM. Both synthesis
@@ -33,7 +33,7 @@ oscillator textures with FM timbres in one patch.
 2. On first launch, the setup wizard asks you to choose an **audio output** and
    a **MIDI input**. Both can be changed later under Settings.
 3. Play a note — from a MIDI keyboard, the on-screen piano, or your computer
-   keyboard (see [Computer keyboard](#13-computer-keyboard)).
+   keyboard (see [Computer keyboard](#14-computer-keyboard)).
 4. Open the **Presets** tab and click any preset to load it.
 5. Push your mod wheel up on presets marked "(MW)" — several respond to it with
    vibrato or tremolo.
@@ -46,17 +46,17 @@ If you see a note stuck on, click **Panic** in the header bar.
 
 The window is divided into two areas:
 
-- **Header bar** (top strip) — patch name, Panic button, pitch-bend and mod-wheel
-  indicators, CPU meter, and audio/MIDI status.
-- **Tab area** (main body) — nine tabs covering every aspect of the sound:
-  Master, Osc, Filter, Envelopes, Mod, Arp, FX, Presets, and Settings.
+- **Header bar** (top strip) — patch name, Panic button, audio/MIDI status, a
+  Help menu, and (when a newer version is available) an update notice.
+- **Tab area** (main body) — ten tabs covering every aspect of the sound:
+  Osc, Filter, Envelopes, Mod, Arp, Seq, FX, Master, Presets, and Settings.
 
 ### Controls
 
 - **Knobs** — click and drag up/down to change value. Hold **Shift** while
   dragging for fine control. Double-click to reset to default. The current value
   shows beneath the knob while you drag. Right-click to MIDI Learn (see
-  [MIDI Learn](#12-midi-learn)).
+  [MIDI Learn](#13-midi-learn)).
 - **Toggles** — click to enable/disable a section (EQ, Drive, Chorus, etc.).
 - **Selectors** — labelled buttons or drop-down menus; click to choose.
 
@@ -64,12 +64,26 @@ The window is divided into two areas:
 
 | Element | Description |
 |---|---|
-| Patch name | Shows the loaded preset name. |
+| Patch name | Shows the loaded preset name, with the editable name field and Save / Load buttons. |
 | Panic | Immediately silences all notes (sends All Notes Off). Use when a note gets stuck. |
-| PB | Pitch-bend indicator; moves when your MIDI controller sends pitch-bend. |
-| MW | Mod-wheel indicator; moves when CC 1 is received. |
-| CPU | Audio thread load percentage. |
 | Status line | Sample rate, channel count, buffer hint, and active MIDI port. |
+| Help | Opens the online user manual in your browser. |
+| Update available | Appears only when a newer release exists (see [Update notices](#update-notices)). "Get it" opens the releases page; "x" dismisses it. |
+
+#### Update notices
+
+On launch, Tone Smithy quietly checks GitHub for a newer release. If one is
+available, an **Update available: vX.Y.Z** notice appears at the right of the
+header bar:
+
+- **Get it** opens the Tone Smithy releases page in your browser so you can
+  download the new version. Nothing is ever downloaded or installed
+  automatically.
+- **x** dismisses the notice. It stays hidden until a still-newer version is
+  released.
+
+The check is best-effort and completely optional: if you are offline or behind a
+firewall it simply does nothing, and no usage data is ever sent.
 
 ---
 
@@ -113,8 +127,8 @@ Each oscillator has three controls:
 
 | Control | Range | Description |
 |---|---|---|
-| Level | 0–1 | Output level of this oscillator. |
-| Detune | -100 to +100 ct | Fine pitch offset in cents. OSC 1 Detune and Pan can be targeted by the mod matrix. |
+| Level | 0–1 | Output level of this oscillator. **OSC 1 defaults to 1.0; OSC 2 and OSC 3 default to 0** — a fresh patch starts as a single oscillator, so raise OSC 2/3 to layer them in. |
+| Detune | -100 to +100 ct | Fine pitch offset in cents. Each oscillator's Detune and Pan can be targeted by the mod matrix. |
 | Pan | L100 to R100 | Stereo position. |
 
 Each oscillator also has a **Unison** section:
@@ -124,6 +138,17 @@ Each oscillator also has a **Unison** section:
 | Voices | 1–7 | Number of detuned unison copies. 1 = no unison. |
 | Detune | 0–50 ct | Total detune spread across all unison voices. |
 | Spread | 0–1 | Stereo width of the unison voices. |
+
+Each oscillator also has a **Retrig** toggle:
+
+- **Off (Free)** — the default. The oscillator starts at a random phase on every
+  note, so repeated notes have subtly varying attacks and stacked voices don't
+  comb-filter. This matches earlier versions.
+- **On (Retrig)** — the oscillator phase resets to zero on every note-on, giving
+  a tight, identical attack transient each time. Useful for punchy basses,
+  plucks, and kick-style sounds where a consistent attack matters.
+
+The sub oscillator is not affected by Retrig.
 
 ### Sub oscillator (OSC 3 column)
 
@@ -141,9 +166,9 @@ Two per-voice **Slots** sit below the oscillator columns. Their roles are fixed:
 **Slot 1 (Sub)** — outputs the main oscillators (OSC 1–3 + Sub). Level defaults
 to 1.0.
 
-**Slot 2 (FM)** — drives a 4-operator FM engine with 8 selectable algorithms.
-Level defaults to 0 (silent unless you raise it). Its sound is independent of
-Slot 1.
+**Slot 2 (FM)** — drives a 4-operator FM engine with 8 factory algorithms plus
+an editable **Custom** routing. Level defaults to 0 (silent unless you raise it).
+Its sound is independent of Slot 1.
 
 Each slot has:
 
@@ -164,6 +189,22 @@ Each of the four operators (OP 1–4) has:
 | Level | 0–1 | Operator output level (for carriers) or modulation depth (for modulators). |
 | Feedback | -1 to +1 | Self-feedback amount (OP 4 only). |
 | A / D / S / R | (time) | Per-operator ADSR envelope. |
+
+#### Custom FM algorithm
+
+The algorithm selector offers a ninth option, **Custom**, that lets you wire the
+operators yourself instead of using a fixed factory routing:
+
+- Selecting **Custom** seeds the grid from whichever factory algorithm was
+  active, so you start from a known sound and tweak.
+- A small routing grid appears. For each operator you set:
+  - whether it is a **carrier** (its output is heard directly), and
+  - which lower-numbered operators it **modulates**.
+- Only higher-numbered operators can modulate lower-numbered ones
+  (OP 4 → OP 1/2/3, OP 3 → OP 1/2, OP 2 → OP 1). This prevents feedback loops,
+  so any combination you can set is valid.
+- The factory algorithms (1–8) remain fixed and read-only; only Custom is
+  editable. Your custom routing is saved with the preset.
 
 ---
 
@@ -297,7 +338,8 @@ scaled by an amount, with an optional via source.
 | AfterT | MIDI channel aftertouch (0 to 1). |
 | Bend | MIDI pitch bend (-1 to +1). |
 | Env3 | Env 3 output (0 to 1). |
-| Seq | Step sequencer mod lane — current step's CV value (-1 to +1). |
+| Seq | Step sequencer mod lane 1 — current step's CV value (-1 to +1). |
+| Seq2 | Step sequencer mod lane 2 — current step's CV value (-1 to +1), independent of Seq. |
 
 ### Destinations
 
@@ -374,7 +416,8 @@ Each of the 16 step columns shows:
 | Gate | 0–100% | How much of the step the note sounds. |
 | R (Rest) | toggle | Mutes this step — no note is played. |
 | T (Tie) | toggle | Extends this step's note forward into the following step(s). Gate is scaled across the tied span. Consumed steps are greyed out but their mod-lane value and tie toggle remain active. |
-| Mod | -1 to +1 | Mod-lane CV value for this step. Route the **Seq** source in the mod matrix to any destination. |
+| Mod | -1 to +1 | Mod lane 1 CV value for this step. Route the **Seq** source in the mod matrix to any destination. |
+| Mod2 | -1 to +1 | Mod lane 2 CV value for this step — a second, independent per-step lane. Route the **Seq2** source in the mod matrix to a different destination. |
 
 A moving playhead highlights the currently active step while the sequencer is running.
 

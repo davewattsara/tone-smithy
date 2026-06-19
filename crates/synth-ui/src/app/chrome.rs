@@ -52,7 +52,7 @@ impl ToneSmithyApp {
                     .font(theme::font_micro()),
             );
 
-            // Help menu — right-aligned
+            // Help menu + update notice — right-aligned
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.menu_button("Help", |ui| {
                     if ui.button("User manual").clicked() {
@@ -60,6 +60,28 @@ impl ToneSmithyApp {
                         ui.close_menu();
                     }
                 });
+
+                // Update notice: shown only when a newer release has been found
+                // and not dismissed. Right-to-left layout, so widgets are added
+                // in reverse of their left-to-right appearance.
+                if let Some(tag) = self.available_update.clone() {
+                    ui.separator();
+                    if ui
+                        .small_button("x")
+                        .on_hover_text("Dismiss until the next release")
+                        .clicked()
+                    {
+                        self.dismiss_update(tag.clone());
+                    }
+                    if ui
+                        .small_button("Get it")
+                        .on_hover_text("Open the releases page in your browser")
+                        .clicked()
+                    {
+                        open::that("https://github.com/davewattsara/tone-smithy/releases/latest").ok();
+                    }
+                    ui.colored_label(theme::ACCENT, format!("Update available: {tag}"));
+                }
             });
         });
     }

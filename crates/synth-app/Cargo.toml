@@ -21,6 +21,9 @@ eframe.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+# Small synchronous HTTP client for the best-effort GitHub Releases update
+# check. Runs on a dedicated background thread (it blocks), never on the UI.
+ureq = { version = "2", features = ["tls"] }
 
 [lints]
 workspace = true

@@ -34,6 +34,7 @@ use crate::theme;
 impl eframe::App for ToneSmithyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.set_visuals(theme::make_visuals());
+        self.poll_update_check();
         self.computer_keyboard.handle_input(ctx, &self.events);
         // Drain file-watcher notifications; refresh preset list if any arrived.
         if self.file_watch_rx.try_recv().is_ok() {

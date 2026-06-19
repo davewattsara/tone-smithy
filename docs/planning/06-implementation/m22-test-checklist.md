@@ -69,27 +69,27 @@ In the grid, uncheck **all** carriers and **all** "mod by" boxes (silence), then
 In Custom, build the full stack by hand: **only Op 1 Carrier on**, then chain
 **Op 1 mod-by Op2**, **Op 2 mod-by Op3**, **Op 3 mod-by Op4** (all other boxes off).
 
-- [ ] A/B against factory by toggling `Alg` between **1 Stack** and **9 Custom** -> **identical
+- [x] A/B against factory by toggling `Alg` between **1 Stack** and **9 Custom** -> **identical
       sound**.
 
 ### 7. No-carrier = silence
 
-- [ ] In Custom, uncheck every Carrier box -> playing a note is **silent** (confirms the carrier
+- [x] In Custom, uncheck every Carrier box -> playing a note is **silent** (confirms the carrier
       flag is honoured).
 
 ### 8. Preset round-trip
 
-- [ ] Build a recognisable Custom patch and **save** it as a new preset.
-- [ ] Load a different preset, then reload yours -> grid checkboxes restored exactly and it
+- [x] Build a recognisable Custom patch and **save** it as a new preset.
+- [x] Load a different preset, then reload yours -> grid checkboxes restored exactly and it
       sounds the same.
 
 ### 9. Old-preset safety
 
-- [ ] Load any pre-M22 preset (e.g. a v1.0/v1.1 non-FM patch) -> unchanged behaviour, no Custom
+- [x] Load any pre-M22 preset (e.g. a v1.0/v1.1 non-FM patch) -> unchanged behaviour, no Custom
       artifacts, `Alg` shows its original factory algorithm (never "9 Custom").
 
 ## Automated / mechanical checks (run by agent)
 
-- [ ] `cargo fmt --all --check` clean.
-- [ ] `cargo clippy --workspace --all-targets -- -D warnings` clean.
-- [ ] `cargo test --workspace` passes.
+- [x] `cargo fmt --all --check` clean.
+- [x] `cargo clippy --workspace --all-targets -- -D warnings` clean.
+- [x] `cargo test --workspace` passes.

@@ -16,6 +16,8 @@ use synth_presets::preset_params::snapshot_to_map;
 use synth_presets::{AppSettings, load_settings, save_settings};
 use synth_ui::app::{DeviceChange, ToneSmithyApp};
 
+mod update_check;
+
 /// Owns the audio + MIDI streams and delegates UI work to [`ToneSmithyApp`].
 ///
 /// Streams live here (not in the UI) because `cpal::Stream` is `!Send`.
@@ -161,7 +163,13 @@ fn main() -> Result<()> {
     let cpu_load = audio.cpu_load.clone();
     // Throw-away rx; the shell owns the live one.
     let (_, dummy_rx, _) = param_bus::new_param_bus();
-    let mut ui = ToneSmithyApp::new(status, events_tx, snapshot_slot, cpu_load, settings.clone());
+
+    // Best-effort background update check: the thread sends the latest release
+    // tag (if newer) to the UI, which surfaces a dismissible notice.
+    let (update_tx, update_rx) = std::sync::mpsc::channel::<String>();
+    update_check::spawn(update_tx);
+
+    let mut ui = ToneSmithyApp::new(status, events_tx, snapshot_slot, cpu_load, settings.clone(), update_rx);
 
     // `.tsmith` file association / command line: the first positional argument,
     // if any, is a preset path to open on startup. The audio stream is already

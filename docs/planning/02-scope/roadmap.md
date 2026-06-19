@@ -84,6 +84,12 @@ Planned as milestones M21–M24 (see [`docs/planning/06-implementation/milestone
 - **Microtuning** via Scala (`.scl`) and keyboard maps (`.kbm`).
 - Per-voice pan modulation.
 - Optional internal oversampling (2×, 4×) as a global setting.
+- **Velocity curve / sensitivity.** Today velocity maps linearly to amp gain
+  (`velocity / 127`, applied as a VCA multiplier in `voice.rs`) and is also a
+  mod source; the linear curve compresses dynamics at the top of the range and,
+  by default, velocity only affects loudness. Add a selectable/adjustable
+  velocity curve (e.g. linear / exponential / soft, or a sensitivity amount) so
+  hard-vs-soft playing feels more dramatic without hand-wiring the mod matrix.
 
 ## v1.x — Audio features
 

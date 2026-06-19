@@ -6,6 +6,8 @@ All notable changes to Tone Smithy are documented here. The format is based on
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-06-20
+
 ### Added
 
 - **Second sequencer mod lane (`Seq2`)** — the step sequencer gains a second
@@ -19,6 +21,11 @@ All notable changes to Tone Smithy are documented here. The format is based on
   gains a "Retrig" toggle. Free (the default) keeps the v1.1 behaviour of a
   random phase on note-on; Retrig resets the phase to 0 on every note-on for a
   tight, repeatable attack. Saved with the preset.
+- **Update check** — on launch a background thread checks GitHub Releases for a
+  newer version and, if one exists, shows a dismissible "Update available" notice
+  in the header with a link to the releases page. Best-effort and non-blocking:
+  no automatic download, no telemetry, and it fails silently when offline.
+  Dismissing a version is remembered until a still-newer release appears.
 
 ### Changed
 
@@ -114,5 +121,8 @@ custom application icon are deferred to a later version.
 - **Standalone app** — low-latency `cpal` audio, `midir` MIDI input, and a
   computer-keyboard fallback.
 
-[Unreleased]: https://github.com/davewattsara/tone-smithy/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/davewattsara/tone-smithy/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/davewattsara/tone-smithy/compare/v1.1.1...v1.2.0
+[1.1.1]: https://github.com/davewattsara/tone-smithy/compare/v1.1.0...v1.1.1
+[1.1.0]: https://github.com/davewattsara/tone-smithy/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/davewattsara/tone-smithy/releases/tag/v1.0.0
