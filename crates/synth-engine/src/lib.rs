@@ -39,7 +39,10 @@ pub use crate::engine::{Engine, MAX_BLOCK_SIZE};
 pub use crate::envelope::Adsr;
 pub use crate::events::EngineEvent;
 pub use crate::filter::{FilterMode, FilterRouting, FilterSlope, StateVariableFilter};
-pub use crate::fm::{ALGORITHM_COUNT, ALGORITHMS, Algorithm, FmBank, OPERATOR_COUNT, Operator};
+pub use crate::fm::{
+    ALGORITHM_COUNT, ALGORITHMS, Algorithm, CUSTOM_ALGORITHM_INDEX, FM_CUSTOM_CONN_TABLE, FmBank, OPERATOR_COUNT,
+    Operator,
+};
 pub use crate::fx::FxChain;
 pub use crate::lfo::{Lfo, LfoShape, SyncDivision};
 pub use crate::mod_env::{ModEnv, ModEnvStage};

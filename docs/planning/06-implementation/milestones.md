@@ -448,7 +448,7 @@ slot foldouts respond correctly across a range of presets with mixed slot usage.
 
 ---
 
-## M22 — Engine additions (2–3 weeks) — v1.2
+## M22 — Engine additions (2–3 weeks) — v1.2 — **complete (2026-06-19, tag `m22`)**
 
 > Implementation plan: [`m22-plan.md`](m22-plan.md)
 

@@ -274,12 +274,29 @@ pub const ALGORITHMS: [Algorithm; ALGORITHM_COUNT] = [
     },
 ];
 
+/// Algorithm index selecting the editable "Custom" routing instead of one of
+/// the [`ALGORITHM_COUNT`] factory algorithms. Equal to `ALGORITHM_COUNT` so the
+/// factory indices `0..ALGORITHM_COUNT` keep their meaning.
+pub const CUSTOM_ALGORITHM_INDEX: u8 = ALGORITHM_COUNT as u8;
+
+/// The six modulator→carrier connections legal under the fixed high→low
+/// evaluation order, indexed `0..6`. Each entry is `(src_op, dest_op)` with
+/// `src_op > dest_op`, so enabling any subset can never form a cycle and needs
+/// no runtime topology check. Self-feedback (op 3 → op 3) is excluded — it is
+/// handled by each operator's `feedback_amount`.
+pub const FM_CUSTOM_CONN_TABLE: [(usize, usize); 6] = [(1, 0), (2, 0), (2, 1), (3, 0), (3, 1), (3, 2)];
+
 /// 4-operator FM synthesis bank. Wraps four [`Operator`]s and the
 /// currently selected algorithm. Operators run at 2× the base sample rate
 /// and are decimated to base rate via a 31-tap half-band FIR filter.
 pub struct FmBank {
     operators: [Operator; OPERATOR_COUNT],
     algorithm_index: u8,
+    /// User-editable routing used when `algorithm_index == CUSTOM_ALGORITHM_INDEX`.
+    /// Mutated by [`set_custom_connection`][Self::set_custom_connection] and
+    /// [`set_custom_carrier`][Self::set_custom_carrier]; ignored while a factory
+    /// algorithm is selected.
+    custom_algorithm: Algorithm,
     /// Scratch buffer holding each operator's same-sample output so a
     /// lower-indexed operator can read its modulators' fresh outputs.
     op_outputs: [f32; OPERATOR_COUNT],
@@ -302,6 +319,10 @@ impl FmBank {
                 Operator::new(sample_rate_hz),
             ],
             algorithm_index: 0,
+            custom_algorithm: Algorithm {
+                mod_sources: [0; OPERATOR_COUNT],
+                is_carrier: [false; OPERATOR_COUNT],
+            },
             op_outputs: [0.0; OPERATOR_COUNT],
             decim: HalfBand::new(),
         }
@@ -328,17 +349,39 @@ impl FmBank {
         self.operators.iter().all(Operator::is_idle)
     }
 
-    /// Sets the active algorithm. Indices outside `0..ALGORITHM_COUNT`
-    /// are clamped to the last valid index.
+    /// Sets the active algorithm. Valid indices are `0..ALGORITHM_COUNT` for the
+    /// factory algorithms and [`CUSTOM_ALGORITHM_INDEX`] for the editable custom
+    /// routing; higher values are clamped to the custom index.
     pub fn set_algorithm(&mut self, index: u8) {
-        let max = (ALGORITHM_COUNT - 1) as u8;
-        self.algorithm_index = index.min(max);
+        self.algorithm_index = index.min(CUSTOM_ALGORITHM_INDEX);
     }
 
     /// Returns the currently selected algorithm index.
     #[must_use]
     pub fn algorithm_index(&self) -> u8 {
         self.algorithm_index
+    }
+
+    /// Enables or disables one custom-routing connection (index `0..6` into
+    /// [`FM_CUSTOM_CONN_TABLE`]). Out-of-range indices are ignored. Only takes
+    /// effect while [`CUSTOM_ALGORITHM_INDEX`] is selected.
+    pub fn set_custom_connection(&mut self, conn_idx: usize, enabled: bool) {
+        if let Some(&(src, dest)) = FM_CUSTOM_CONN_TABLE.get(conn_idx) {
+            let bit = 1u8 << src;
+            if enabled {
+                self.custom_algorithm.mod_sources[dest] |= bit;
+            } else {
+                self.custom_algorithm.mod_sources[dest] &= !bit;
+            }
+        }
+    }
+
+    /// Sets whether operator `op_idx` (`0..OPERATOR_COUNT`) is a carrier in the
+    /// custom routing. Out-of-range indices are ignored.
+    pub fn set_custom_carrier(&mut self, op_idx: usize, enabled: bool) {
+        if let Some(slot) = self.custom_algorithm.is_carrier.get_mut(op_idx) {
+            *slot = enabled;
+        }
     }
 
     /// Mutable access to a single operator for parameter setters.
@@ -367,7 +410,13 @@ impl FmBank {
     /// Evaluates one 2× sub-sample. `advance_env` controls whether operator
     /// envelopes tick this sub-sample; only the first of each pair should.
     fn eval_operators(&mut self, base_note_hz: f32, advance_env: bool) -> f32 {
-        let alg = &ALGORITHMS[self.algorithm_index as usize];
+        // Copy (the struct is `Copy`) so the loop below can take a mutable
+        // borrow of `self.operators` — the custom variant lives in `self`.
+        let alg: Algorithm = if self.algorithm_index < ALGORITHM_COUNT as u8 {
+            ALGORITHMS[self.algorithm_index as usize]
+        } else {
+            self.custom_algorithm
+        };
 
         // Evaluate operators in order 3 → 2 → 1 → 0 so a lower-indexed
         // op reads its modulators' fresh outputs from this sub-sample.
@@ -439,6 +488,68 @@ mod tests {
         let a7 = ALGORITHMS[6];
         assert_eq!(a7.mod_sources, [0, 0, 0, 0]);
         assert_eq!(a7.is_carrier, [true, true, true, true]);
+    }
+
+    #[test]
+    fn custom_routing_reproduces_factory_algorithm_one() {
+        // Factory algorithm 1 is the stack 3→2→1→0 with op 0 the carrier.
+        // Building the same graph as a Custom routing (conns 1→0, 2→1, 3→2 and
+        // carrier op 0) must produce a sample-identical output.
+        let sample_rate = 48_000.0;
+        let mut factory = FmBank::new(sample_rate);
+        factory.set_algorithm(0);
+
+        let mut custom = FmBank::new(sample_rate);
+        custom.set_algorithm(CUSTOM_ALGORITHM_INDEX);
+        custom.set_custom_connection(0, true); // 1 → 0
+        custom.set_custom_connection(2, true); // 2 → 1
+        custom.set_custom_connection(5, true); // 3 → 2
+        custom.set_custom_carrier(0, true);
+
+        note_on_with_instant_envelope(&mut factory);
+        note_on_with_instant_envelope(&mut custom);
+
+        for n in 0..2_048 {
+            let f = factory.next_sample(220.0);
+            let c = custom.next_sample(220.0);
+            assert!((f - c).abs() < 1e-6, "diverged at sample {n}: {f} vs {c}");
+        }
+    }
+
+    #[test]
+    fn custom_routing_carrier_only_produces_audible_tone() {
+        // A single carrier with no modulators is a pure sine — non-silent.
+        let mut bank = FmBank::new(48_000.0);
+        bank.set_algorithm(CUSTOM_ALGORITHM_INDEX);
+        bank.set_custom_carrier(0, true);
+        note_on_with_instant_envelope(&mut bank);
+        for _ in 0..256 {
+            bank.next_sample(440.0);
+        }
+        let mut peak = 0.0_f32;
+        for _ in 0..1_024 {
+            peak = peak.max(bank.next_sample(440.0).abs());
+        }
+        assert!(peak > 0.1, "custom carrier produced no audible output (peak {peak})");
+    }
+
+    #[test]
+    fn custom_connection_toggle_clears_its_bit() {
+        // Enabling then disabling a connection must leave the routing empty,
+        // so a no-carrier bank is silent.
+        let mut bank = FmBank::new(48_000.0);
+        bank.set_algorithm(CUSTOM_ALGORITHM_INDEX);
+        bank.set_custom_connection(5, true);
+        bank.set_custom_connection(5, false);
+        note_on_with_instant_envelope(&mut bank);
+        for _ in 0..256 {
+            bank.next_sample(440.0);
+        }
+        let mut peak = 0.0_f32;
+        for _ in 0..1_024 {
+            peak = peak.max(bank.next_sample(440.0).abs());
+        }
+        assert!(peak < 1e-6, "no-carrier custom bank should be silent (peak {peak})");
     }
 
     #[test]

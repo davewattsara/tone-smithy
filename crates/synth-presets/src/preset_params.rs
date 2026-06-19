@@ -124,6 +124,13 @@ pub fn snapshot_to_map(snap: &ParamSnapshot) -> BTreeMap<String, f32> {
             m.insert(format!("fm_op_sustain_level_{s}_{op}"), snap.fm_op_sustain_level[s][op]);
             m.insert(format!("fm_op_release_secs_{s}_{op}"), snap.fm_op_release_secs[s][op]);
             m.insert(format!("fm_op_feedback_{s}_{op}"), snap.fm_op_feedback[s][op]);
+            m.insert(
+                format!("fm_custom_carrier_{s}_{op}"),
+                f32::from(snap.fm_custom_carrier[s][op]),
+            );
+        }
+        for c in 0..6usize {
+            m.insert(format!("fm_custom_conn_{s}_{c}"), f32::from(snap.fm_custom_conn[s][c]));
         }
     }
 
@@ -178,6 +185,7 @@ pub fn snapshot_to_map(snap: &ParamSnapshot) -> BTreeMap<String, f32> {
         m.insert(format!("seq_step{i}_rest"), f32::from(snap.seq_step_rest[i]));
         m.insert(format!("seq_step{i}_tie"), f32::from(snap.seq_step_tie[i]));
         m.insert(format!("seq_step{i}_mod"), snap.seq_step_mod[i]);
+        m.insert(format!("seq_step{i}_mod2"), snap.seq_step_mod2[i]);
     }
 
     m
@@ -374,6 +382,14 @@ pub fn map_to_events(m: &BTreeMap<String, f32>) -> Vec<EngineEvent> {
                 ParamId::FmOpReleaseSecs(packed)
             );
             pc!(&format!("fm_op_feedback_{si}_{oi}"), ParamId::FmOpFeedback(packed));
+            pc!(
+                &format!("fm_custom_carrier_{si}_{oi}"),
+                ParamId::FmCustomCarrier(s * 4 + op)
+            );
+        }
+        for c in 0..6u8 {
+            let ci = c as usize;
+            pc!(&format!("fm_custom_conn_{si}_{ci}"), ParamId::FmCustomConn(s * 6 + c));
         }
     }
 
@@ -432,6 +448,7 @@ pub fn map_to_events(m: &BTreeMap<String, f32>) -> Vec<EngineEvent> {
         pc!(&format!("seq_step{ii}_rest"), ParamId::SeqStepRest(i));
         pc!(&format!("seq_step{ii}_tie"), ParamId::SeqStepTie(i));
         pc!(&format!("seq_step{ii}_mod"), ParamId::SeqStepMod(i));
+        pc!(&format!("seq_step{ii}_mod2"), ParamId::SeqStepMod2(i));
     }
 
     ev
@@ -579,6 +596,10 @@ pub fn map_to_snapshot(m: &BTreeMap<String, f32>) -> ParamSnapshot {
             get!(&format!("fm_op_sustain_level_{si}_{oi}"), s.fm_op_sustain_level[si][oi]);
             get!(&format!("fm_op_release_secs_{si}_{oi}"), s.fm_op_release_secs[si][oi]);
             get!(&format!("fm_op_feedback_{si}_{oi}"), s.fm_op_feedback[si][oi]);
+            get_bool!(&format!("fm_custom_carrier_{si}_{oi}"), s.fm_custom_carrier[si][oi]);
+        }
+        for ci in 0..6usize {
+            get_bool!(&format!("fm_custom_conn_{si}_{ci}"), s.fm_custom_conn[si][ci]);
         }
     }
 
@@ -598,6 +619,7 @@ pub fn map_to_snapshot(m: &BTreeMap<String, f32>) -> ParamSnapshot {
             s.fm_op_sustain_level[1][op] = s.fm_op_sustain_level[0][op];
             s.fm_op_release_secs[1][op] = s.fm_op_release_secs[0][op];
             s.fm_op_feedback[1][op] = s.fm_op_feedback[0][op];
+            s.fm_custom_carrier[1][op] = s.fm_custom_carrier[0][op];
             // Reset slot 0 FM params to defaults (Sub bank; engine ignores
             // them for the Sub path but keeps them for clean state).
             s.fm_op_ratio_integer[0][op] = dflt.fm_op_ratio_integer[0][op];
@@ -608,6 +630,11 @@ pub fn map_to_snapshot(m: &BTreeMap<String, f32>) -> ParamSnapshot {
             s.fm_op_sustain_level[0][op] = dflt.fm_op_sustain_level[0][op];
             s.fm_op_release_secs[0][op] = dflt.fm_op_release_secs[0][op];
             s.fm_op_feedback[0][op] = dflt.fm_op_feedback[0][op];
+            s.fm_custom_carrier[0][op] = dflt.fm_custom_carrier[0][op];
+        }
+        for c in 0..6 {
+            s.fm_custom_conn[1][c] = s.fm_custom_conn[0][c];
+            s.fm_custom_conn[0][c] = dflt.fm_custom_conn[0][c];
         }
         // Carry the FM output level to slot 1; silence slot 0 (Sub bank).
         s.slot_level[1] = s.slot_level[0];
@@ -667,6 +694,7 @@ pub fn map_to_snapshot(m: &BTreeMap<String, f32>) -> ParamSnapshot {
         get_bool!(&format!("seq_step{i}_rest"), s.seq_step_rest[i]);
         get_bool!(&format!("seq_step{i}_tie"), s.seq_step_tie[i]);
         get!(&format!("seq_step{i}_mod"), s.seq_step_mod[i]);
+        get!(&format!("seq_step{i}_mod2"), s.seq_step_mod2[i]);
     }
 
     s
@@ -755,6 +783,10 @@ mod tests {
                 orig.fm_op_sustain_level[s][op] = 0.8 - op as f32 * 0.1;
                 orig.fm_op_release_secs[s][op] = 0.2 + op as f32 * 0.1;
                 orig.fm_op_feedback[s][op] = op as f32 * 0.1;
+                orig.fm_custom_carrier[s][op] = (s + op) % 2 == 0;
+            }
+            for c in 0..6 {
+                orig.fm_custom_conn[s][c] = (s + c) % 3 == 0;
             }
         }
         orig.fx_eq_enabled = true;
@@ -803,6 +835,7 @@ mod tests {
             orig.seq_step_rest[i] = i % 3 == 0;
             orig.seq_step_tie[i] = i % 4 == 1;
             orig.seq_step_mod[i] = (i as f32) / 16.0 - 0.5;
+            orig.seq_step_mod2[i] = 0.5 - (i as f32) / 16.0;
         }
 
         let map = snapshot_to_map(&orig);
@@ -873,6 +906,8 @@ mod tests {
         assert_eq!(orig.fm_op_sustain_level, got.fm_op_sustain_level);
         assert_eq!(orig.fm_op_release_secs, got.fm_op_release_secs);
         assert_eq!(orig.fm_op_feedback, got.fm_op_feedback);
+        assert_eq!(orig.fm_custom_conn, got.fm_custom_conn);
+        assert_eq!(orig.fm_custom_carrier, got.fm_custom_carrier);
         assert_eq!(orig.fx_eq_enabled, got.fx_eq_enabled);
         assert_eq!(orig.fx_eq_low_gain_db, got.fx_eq_low_gain_db);
         assert_eq!(orig.fx_eq_low_freq_hz, got.fx_eq_low_freq_hz);
@@ -918,6 +953,7 @@ mod tests {
         assert_eq!(orig.seq_step_rest, got.seq_step_rest);
         assert_eq!(orig.seq_step_tie, got.seq_step_tie);
         assert_eq!(orig.seq_step_mod, got.seq_step_mod);
+        assert_eq!(orig.seq_step_mod2, got.seq_step_mod2);
     }
 
     /// A sparse preset (only a few keys set) must expand to the *full*

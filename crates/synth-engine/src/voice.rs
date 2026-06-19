@@ -394,6 +394,20 @@ impl Voice {
         }
     }
 
+    /// Sets one FM custom-routing connection on slot `slot`.
+    pub fn set_fm_custom_connection(&mut self, slot: usize, conn: usize, enabled: bool) {
+        if let Some(s) = self.slots.get_mut(slot) {
+            s.fm.set_custom_connection(conn, enabled);
+        }
+    }
+
+    /// Sets one FM custom-routing carrier flag on slot `slot`.
+    pub fn set_fm_custom_carrier(&mut self, slot: usize, op: usize, enabled: bool) {
+        if let Some(s) = self.slots.get_mut(slot) {
+            s.fm.set_custom_carrier(op, enabled);
+        }
+    }
+
     /// Advances LFO1, LFO2, Env2, and Env3 by `block_size` samples and
     /// caches their outputs. Call once per inner block, before the
     /// per-sample loop.
