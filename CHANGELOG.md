@@ -6,6 +6,16 @@ All notable changes to Tone Smithy are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- **Second sequencer mod lane (`Seq2`)** — the step sequencer gains a second
+  independent CV mod lane, routable to its own destination via the mod matrix
+  alongside the existing lane.
+- **Editable FM operator routing (Custom algorithm)** — a ninth "Custom" FM
+  algorithm with an on-screen routing grid: toggle each operator's carrier flag
+  and the legal high->low modulator connections. Switching to Custom from a
+  factory algorithm seeds the grid from it; routing is saved with the preset.
+
 ## [1.1.1] — 2026-06-17
 
 Packaging-only patch. No changes to the synth itself.
