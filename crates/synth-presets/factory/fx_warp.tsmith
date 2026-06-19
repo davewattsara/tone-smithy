@@ -18,6 +18,7 @@
         "amp_release_secs": 0.4,
         "osc1_level": 1.0,
         "osc2_level": 0.6,
+        "osc3_level": 1.0,
         "osc2_detune_cents": 8.0,
         "lfo1_rate_hz": 3.5,
         "lfo2_rate_hz": 0.7,

@@ -21,6 +21,7 @@
         "osc1_unison_detune_cents": 12.0,
         "osc1_unison_spread": 0.7,
         "osc2_level": 0.6,
+        "osc3_level": 1.0,
         "osc2_detune_cents": 5.0,
         "lfo1_rate_hz": 4.5,
         "mod_slot_enabled_0": 1.0,
