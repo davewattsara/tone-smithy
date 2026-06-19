@@ -174,6 +174,9 @@ pub struct ToneSmithyApp {
     pub(crate) osc_unison_detune_cents: [f32; 3],
     /// Unison stereo spread for each main oscillator.
     pub(crate) osc_unison_spread: [f32; 3],
+    /// Phase mode for each main oscillator: `false` = Free (random phase
+    /// on note-on), `true` = Retrig (phase reset to 0 on every note-on).
+    pub(crate) osc_phase_mode: [bool; 3],
     /// Sub oscillator level.
     pub(crate) sub_level: f32,
     /// Sub oscillator pan.
@@ -399,6 +402,7 @@ impl ToneSmithyApp {
             osc_unison_voices: snap.osc_main_unison_voices,
             osc_unison_detune_cents: snap.osc_main_unison_detune_cents,
             osc_unison_spread: snap.osc_main_unison_spreads,
+            osc_phase_mode: snap.osc_main_phase_modes,
             sub_level: snap.sub_level,
             sub_pan: snap.sub_pan,
             filter_mode: snap.filter_mode,
@@ -644,6 +648,7 @@ impl ToneSmithyApp {
         self.osc_unison_voices = snap.osc_main_unison_voices;
         self.osc_unison_detune_cents = snap.osc_main_unison_detune_cents;
         self.osc_unison_spread = snap.osc_main_unison_spreads;
+        self.osc_phase_mode = snap.osc_main_phase_modes;
         self.sub_level = snap.sub_level;
         self.sub_pan = snap.sub_pan;
         self.filter_cutoff_hz = snap.filter_cutoff_hz;

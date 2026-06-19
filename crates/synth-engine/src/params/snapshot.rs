@@ -93,6 +93,11 @@ pub struct ParamSnapshot {
     /// Per-main-oscillator unison stereo spread (0..=1).
     pub osc_main_unison_spreads: [f32; MAIN_OSCILLATOR_COUNT],
 
+    /// Per-main-oscillator phase mode: `false` = Free (random phase on
+    /// note-on, the v1.1 behaviour), `true` = Retrig (phase reset to 0 on
+    /// every note-on for a tight, repeatable attack).
+    pub osc_main_phase_modes: [bool; MAIN_OSCILLATOR_COUNT],
+
     /// Number of voices currently producing audio (not idle). Zero means
     /// the engine is silent. At M2 this is 0 or 1; the voice manager
     /// at M3 raises the ceiling to 32.
@@ -327,6 +332,7 @@ impl Default for ParamSnapshot {
             osc_main_unison_voices: [DEFAULT_UNISON_VOICES; MAIN_OSCILLATOR_COUNT],
             osc_main_unison_detune_cents: [DEFAULT_UNISON_DETUNE_CENTS; MAIN_OSCILLATOR_COUNT],
             osc_main_unison_spreads: [DEFAULT_UNISON_SPREAD; MAIN_OSCILLATOR_COUNT],
+            osc_main_phase_modes: [false; MAIN_OSCILLATOR_COUNT],
             active_voice_count: 0,
             pitch_bend_semis: 0.0,
             mod_wheel: 0.0,

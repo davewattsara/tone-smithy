@@ -70,7 +70,7 @@ impl ToneSmithyApp {
     /// `md` carries the live mod-ring offsets; the detune knob reads the entry for
     /// this oscillator (osc1/2/3 detune are all mod-matrix destinations).
     fn osc_controls(&mut self, ui: &mut egui::Ui, idx: usize, md: Option<ModDisplay>) {
-        let (level_id, detune_id, pan_id, uv_id, ud_id, us_id) = match idx {
+        let (level_id, detune_id, pan_id, uv_id, ud_id, us_id, phase_id) = match idx {
             0 => (
                 ParamId::Osc1Level,
                 ParamId::Osc1DetuneCents,
@@ -78,6 +78,7 @@ impl ToneSmithyApp {
                 ParamId::Osc1UnisonVoices,
                 ParamId::Osc1UnisonDetuneCents,
                 ParamId::Osc1UnisonSpread,
+                ParamId::Osc1PhaseMode,
             ),
             1 => (
                 ParamId::Osc2Level,
@@ -86,6 +87,7 @@ impl ToneSmithyApp {
                 ParamId::Osc2UnisonVoices,
                 ParamId::Osc2UnisonDetuneCents,
                 ParamId::Osc2UnisonSpread,
+                ParamId::Osc2PhaseMode,
             ),
             _ => (
                 ParamId::Osc3Level,
@@ -94,6 +96,7 @@ impl ToneSmithyApp {
                 ParamId::Osc3UnisonVoices,
                 ParamId::Osc3UnisonDetuneCents,
                 ParamId::Osc3UnisonSpread,
+                ParamId::Osc3PhaseMode,
             ),
         };
 
@@ -216,6 +219,19 @@ impl ToneSmithyApp {
                 });
             }
         });
+
+        ui.add_space(6.0);
+        if ui
+            .selectable_label(self.osc_phase_mode[idx], "Retrig")
+            .on_hover_text("Reset oscillator phase to 0 on every note-on for a tighter, more consistent attack.")
+            .clicked()
+        {
+            self.osc_phase_mode[idx] = !self.osc_phase_mode[idx];
+            self.emit_change(EngineEvent::ParameterChange {
+                id: phase_id,
+                value: if self.osc_phase_mode[idx] { 1.0 } else { 0.0 },
+            });
+        }
     }
 
     fn sub_controls(&mut self, ui: &mut egui::Ui) {

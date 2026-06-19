@@ -235,6 +235,6 @@ Add to the v1.2 CHANGELOG entry:
 
 ## Progress
 
-- [ ] Phase 1 — Per-oscillator phase mode
+- [x] Phase 1 — Per-oscillator phase mode
 - [ ] Phase 2 — Migration audit (`xtask migrate-osc-defaults`)
 - [ ] Phase 3 — Default OSC2/3 level 1.0 → 0.0 (run only after Phase 2 verified)
