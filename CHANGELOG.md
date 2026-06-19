@@ -19,6 +19,11 @@ All notable changes to Tone Smithy are documented here. The format is based on
   gains a "Retrig" toggle. Free (the default) keeps the v1.1 behaviour of a
   random phase on note-on; Retrig resets the phase to 0 on every note-on for a
   tight, repeatable attack. Saved with the preset.
+- **Update check** — on launch a background thread checks GitHub Releases for a
+  newer version and, if one exists, shows a dismissible "Update available" notice
+  in the header with a link to the releases page. Best-effort and non-blocking:
+  no automatic download, no telemetry, and it fails silently when offline.
+  Dismissing a version is remembered until a still-newer release appears.
 
 ### Changed
 

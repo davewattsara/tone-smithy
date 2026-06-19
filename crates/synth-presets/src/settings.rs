@@ -23,6 +23,13 @@ pub struct AppSettings {
     /// Set to `true` once the first-run wizard has been completed.
     #[serde(default)]
     pub first_run_complete: bool,
+
+    /// The release tag the user last dismissed from the update notice (e.g.
+    /// `"v1.3.0"`). `None` means no update has been dismissed. The notice is
+    /// suppressed while the latest available tag equals this value, and
+    /// reappears once a still-newer tag is published.
+    #[serde(default)]
+    pub dismissed_update_version: Option<String>,
 }
 
 /// Returns the path to the settings file, creating the parent directory if

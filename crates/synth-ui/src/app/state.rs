@@ -7,7 +7,7 @@ use synth_engine::ParamSnapshot;
 use synth_engine::param_bus::{EngineEventSender, SnapshotSlot, load_snapshot};
 use synth_engine::{FilterMode, FilterRouting, FilterSlope, MOD_MATRIX_SLOTS, SEQ_MAX_STEPS, Waveform};
 use synth_presets::{
-    AppSettings, MidiLearnEntry, PresetEntry, factory_entries, scan_dir, start_watcher, user_presets_dir,
+    AppSettings, MidiLearnEntry, PresetEntry, factory_entries, save_settings, scan_dir, start_watcher, user_presets_dir,
 };
 
 use crate::computer_keyboard::ComputerKeyboard;
@@ -375,6 +375,14 @@ pub struct ToneSmithyApp {
     pub(crate) prev_cc_values: [f32; 128],
     /// Active MIDI Learn bindings: CC number → parameter key.
     pub(crate) midi_learn_mappings: Vec<MidiLearnEntry>,
+
+    // ── Update check (M24) ────────────────────────────────────────────────────
+    /// Receives the latest release tag (already confirmed newer than the running
+    /// build) from the background update-check thread.
+    update_rx: Receiver<String>,
+    /// The newer release tag to advertise in the header notice, once received
+    /// and not suppressed by a prior dismissal. `None` = no notice shown.
+    pub(crate) available_update: Option<String>,
 }
 
 // ── Construction ──────────────────────────────────────────────────────────────
@@ -388,6 +396,7 @@ impl ToneSmithyApp {
         snapshot_slot: SnapshotSlot,
         cpu_load: Arc<AtomicU32>,
         settings: AppSettings,
+        update_rx: Receiver<String>,
     ) -> Self {
         let snap = load_snapshot(&snapshot_slot);
         let mut app = Self {
@@ -540,10 +549,32 @@ impl ToneSmithyApp {
             midi_learn_target: None,
             prev_cc_values: [0.0; 128],
             midi_learn_mappings: Vec::new(),
+            update_rx,
+            available_update: None,
         };
         app.init_browser();
         app.refresh_device_lists();
         app
+    }
+
+    /// Polls the background update-check channel. When a newer release tag
+    /// arrives, it is shown in the header notice unless the user has already
+    /// dismissed that exact tag. Called once per frame.
+    pub(crate) fn poll_update_check(&mut self) {
+        while let Ok(tag) = self.update_rx.try_recv() {
+            if self.settings.dismissed_update_version.as_deref() == Some(tag.as_str()) {
+                continue;
+            }
+            self.available_update = Some(tag);
+        }
+    }
+
+    /// Dismisses the update notice for `tag` and persists the dismissal so it
+    /// does not reappear until a still-newer release is published.
+    pub(crate) fn dismiss_update(&mut self, tag: String) {
+        self.settings.dismissed_update_version = Some(tag);
+        save_settings(&self.settings);
+        self.available_update = None;
     }
 
     /// Refreshes the cached audio device and MIDI port lists.
