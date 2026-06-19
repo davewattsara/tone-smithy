@@ -22,46 +22,46 @@ Tick each box as you verify it.
 
 ## Build & run
 
-- [ ] `cargo run --bin tonesmithy` launches the app (debug is fine for testing).
-- [ ] For representative listening / lowest CPU: `cargo run --release --bin tonesmithy`.
-- [ ] Load **Keys -> DX Piano** and confirm it plays.
+- [x] `cargo run --bin tonesmithy` launches the app (debug is fine for testing).
+- [x] For representative listening / lowest CPU: `cargo run --release --bin tonesmithy`.
+- [x] Load **Keys -> DX Piano** and confirm it plays.
 
 ## Phase 2 — editable FM operator routing
 
 ### 1. Regression — factory algorithms 0-7 unaffected
 
-- [ ] With DX Piano playing, cycle `Alg` through **1 Stack -> 8 Paired**; each changes the
+- [x] With DX Piano playing, cycle `Alg` through **1 Stack -> 8 Paired**; each changes the
       timbre, none is silent, crackles, or hangs.
-- [ ] Return to **8 Paired** -> sounds like the original DX Piano.
+- [x] Return to **8 Paired** -> sounds like the original DX Piano.
 
 ### 2. Seed continuity — factory -> Custom is seamless
 
-- [ ] With DX Piano on **8 Paired**, switch `Alg` to **9 Custom** -> the sound **does not
+- [x] With DX Piano on **8 Paired**, switch `Alg` to **9 Custom** -> the sound **does not
       change** at the moment of switching.
-- [ ] The "Custom routing" grid appears below the selector.
+- [x] The "Custom routing" grid appears below the selector.
 
 ### 3. Grid matches the seeded algorithm
 
 With **8 Paired** seeded, the grid reads exactly:
 
-- [ ] **Op 1**: Carrier **on**; "mod by" **Op4** checked (Op2, Op3 off).
-- [ ] **Op 2**: Carrier **on**; "mod by" **Op3** checked (Op4 off).
-- [ ] **Op 3**: Carrier off; "mod by" Op4 off.
-- [ ] **Op 4**: Carrier off; shows "(feedback via FB knob)".
+- [x] **Op 1**: Carrier **on**; "mod by" **Op4** checked (Op2, Op3 off).
+- [x] **Op 2**: Carrier **on**; "mod by" **Op3** checked (Op4 off).
+- [x] **Op 3**: Carrier off; "mod by" Op4 off.
+- [x] **Op 4**: Carrier off; shows "(feedback via FB knob)".
 
 ### 4. Live editing is audible
 
 While holding a note in Custom:
 
-- [ ] Uncheck **Op 2 -> mod by Op3** -> the glassy/bell layer thins out; re-check -> it returns.
-- [ ] Uncheck **Op 1 Carrier** -> that operator drops out of the mix; re-check -> it returns.
+- [x] Uncheck **Op 2 -> mod by Op3** -> the glassy/bell layer thins out; re-check -> it returns.
+- [x] Uncheck **Op 1 Carrier** -> that operator drops out of the mix; re-check -> it returns.
 
 ### 5. Minimal one-carrier one-modulator patch
 
 In the grid, uncheck **all** carriers and **all** "mod by" boxes (silence), then:
 
-- [ ] Check **Op 1 Carrier** only -> a clean sine plays. (Ensure Op 1's **Level** is up.)
-- [ ] Check **Op 1 -> mod by Op2** (ensure Op 2's **Level** is up) -> the tone gets
+- [x] Check **Op 1 Carrier** only -> a clean sine plays. (Ensure Op 1's **Level** is up.)
+- [x] Check **Op 1 -> mod by Op2** (ensure Op 2's **Level** is up) -> the tone gets
       brighter/buzzier.
 
 ### 6. Equivalence to factory "1 Stack"
