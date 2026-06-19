@@ -113,8 +113,11 @@ impl ToneSmithyApp {
         ui.horizontal(|ui| {
             if ui
                 .add(
+                    // OSC 1 defaults to full level; OSC 2 / OSC 3 default to
+                    // silent (matching the engine init patch), so a
+                    // double-click reset returns each to its real default.
                     Knob::new(&mut self.osc_level[idx], 0.0..=OSC_LEVEL_MAX, "Level")
-                        .default_value(1.0)
+                        .default_value(if idx == 0 { 1.0 } else { 0.0 })
                         .param_key(osc_level_key)
                         .format(|v| format!("{:.2}", v)),
                 )

@@ -20,6 +20,14 @@ All notable changes to Tone Smithy are documented here. The format is based on
   random phase on note-on; Retrig resets the phase to 0 on every note-on for a
   tight, repeatable attack. Saved with the preset.
 
+### Changed
+
+- **Init patch now starts with one main oscillator.** OSC 2 and OSC 3 default to
+  level 0, matching the universal convention. Existing factory presets are
+  unaffected (their OSC 2/3 levels were written in explicitly where needed).
+  User-created presets that relied on OSC 2/3 being at full level by default may
+  sound different — open them, set OSC 2/3 levels explicitly, and re-save.
+
 ## [1.1.1] — 2026-06-17
 
 Packaging-only patch. No changes to the synth itself.

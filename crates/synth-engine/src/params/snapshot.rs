@@ -324,7 +324,14 @@ impl Default for ParamSnapshot {
             filter2_mode: FilterMode::LowPass,
             filter_routing: FilterRouting::Off,
             filter_slope: [FilterSlope::TwelveDbOct; 2],
-            osc_main_levels: [DEFAULT_OSC_LEVEL; MAIN_OSCILLATOR_COUNT],
+            // Init patch starts from a single main oscillator (the universal
+            // convention) instead of three coherent ones: OSC 1 at full level,
+            // OSC 2 / OSC 3 silent. M23 Phase 2 wrote osc2/osc3 levels
+            // explicitly into every factory preset that relied on the old
+            // [1.0; 3] default, so the bank is unaffected by this change. The
+            // sub oscillator default is intentionally left unchanged (many
+            // factory presets rely on it).
+            osc_main_levels: [DEFAULT_OSC_LEVEL, 0.0, 0.0],
             sub_level: DEFAULT_OSC_LEVEL,
             osc_main_detune_cents: [DEFAULT_OSC_DETUNE_CENTS; MAIN_OSCILLATOR_COUNT],
             osc_main_pans: [DEFAULT_OSC_PAN; MAIN_OSCILLATOR_COUNT],
@@ -499,4 +506,18 @@ pub struct SampleParams {
     /// Master output volume for this sample, 0..=1. Applied after
     /// polyphony summing in the engine — the voice does not see it.
     pub master_volume: f32,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The init patch is a single main oscillator: OSC 1 at full level,
+    /// OSC 2 / OSC 3 silent (M23 Phase 3). Guards against the default
+    /// regressing to the pre-M23 three-coherent-oscillator init.
+    #[test]
+    fn default_init_is_single_main_oscillator() {
+        let s = ParamSnapshot::default();
+        assert_eq!(s.osc_main_levels, [DEFAULT_OSC_LEVEL, 0.0, 0.0]);
+    }
 }

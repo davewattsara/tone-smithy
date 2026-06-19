@@ -1016,6 +1016,16 @@ mod tests {
                 id: ParamId::Env2AttackSecs,
                 value: 0.001,
             });
+            // Silence the sub oscillator so the measurement is purely OSC 1
+            // through the filter. The sub is a sine an octave below the note,
+            // close to the 80 Hz cutoff, so it passes in both branches and
+            // dilutes the modulation ratio. (Since M23, OSC 2/3 default to
+            // silent, leaving OSC 1 + sub; we want only the harmonically rich
+            // saw here.)
+            engine.handle(EngineEvent::ParameterChange {
+                id: ParamId::SubLevel,
+                value: 0.0,
+            });
             engine.handle(EngineEvent::ParameterChange {
                 id: ParamId::ModSlotEnabled(0),
                 value: if mod_enabled { 1.0 } else { 0.0 },
