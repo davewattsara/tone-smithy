@@ -51,11 +51,15 @@ pub enum ModSource {
     /// at the end (same append-only rule as Env3) so existing source indices
     /// and saved presets keep their meaning.
     Seq,
+    /// Second step-sequencer mod lane: the active step's second CV value,
+    /// -1..=1. Appended at the end (same append-only rule as `Seq`) so existing
+    /// source indices and saved presets keep their meaning.
+    Seq2,
 }
 
 impl ModSource {
     /// Total number of variants; used to validate parameter bus values.
-    pub const COUNT: u8 = 12;
+    pub const COUNT: u8 = 13;
 
     /// Converts a `u8` index (as stored in the parameter bus) to a variant.
     /// Returns `None` if the index is out of range.
@@ -73,6 +77,7 @@ impl ModSource {
             9 => Some(Self::PitchBend),
             10 => Some(Self::Env3),
             11 => Some(Self::Seq),
+            12 => Some(Self::Seq2),
             _ => None,
         }
     }
@@ -161,6 +166,7 @@ pub struct ModSources {
     pub pitch_bend: f32,
     pub env3: f32,
     pub seq: f32,
+    pub seq2: f32,
 }
 
 impl ModSources {
@@ -178,6 +184,7 @@ impl ModSources {
             ModSource::PitchBend => self.pitch_bend,
             ModSource::Env3 => self.env3,
             ModSource::Seq => self.seq,
+            ModSource::Seq2 => self.seq2,
         }
     }
 }

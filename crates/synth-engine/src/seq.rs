@@ -26,8 +26,8 @@ const MAX_HELD: usize = 32;
 /// and still advances the mod lane); `tie` extends the previously sounding
 /// note across this step instead of retriggering; `note_offset` is semitones
 /// from the held root; `velocity` is the step's MIDI velocity; `gate` is the
-/// fraction of the step the note sounds; `mod_value` is the mod-lane CV
-/// (-1..=1) exposed as the `Seq` mod source.
+/// fraction of the step the note sounds; `mod_value` / `mod2_value` are the two
+/// independent mod-lane CVs (-1..=1) exposed as the `Seq` and `Seq2` mod sources.
 #[derive(Debug, Clone, Copy)]
 pub struct SeqStep {
     /// Semitone offset from the held root, -24..=24.
@@ -50,6 +50,8 @@ pub struct SeqStep {
     pub tie: bool,
     /// Mod-lane CV value, -1.0..=1.0.
     pub mod_value: f32,
+    /// Second, independent mod-lane CV value, -1.0..=1.0.
+    pub mod2_value: f32,
 }
 
 impl Default for SeqStep {
@@ -61,6 +63,7 @@ impl Default for SeqStep {
             rest: false,
             tie: false,
             mod_value: 0.0,
+            mod2_value: 0.0,
         }
     }
 }
@@ -129,6 +132,8 @@ pub struct SeqEngine {
     note_elapsed: f32,
     /// Mod-lane value of the current step, held across the step.
     current_mod: f32,
+    /// Second mod-lane value of the current step, held across the step.
+    current_mod2: f32,
     /// Direction flag for PingPong (true = ascending).
     going_up: bool,
     /// Whether this is an even step in the pair (for swing).
@@ -159,6 +164,7 @@ impl SeqEngine {
             release_at: 0.5,
             note_elapsed: 0.0,
             current_mod: 0.0,
+            current_mod2: 0.0,
             going_up: true,
             even_step: true,
             sample_rate_hz,
@@ -173,6 +179,17 @@ impl SeqEngine {
     pub fn mod_value(&self) -> f32 {
         if self.enabled && self.held_count > 0 {
             self.current_mod
+        } else {
+            0.0
+        }
+    }
+
+    /// Current second mod-lane value (the active step's `mod2_value`), or 0.0
+    /// when the sequencer is not running. Published as the `Seq2` mod source.
+    #[must_use]
+    pub fn mod2_value(&self) -> f32 {
+        if self.enabled && self.held_count > 0 {
+            self.current_mod2
         } else {
             0.0
         }
@@ -273,6 +290,7 @@ impl SeqEngine {
         self.step_index = usize::MAX;
         self.phase = 0.0;
         self.current_mod = 0.0;
+        self.current_mod2 = 0.0;
     }
 
     /// Reset the clock so the next `process()` fires the first step with a
@@ -301,6 +319,7 @@ impl SeqEngine {
             self.phase = 0.0;
             self.step_index = usize::MAX;
             self.current_mod = 0.0;
+            self.current_mod2 = 0.0;
             return out;
         }
 
@@ -438,6 +457,7 @@ impl SeqEngine {
             self.step_index = len - 1;
         }
         self.current_mod = self.steps[self.step_index].mod_value;
+        self.current_mod2 = self.steps[self.step_index].mod2_value;
     }
 
     /// Number of steps a note articulated at `start` occupies, following the
@@ -712,5 +732,22 @@ mod tests {
         assert!((s.mod_value() - (-0.5)).abs() < 1e-6);
         s.process(12_000); // advance to step 1
         assert!((s.mod_value() - 0.75).abs() < 1e-6);
+    }
+
+    #[test]
+    fn mod2_value_tracks_current_step_independently() {
+        let mut s = make_seq(SeqMode::Forward, 4, 60);
+        s.steps[0].mod_value = -0.5;
+        s.steps[0].mod2_value = 0.25;
+        s.steps[1].mod_value = 0.75;
+        s.steps[1].mod2_value = -1.0;
+        // Re-arm so step 0 is the current step with both mod values.
+        s.clear();
+        s.note_on(60);
+        assert!((s.mod_value() - (-0.5)).abs() < 1e-6);
+        assert!((s.mod2_value() - 0.25).abs() < 1e-6);
+        s.process(12_000); // advance to step 1
+        assert!((s.mod_value() - 0.75).abs() < 1e-6);
+        assert!((s.mod2_value() - (-1.0)).abs() < 1e-6);
     }
 }

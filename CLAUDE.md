@@ -6,10 +6,12 @@ This is the Tone Smithy repo: a hybrid (subtractive + FM) standalone software sy
 
 ### Starting a milestone
 - **Never begin milestone implementation work without explicit user instruction.** Finishing a previous milestone, reading a plan, or reaching the end of a session does not constitute permission to start the next one. Wait for the user to say "start M16" (or equivalent) before writing any code.
+- **Before starting a new milestone, check the previous one is closed out.** If the most recent milestone in `docs/planning/06-implementation/milestones.md` lacks its `— **complete (YYYY-MM-DD, tag \`mXX\`)**` sign-off (or there are unmerged/untagged changes from it), stop and ask the user whether they really want to start a new milestone first — they have usually just forgotten to close out the previous one. Only proceed once they confirm, or once the previous milestone is closed out per the [close-out runbook](docs/planning/06-implementation/milestone-closeout.md).
 
 ### Closing out a milestone
-- When marking a milestone complete in `docs/planning/06-implementation/milestones.md`, always include the date: `— **complete (YYYY-MM-DD, tag \`mXX\`)**`. Use the current date from the `currentDate` context or ask the user if unsure.
-- The sign-off goes on the `## MXX — Title` heading line itself, matching the format used for M0 and M1.
+- **Follow the close-out runbook: [`docs/planning/06-implementation/milestone-closeout.md`](docs/planning/06-implementation/milestone-closeout.md).** It is the canonical procedure — user sign-off gate, the doc-sync sweep (so docs don't fall behind), and the git merge/tag mechanics.
+- Don't skip the doc-sync sweep. Bringing `README.md`, this file's "Project state at a glance", `open-questions.md`, and the rest up to date is part of closing the milestone, not a follow-up task.
+- **Version (release) milestones** run extra steps on top — most importantly, **update the user manual (`docs/user-manual.md`) BEFORE finalizing the version**, then CHANGELOG, version bump, and the `v*` tag. See the runbook.
 
 ### After making file changes
 - **Commit immediately.** Don't wait to be asked.
@@ -67,15 +69,18 @@ Don't update it for internal refactors or doc-only planning changes. Full trigge
 | What we're building (more detail) | [`docs/planning/01-vision/overview.md`](docs/planning/01-vision/overview.md) |
 | The full plan index | [`docs/planning/README.md`](docs/planning/README.md) |
 | How we work in this repo | [`docs/working-conventions.md`](docs/working-conventions.md) |
+| How to close out a milestone | [`docs/planning/06-implementation/milestone-closeout.md`](docs/planning/06-implementation/milestone-closeout.md) |
 | When to update README.md | [`docs/working-conventions.md#keeping-the-readme-up-to-date`](docs/working-conventions.md#keeping-the-readme-up-to-date) |
 | What's still undecided | [`docs/planning/01-vision/open-questions.md`](docs/planning/01-vision/open-questions.md) |
 
 ## Project state at a glance
 
-- **Stage:** **v1.1.1 shipped (tag `v1.1.1` on `main`, 2026-06-17).** All v1 milestones (M0–M15) and all v1.1 milestones (M16–M20) are complete: M16 (Quick wins, `m16`), M17 (Engine expansion, `m17`), M18 (Step sequencer, `m18`), M19 (Cross-platform installers, `m19`), M20 (factory expansion to 120 presets + the v1.1.0 release, `v1.1.0`). v1.1.1 is a packaging-only patch (macOS third-party-licence generation + resilient release publishing). The factory bank is now 120 presets (incl. a Hammond/Leslie organ family, grimy DnB basses, multi-filter and >8-slot deep-mod showcases). Builds ship unsigned with the default icon (both deferred to a later version). No milestone is currently active — await explicit go-ahead before starting any new work.
+- **Stage:** **v1.1.1 shipped (tag `v1.1.1` on `main`, 2026-06-17).** All v1 milestones (M0–M15) and all v1.1 milestones (M16–M20) are complete: M16 (Quick wins, `m16`), M17 (Engine expansion, `m17`), M18 (Step sequencer, `m18`), M19 (Cross-platform installers, `m19`), M20 (factory expansion to 120 presets + the v1.1.0 release, `v1.1.0`). v1.1.1 is a packaging-only patch (macOS third-party-licence generation + resilient release publishing). The factory bank is now 120 presets (incl. a Hammond/Leslie organ family, grimy DnB basses, multi-filter and >8-slot deep-mod showcases). Builds ship unsigned with the default icon (both deferred to a later version). **v1.2 is in progress on `development`** (unreleased): M21 (UX polish, `m21`) and M22 (engine additions, `m22`) are complete; M23–M24 remain. No milestone is currently active — await explicit go-ahead before starting any new work.
 - **Licence:** `MIT OR Apache-2.0` dual.
 - **Product name:** Tone Smithy.
 - **Branches:** `main` (stable; v1.1.1 at tag `v1.1.1`); `development` (active work — commit here).
 - **v1.1 scope (shipped):** Three quick UX wins (K=C keyboard note, alphabetical presets, conditional OSC/Sub panel) + engine expansion (second filter, 24 dB/oct, Env3, 16-slot matrix) + step sequencer + Linux/macOS installers + factory bank expansion to 120 presets. Milestones M16–M20 in `docs/planning/06-implementation/milestones.md`.
+- **v1.2 scope (in progress, unreleased):** M21 UX polish (shipped to `development`) + M22 engine additions (second sequencer mod lane `Seq2`; editable "Custom" FM operator routing) + M23 oscillator phase consistency + M24 auto-update check & the v1.2.0 release. Milestones M21–M24 in `docs/planning/06-implementation/milestones.md`; features land in `CHANGELOG.md` under `[Unreleased]`.
+- **Deferred to the M24 v1.2.0 release pass:** `README.md` (release-facing status/features) and `docs/user-manual.md` are intentionally *not* updated per interim v1.2 milestone — they get one accurate pass when the version is finalised (the user-manual-before-finalizing rule in the [close-out runbook](docs/planning/06-implementation/milestone-closeout.md)). So the manual still needs sections for the Seq2 lane and the Custom FM algorithm at M24.
 - **Release:** v1.0.0 and v1.1.0 are live on GitHub Releases. Pushing a `v*` tag triggers the release workflow (Windows + Linux + macOS artefacts). The next release will follow the same flow via a `v1.2.0` tag.
 - **Open questions remaining:** MPE/microtuning/oversampling scope (now v1.3+), auto-update mechanism. Factory content authoring is resolved as solo (developer + Claude); code signing and the custom icon are resolved as "deferred to a later version" (see `docs/planning/01-vision/open-questions.md`).

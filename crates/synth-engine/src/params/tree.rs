@@ -224,6 +224,8 @@ pub struct ParameterTree {
     pub(super) fm_op_sustain_level: [[f32; OPERATOR_COUNT]; 2],
     pub(super) fm_op_release_secs: [[f32; OPERATOR_COUNT]; 2],
     pub(super) fm_op_feedback: [[f32; OPERATOR_COUNT]; 2],
+    pub(super) fm_custom_conn: [[bool; 6]; 2],
+    pub(super) fm_custom_carrier: [[bool; OPERATOR_COUNT]; 2],
 
     // ── FX chain (M8) ─────────────────────────────────────────────────────
     pub(super) fx_eq_enabled: bool,
@@ -273,6 +275,7 @@ pub struct ParameterTree {
     pub(super) seq_step_rest: [bool; SEQ_MAX_STEPS],
     pub(super) seq_step_tie: [bool; SEQ_MAX_STEPS],
     pub(super) seq_step_mod: [f32; SEQ_MAX_STEPS],
+    pub(super) seq_step_mod2: [f32; SEQ_MAX_STEPS],
 }
 
 impl ParameterTree {
@@ -367,6 +370,8 @@ impl ParameterTree {
             fm_op_sustain_level: defaults.fm_op_sustain_level,
             fm_op_release_secs: defaults.fm_op_release_secs,
             fm_op_feedback: defaults.fm_op_feedback,
+            fm_custom_conn: defaults.fm_custom_conn,
+            fm_custom_carrier: defaults.fm_custom_carrier,
             fx_eq_enabled: defaults.fx_eq_enabled,
             fx_eq_low_gain_db: defaults.fx_eq_low_gain_db,
             fx_eq_low_freq_hz: defaults.fx_eq_low_freq_hz,
@@ -412,6 +417,7 @@ impl ParameterTree {
             seq_step_rest: defaults.seq_step_rest,
             seq_step_tie: defaults.seq_step_tie,
             seq_step_mod: defaults.seq_step_mod,
+            seq_step_mod2: defaults.seq_step_mod2,
         }
     }
 
@@ -523,7 +529,7 @@ impl ParameterTree {
             }
             ParamId::FmAlgorithm(i) => {
                 if (i as usize) < 2 {
-                    self.fm_algorithm[i as usize] = (value as u8).min(7);
+                    self.fm_algorithm[i as usize] = (value as u8).min(crate::fm::CUSTOM_ALGORITHM_INDEX);
                 }
             }
             ParamId::FmOpRatioInteger(packed) => {
@@ -580,6 +586,20 @@ impl ParameterTree {
                 let op = (packed & 0x0F) as usize;
                 if slot < 2 && op < OPERATOR_COUNT {
                     self.fm_op_feedback[slot][op] = value.clamp(-1.0, 1.0);
+                }
+            }
+            ParamId::FmCustomConn(packed) => {
+                let slot = (packed / 6) as usize;
+                let conn = (packed % 6) as usize;
+                if slot < 2 {
+                    self.fm_custom_conn[slot][conn] = value >= 0.5;
+                }
+            }
+            ParamId::FmCustomCarrier(packed) => {
+                let slot = (packed / 4) as usize;
+                let op = (packed % 4) as usize;
+                if slot < 2 {
+                    self.fm_custom_carrier[slot][op] = value >= 0.5;
                 }
             }
             ParamId::FxEqEnabled => self.fx_eq_enabled = value >= 0.5,
@@ -651,6 +671,11 @@ impl ParameterTree {
             ParamId::SeqStepMod(i) => {
                 if (i as usize) < SEQ_MAX_STEPS {
                     self.seq_step_mod[i as usize] = value.clamp(-1.0, 1.0);
+                }
+            }
+            ParamId::SeqStepMod2(i) => {
+                if (i as usize) < SEQ_MAX_STEPS {
+                    self.seq_step_mod2[i as usize] = value.clamp(-1.0, 1.0);
                 }
             }
         }
@@ -1078,6 +1103,8 @@ impl ParameterTree {
             fm_op_sustain_level: self.fm_op_sustain_level,
             fm_op_release_secs: self.fm_op_release_secs,
             fm_op_feedback: self.fm_op_feedback,
+            fm_custom_conn: self.fm_custom_conn,
+            fm_custom_carrier: self.fm_custom_carrier,
             fx_eq_enabled: self.fx_eq_enabled,
             fx_eq_low_gain_db: self.fx_eq_low_gain_db,
             fx_eq_low_freq_hz: self.fx_eq_low_freq_hz,
@@ -1123,6 +1150,7 @@ impl ParameterTree {
             seq_step_rest: self.seq_step_rest,
             seq_step_tie: self.seq_step_tie,
             seq_step_mod: self.seq_step_mod,
+            seq_step_mod2: self.seq_step_mod2,
             seq_current_step: self.seq_current_step,
         }
     }

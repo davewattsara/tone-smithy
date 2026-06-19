@@ -92,6 +92,9 @@ pub struct VoiceManager {
     /// Step-sequencer mod-lane value for the active step (-1..=1), pushed by
     /// the engine each block and read as the `Seq` mod source.
     global_seq_mod: f32,
+    /// Second step-sequencer mod-lane value for the active step (-1..=1),
+    /// pushed by the engine each block and read as the `Seq2` mod source.
+    global_seq_mod2: f32,
 
     /// Shared (mono) LFO instances. When `lfo{1,2}_global` is set these run as
     /// a single instance across all voices so chords stay phase-locked; they
@@ -124,6 +127,7 @@ impl VoiceManager {
             global_aftertouch: 0.0,
             global_pitch_bend: 0.0,
             global_seq_mod: 0.0,
+            global_seq_mod2: 0.0,
             shared_lfo1: Lfo::new(sample_rate_hz, 0x5EED_1F0A),
             shared_lfo2: Lfo::new(sample_rate_hz, 0x5EED_2F0B),
             lfo1_global: false,
@@ -512,6 +516,12 @@ impl VoiceManager {
         self.global_seq_mod = value;
     }
 
+    /// Updates the second step-sequencer mod-lane value (-1..=1) for the
+    /// active step.
+    pub fn set_global_seq_mod2(&mut self, value: f32) {
+        self.global_seq_mod2 = value;
+    }
+
     // ── FM synthesis ─────────────────────────────────────────────────────────
 
     /// Sets the mix level on slot `slot` of every voice.
@@ -591,6 +601,20 @@ impl VoiceManager {
         }
     }
 
+    /// Sets one FM custom-routing connection on slot `slot` of every voice.
+    pub fn set_fm_custom_connection(&mut self, slot: usize, conn: usize, enabled: bool) {
+        for voice in &mut self.voices {
+            voice.set_fm_custom_connection(slot, conn, enabled);
+        }
+    }
+
+    /// Sets one FM custom-routing carrier flag on slot `slot` of every voice.
+    pub fn set_fm_custom_carrier(&mut self, slot: usize, op: usize, enabled: bool) {
+        for voice in &mut self.voices {
+            voice.set_fm_custom_carrier(slot, op, enabled);
+        }
+    }
+
     /// Advances LFO1, LFO2, and Env2 on every active voice by one block,
     /// then evaluates the mod matrix for each voice and stores the resulting
     /// [`DestOffsets`] on the voice for use in the per-sample loop.
@@ -634,6 +658,7 @@ impl VoiceManager {
                 pitch_bend: self.global_pitch_bend,
                 env3: v.env3_out(),
                 seq: self.global_seq_mod,
+                seq2: self.global_seq_mod2,
             };
             v.mod_offsets = self.matrix.compute_offsets(&sources);
         }

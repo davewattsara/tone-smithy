@@ -358,6 +358,16 @@ impl Engine {
                 let op = (packed & 0x0F) as usize;
                 self.voices.set_fm_op_feedback(slot, op, value);
             }
+            ParamId::FmCustomConn(packed) => {
+                let slot = (packed / 6) as usize;
+                let conn = (packed % 6) as usize;
+                self.voices.set_fm_custom_connection(slot, conn, value >= 0.5);
+            }
+            ParamId::FmCustomCarrier(packed) => {
+                let slot = (packed / 4) as usize;
+                let op = (packed % 4) as usize;
+                self.voices.set_fm_custom_carrier(slot, op, value >= 0.5);
+            }
 
             // ── FX chain — push to FxChain directly; ParameterTree ──────────
             // stores the value for snapshot mirroring.
@@ -491,6 +501,9 @@ impl Engine {
             ParamId::SeqStepMod(i) if (i as usize) < crate::seq::SEQ_MAX_STEPS => {
                 self.seq.steps[i as usize].mod_value = value.clamp(-1.0, 1.0);
             }
+            ParamId::SeqStepMod2(i) if (i as usize) < crate::seq::SEQ_MAX_STEPS => {
+                self.seq.steps[i as usize].mod2_value = value.clamp(-1.0, 1.0);
+            }
 
             _ => {}
         }
@@ -505,10 +518,11 @@ impl Engine {
     pub fn process_stereo(&mut self, output: &mut [f32], frames: usize) {
         debug_assert_eq!(output.len(), frames * 2);
 
-        // Publish the sequencer's current mod-lane value (block-rate) so the
-        // `Seq` mod source picks it up when this block's modulation sources
-        // are built. Reads 0.0 when the sequencer is idle.
+        // Publish the sequencer's current mod-lane values (block-rate) so the
+        // `Seq` / `Seq2` mod sources pick them up when this block's modulation
+        // sources are built. Both read 0.0 when the sequencer is idle.
         self.voices.set_global_seq_mod(self.seq.mod_value());
+        self.voices.set_global_seq_mod2(self.seq.mod2_value());
 
         // Advance block-rate modulators (LFOs and Env2) once per block
         // before the per-sample loop.

@@ -178,7 +178,7 @@ impl ToneSmithyApp {
         ui.add_space(theme::GROUP_GAP);
         ui.label(
             egui::RichText::new(
-                "Per step: note offset (semitones from lowest held note), velocity, gate, mod lane, rest (R), and tie (T = extend this note into the next step).",
+                "Per step: note offset (semitones from lowest held note), velocity, gate, two mod lanes (Seq / Seq2), rest (R), and tie (T = extend this note into the next step).",
             )
             .color(theme::FG2)
             .font(theme::font_micro()),
@@ -252,22 +252,41 @@ impl ToneSmithyApp {
             }
         });
 
-        // Mod lane (still advances on a consumed step, so it stays enabled).
-        let mut modv = self.seq_step_mod[i];
-        if ui
-            .add_sized(
-                [28.0, 56.0],
-                egui::Slider::new(&mut modv, -1.0..=1.0).vertical().show_value(false),
-            )
-            .on_hover_text("Mod lane (Seq source)")
-            .changed()
-        {
-            self.seq_step_mod[i] = modv;
-            self.emit_change(EngineEvent::ParameterChange {
-                id: ParamId::SeqStepMod(i as u8),
-                value: modv,
-            });
-        }
+        // Mod lanes (still advance on a consumed step, so they stay enabled).
+        // Two independent lanes side by side: lane 1 (`Seq`) and lane 2 (`Seq2`).
+        ui.horizontal(|ui| {
+            let mut modv = self.seq_step_mod[i];
+            if ui
+                .add_sized(
+                    [13.0, 56.0],
+                    egui::Slider::new(&mut modv, -1.0..=1.0).vertical().show_value(false),
+                )
+                .on_hover_text("Mod lane 1 (Seq source)")
+                .changed()
+            {
+                self.seq_step_mod[i] = modv;
+                self.emit_change(EngineEvent::ParameterChange {
+                    id: ParamId::SeqStepMod(i as u8),
+                    value: modv,
+                });
+            }
+
+            let mut mod2v = self.seq_step_mod2[i];
+            if ui
+                .add_sized(
+                    [13.0, 56.0],
+                    egui::Slider::new(&mut mod2v, -1.0..=1.0).vertical().show_value(false),
+                )
+                .on_hover_text("Mod lane 2 (Seq2 source)")
+                .changed()
+            {
+                self.seq_step_mod2[i] = mod2v;
+                self.emit_change(EngineEvent::ParameterChange {
+                    id: ParamId::SeqStepMod2(i as u8),
+                    value: mod2v,
+                });
+            }
+        });
 
         // Rest (R) and tie (T) toggles, side by side. A tie extends *this*
         // step's note forward into the next step.

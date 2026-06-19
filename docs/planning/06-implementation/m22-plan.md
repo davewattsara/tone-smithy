@@ -287,5 +287,5 @@ foldout without a scroll area.
 
 ## Progress
 
-- [ ] Phase 1 — Second sequencer mod lane (Seq2)
-- [ ] Phase 2 — Editable FM operator routing
+- [x] Phase 1 — Second sequencer mod lane (Seq2)
+- [x] Phase 2 — Editable FM operator routing

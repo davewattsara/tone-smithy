@@ -228,6 +228,12 @@ pub struct ParamSnapshot {
     pub fm_op_release_secs: [[f32; OPERATOR_COUNT]; 2],
     /// FM operator self-feedback amount per `[slot][op]`, -1..=1.
     pub fm_op_feedback: [[f32; OPERATOR_COUNT]; 2],
+    /// FM custom-routing connection toggles per `[slot][conn_idx]` (0..=5 into
+    /// `FM_CUSTOM_CONN_TABLE`). Only used when the slot's algorithm is Custom.
+    pub fm_custom_conn: [[bool; 6]; 2],
+    /// FM custom-routing carrier toggles per `[slot][op]`. Only used when the
+    /// slot's algorithm is Custom.
+    pub fm_custom_carrier: [[bool; OPERATOR_COUNT]; 2],
 
     // ── FX chain mirrors (M8) ──────────────────────────────────────────────
     pub fx_eq_enabled: bool,
@@ -289,6 +295,8 @@ pub struct ParamSnapshot {
     pub seq_step_tie: [bool; SEQ_MAX_STEPS],
     /// Per-step mod-lane CV, -1.0..=1.0.
     pub seq_step_mod: [f32; SEQ_MAX_STEPS],
+    /// Per-step second mod-lane CV, -1.0..=1.0 (the `Seq2` source).
+    pub seq_step_mod2: [f32; SEQ_MAX_STEPS],
     /// Live: step index currently under the playhead, or -1 when idle.
     pub seq_current_step: i8,
 }
@@ -373,6 +381,8 @@ impl Default for ParamSnapshot {
             fm_op_sustain_level: [[DEFAULT_AMP_SUSTAIN_LEVEL; OPERATOR_COUNT]; 2],
             fm_op_release_secs: [[DEFAULT_AMP_RELEASE_SECS; OPERATOR_COUNT]; 2],
             fm_op_feedback: [[0.0; OPERATOR_COUNT]; 2],
+            fm_custom_conn: [[false; 6]; 2],
+            fm_custom_carrier: [[false; OPERATOR_COUNT]; 2],
             fx_eq_enabled: false,
             fx_eq_low_gain_db: 0.0,
             fx_eq_low_freq_hz: 200.0,
@@ -418,6 +428,7 @@ impl Default for ParamSnapshot {
             seq_step_rest: [false; SEQ_MAX_STEPS],
             seq_step_tie: [false; SEQ_MAX_STEPS],
             seq_step_mod: [0.0; SEQ_MAX_STEPS],
+            seq_step_mod2: [0.0; SEQ_MAX_STEPS],
             seq_current_step: -1,
         }
     }
