@@ -6,6 +6,8 @@ All notable changes to Tone Smithy are documented here. The format is based on
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-06-20
+
 ### Added
 
 - **Second sequencer mod lane (`Seq2`)** — the step sequencer gains a second
@@ -119,5 +121,8 @@ custom application icon are deferred to a later version.
 - **Standalone app** — low-latency `cpal` audio, `midir` MIDI input, and a
   computer-keyboard fallback.
 
-[Unreleased]: https://github.com/davewattsara/tone-smithy/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/davewattsara/tone-smithy/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/davewattsara/tone-smithy/compare/v1.1.1...v1.2.0
+[1.1.1]: https://github.com/davewattsara/tone-smithy/compare/v1.1.0...v1.1.1
+[1.1.0]: https://github.com/davewattsara/tone-smithy/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/davewattsara/tone-smithy/releases/tag/v1.0.0

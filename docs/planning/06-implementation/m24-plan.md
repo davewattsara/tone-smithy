@@ -189,4 +189,4 @@ CHANGELOG text.
 ## Progress
 
 - [x] Phase 1 — Auto-update check
-- [ ] Phase 2 — v1.2.0 release
+- [x] Phase 2 — v1.2.0 release

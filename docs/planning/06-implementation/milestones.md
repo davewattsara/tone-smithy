@@ -491,7 +491,7 @@ plays with one oscillator; all 120 factory presets sound identical before and af
 
 ---
 
-## M24 — Auto-update check + v1.2 release (1 week) — v1.2
+## M24 — Auto-update check + v1.2 release (1 week) — v1.2 — **complete (2026-06-20, tag `v1.2.0`)**
 
 > Implementation plan: [`m24-plan.md`](m24-plan.md)
 

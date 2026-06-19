@@ -2,25 +2,26 @@
 
 A hybrid (subtractive + FM) standalone software synthesizer for Windows, Linux, and macOS, written in Rust.
 
-> **Status:** **v1.1.1 released** for Windows, Linux, and macOS. v1.1 adds engine expansion (second filter, 24 dB/oct, Env3, 16-slot matrix), a step sequencer, Linux `.tar.gz` + macOS `.dmg` packages alongside the Windows installer, and a ~120-preset factory bank (v1.1.1 is a packaging-only patch). Builds ship unsigned for now (see the platform notes below).
+> **Status:** **v1.2.0 released** for Windows, Linux, and macOS. v1.2 adds a second sequencer mod lane (`Seq2`), an editable "Custom" FM operator routing, per-oscillator Free/Retrig phase mode, a single-oscillator init patch, UX polish (tooltips, in-app help, unsaved-changes warning), and a best-effort update-available notice. Builds ship unsigned for now (see the platform notes below).
 > See [`docs/planning/06-implementation/milestones.md`](docs/planning/06-implementation/milestones.md) for the milestone plan.
 
 Tone Smithy combines analog-style subtractive synthesis with 4-operator FM in a single voice — so a patch can layer warm analog character with clean FM bell tones without switching plugins. Free download, open source, no DAW required.
 
-## Features (v1.1)
+## Features (v1.2)
 
-- **Hybrid voice** — each of two oscillator slots can be subtractive (3 osc + sub) or 4-operator FM
+- **Hybrid voice** — each of two oscillator slots can be subtractive (3 osc + sub) or 4-operator FM, with 8 factory algorithms plus an editable "Custom" routing
 - **32-voice polyphony** with oldest-released-then-quietest voice stealing
+- **Per-oscillator phase mode** — Free (random) or Retrig (zeroed) phase on note-on for a tight, repeatable attack
 - **Dual filters** — two multi-mode (LP / HP / BP / Notch) state-variable filters with off / serial / parallel routing and a 12 or 24 dB/oct slope each, self-oscillation
 - **Modulation** — 16-slot matrix, 2 LFOs (with global/mono mode), ADSR amp envelope + 2 assignable mod envelopes (Env2, Env3)
-- **Step sequencer** — 16 steps with per-step note/velocity/gate/rest/tie + a CV mod lane, on a shared transport BPM
+- **Step sequencer** — 16 steps with per-step note/velocity/gate/rest/tie + two independent CV mod lanes (`Seq`, `Seq2`), on a shared transport BPM
 - **Effects chain** — EQ → drive → chorus → delay → FDN-8 reverb
 - **Arpeggiator** with sync, swing, octave range
 - **Preset browser** — categories, tags, search; ~120-preset factory bank + user folder
 - **Input** — MIDI hardware, on-screen virtual keyboard, computer keyboard
-- **Modern flat UI** built with egui
+- **Modern flat UI** built with egui — tooltips, in-app help, unsaved-changes warning, and a best-effort update-available notice
 
-See [`docs/planning/02-scope/roadmap.md`](docs/planning/02-scope/roadmap.md) for what's planned beyond v1.1.
+See [`docs/planning/02-scope/roadmap.md`](docs/planning/02-scope/roadmap.md) for what's planned beyond v1.2.
 
 ## Download & install
 

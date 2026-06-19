@@ -3046,7 +3046,7 @@ dependencies = [
 
 [[package]]
 name = "synth-app"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "eframe",
@@ -3061,7 +3061,7 @@ dependencies = [
 
 [[package]]
 name = "synth-engine"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "arc-swap",
  "assert_no_alloc",
@@ -3072,7 +3072,7 @@ dependencies = [
 
 [[package]]
 name = "synth-host"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "cpal",
  "midir",
@@ -3083,7 +3083,7 @@ dependencies = [
 
 [[package]]
 name = "synth-presets"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "directories",
  "notify",
@@ -3096,7 +3096,7 @@ dependencies = [
 
 [[package]]
 name = "synth-ui"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "eframe",
  "egui",
@@ -4199,7 +4199,7 @@ checksum = "3ae8337f8a065cfc972643663ea4279e04e7256de865aa66fe25cec5fb912d3f"
 
 [[package]]
 name = "xtask"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "cargo_metadata",

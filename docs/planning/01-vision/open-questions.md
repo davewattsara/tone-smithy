@@ -66,5 +66,9 @@ Decisions deliberately deferred from this round of planning. Each one is logged 
 
 ## Auto-update mechanism
 
-- **Status:** Not in v1. v1.1 candidate.
-- **Likely approach:** Lightweight check against GitHub Releases.
+- **Status:** **Resolved (2026-06-20, shipped in v1.2.0 / M24):** a best-effort,
+  non-blocking check against the GitHub Releases API on startup. A background
+  thread queries the latest release tag; if it is newer than `CARGO_PKG_VERSION`
+  a dismissible "Update available" notice appears in the header with a link to
+  the releases page. No automatic download, no telemetry; dismissal is persisted
+  per version. Implementation: `crates/synth-app/src/update_check.rs`.
